@@ -133,11 +133,11 @@ export default function KpiTile({
         {label}
       </p>
       <p
-        className="font-black tabular-nums leading-none"
+        className="font-extrabold tabular-nums leading-none"
         style={{
           color: t.value,
           fontSize: 'clamp(1.5rem, 3.5vw, 2rem)',
-          fontWeight: 900,
+          fontWeight: 700,
           letterSpacing: '-0.02em',
         }}
         dir={typeof value === 'string' && /[֐-׿]/.test(value) ? 'rtl' : 'ltr'}

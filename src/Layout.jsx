@@ -2,8 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase, adminSupabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye, CreditCard } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
+import useLogoutWithGuard, { logoutWarningCopy } from '@/hooks/useLogoutWithGuard';
+import usePrefetchOfflineEssentials from '@/hooks/usePrefetchOfflineEssentials';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,6 +17,7 @@ import useReleaseAnnouncement from "@/hooks/useReleaseAnnouncement";
 import GuestWelcomePopup from "@/components/shared/GuestWelcomePopup";
 import MileageReminderPopup from "@/components/shared/MileageReminderPopup";
 import AiScanUnavailableDialog from "@/components/shared/AiScanUnavailableDialog";
+import AiConsentSheet from "@/components/shared/AiConsentSheet";
 import UpdateAvailableBanner from "@/components/shared/UpdateAvailableBanner";
 import ReviewManager from "@/components/shared/ReviewManager";
 import ReviewPopup from "@/components/shared/ReviewPopup";
@@ -28,6 +32,16 @@ import { AccessibilityProvider } from "@/components/shared/AccessibilityContext"
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 import StagingBanner from "@/components/shared/StagingBanner";
+import { isDemoMode, isWriteOnlyRoute, isForbiddenDemoRoute } from "@/lib/demoMode";
+import { DEMO_HOME_ID, pathForScreen } from "@/lib/demoScreens";
+import MarketingDemoProvider from "@/components/MarketingDemoProvider";
+import MarketingDemoGate from "@/components/MarketingDemoGate";
+import MarketingDemoBridge from "@/components/MarketingDemoBridge";
+
+// One source for where the preview goes home, shared with the entry route and
+// the marketing selector so the three can never disagree.
+const DEMO_HOME_PATH = pathForScreen(DEMO_HOME_ID);
+import OfflineBanner from "@/components/shared/OfflineBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
 import useViewAs from "@/hooks/useViewAs";
 import ViewAsBanner from "@/components/admin/ViewAsBanner";
@@ -195,6 +209,12 @@ const navItems = [
   { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
+  // Not behind monetization_ui_enabled, unlike the user-facing /MyPlan row.
+  // This screen exists to catch a forgotten grant, so it has to be
+  // reachable whenever a grant can exist. Its own RPC checks is_admin() and
+  // returns an empty list before the migration, which renders as the
+  // "no exceptions" state rather than an error.
+  { name: 'AdminPlans',         label: 'מסלולים',       icon: CreditCard,   guestAllowed: false, adminOnly: true },
 ];
 
 
@@ -253,31 +273,31 @@ function UserPopover() {
   const displayName  = viewAs ? (viewAs.targetName || 'חשבון') : (user?.full_name || '...');
   const displayEmail = viewAs ? (viewAs.ownerEmail || '')      : (user?.email || '');
 
-  const handleLogout = async () => {
-    // Clear personal data from localStorage on logout (privacy)
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
-        .forEach(k => localStorage.removeItem(k));
-    } catch (err) {
-      console.warn('[layout] logout localStorage clear failed:', err?.message || err);
-    }
-    // Clear the cached vehicle snapshots and the RootGate last-route
-    // hint so the next sign-in (possibly as a different user) doesn't
-    // get routed back to a private route from the previous session
-    // OR shown stale data for the wrong account.
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('cr-vehicles-cache:'))
-        .forEach(k => localStorage.removeItem(k));
-    } catch {}
-    try {
-      sessionStorage.removeItem('cr_last_route');
-    } catch {}
-    await supabase.auth.signOut();
-  };
+  // Logout now goes through one shared path (useLogoutWithGuard) that warns
+  // before discarding unsynced offline writes (§10.1). The localStorage cleanup
+  // that used to be duplicated here and in NavContent lives there too — a guard
+  // added to one copy and not the other would be worse than none, because the
+  // unguarded route would look safe while destroying data.
+  const { requestLogout, warnCount, confirmDiscardAndLogout, cancelLogout } = useLogoutWithGuard();
+  const handleLogout = requestLogout;
+
+  const warnCopy = warnCount !== null ? logoutWarningCopy(warnCount) : null;
 
   return (
+    <>
+    {warnCopy && (
+      <ConfirmDeleteDialog
+        open
+        onConfirm={confirmDiscardAndLogout}
+        onCancel={cancelLogout}
+        title={warnCopy.title}
+        description={warnCopy.description}
+        // NOT plain "התנתק": that familiar word would hide the deletion behind
+        // it. The verb has to name both consequences, because this is the only
+        // moment the user can still choose otherwise.
+        confirmLabel="התנתק ומחק"
+      />
+    )}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div
@@ -316,6 +336,7 @@ function UserPopover() {
         </div>
       </PopoverContent>
     </Popover>
+    </>
   );
 }
 
@@ -419,31 +440,25 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
     return false;
   });
 
-  const handleLogout = async () => {
-    // Clear personal data from localStorage on logout (privacy)
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
-        .forEach(k => localStorage.removeItem(k));
-    } catch (err) {
-      console.warn('[layout] logout localStorage clear failed:', err?.message || err);
-    }
-    // Same cleanup as the UserPopover logout — vehicle cache + last-route
-    // hint must die with the session so the next signed-in user starts
-    // fresh.
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('cr-vehicles-cache:'))
-        .forEach(k => localStorage.removeItem(k));
-    } catch {}
-    try {
-      sessionStorage.removeItem('cr_last_route');
-    } catch {}
-    await supabase.auth.signOut();
-  };
+  // The same shared logout path as UserPopover. This copy used to duplicate the
+  // whole cleanup body; both now go through one function, so the unsynced-writes
+  // warning cannot exist on one route and be missing from the other.
+  const { requestLogout, warnCount, confirmDiscardAndLogout, cancelLogout } = useLogoutWithGuard();
+  const handleLogout = requestLogout;
+  const warnCopy = warnCount !== null ? logoutWarningCopy(warnCount) : null;
 
   return (
     <div className="flex flex-col h-full">
+      {warnCopy && (
+        <ConfirmDeleteDialog
+          open
+          onConfirm={confirmDiscardAndLogout}
+          onCancel={cancelLogout}
+          title={warnCopy.title}
+          description={warnCopy.description}
+          confirmLabel="התנתק ומחק"
+        />
+      )}
       {/* Header */}
       <div className="p-4 pt-12 border-b border-gray-100 shrink-0">
         {isAuthenticated ? (
@@ -706,6 +721,12 @@ function LayoutInner({ children }) {
   const menuBtnRef = useRef(false);
   const [a11yOpen, setA11yOpen] = useState(false);
 
+  // Warm the offline cache with data the user has not opened yet, so a first
+  // visit to Documents with no signal shows their documents instead of an
+  // empty list. Online-only and best-effort; see the hook for why drivers are
+  // skipped and why the query key has to match the page part for part.
+  usePrefetchOfflineEssentials();
+
   // Close hamburger + a11y when any other top-level popup opens
   useEffect(() => {
     const onClosePopups = () => { setOpen(false); setA11yOpen(false); };
@@ -789,7 +810,7 @@ function LayoutInner({ children }) {
     sessionStorage.setItem(key, '1');
     // Public static pages aren't features. skip to keep the dashboard clean.
     const SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
-    if (SKIP.includes(location.pathname)) return;
+    if (SKIP.includes(location.pathname) || location.pathname.startsWith('/website')) return;
     // The analytics table aggregates per (event, date). so encode the page
     // into the event name to get one row per (page, day).
     const page = location.pathname.replace(/^\//, '').split('?')[0] || 'root';
@@ -809,7 +830,7 @@ function LayoutInner({ children }) {
   // `/Dashboard`, which is the default anyway.
   useEffect(() => {
     const REMEMBER_SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
-    if (REMEMBER_SKIP.includes(location.pathname)) return;
+    if (REMEMBER_SKIP.includes(location.pathname) || location.pathname.startsWith('/website')) return;
     try {
       sessionStorage.setItem('cr_last_route', location.pathname);
     } catch {}
@@ -872,8 +893,21 @@ function LayoutInner({ children }) {
   // resolves to a real support page for App Review reviewers, who are never signed in.
   // Apple 1.5 rejection (May 2026) was caused by an auth gate sending the reviewer
   // to /Auth instead of letting them see contact info.
-  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components', '/Contact'];
-  const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
+  //
+  // /VehicleTransfer is public for a different reason from the rest, and the
+  // reason is the whole point of the feature. Someone being handed a car
+  // arrives on a link from WhatsApp or email with no account and no app. If
+  // the gate below bounced them to /Auth they would be asked to register
+  // before seeing what they are being offered, which is the one order that
+  // guarantees they do not. So the page renders the offer first — counts and
+  // a date range only, never row content and never the licence plate, which
+  // is why preview_vehicle_transfer is granted to `anon` — and registering is
+  // what it asks for next. ACCEPTING still requires a signed-in user whose
+  // own email matches the invited address; the database enforces that, and
+  // being on this list changes nothing about it.
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components', '/Contact', '/VehicleTransfer'];
+  const isMarketingRoute = location.pathname === '/website' || location.pathname.startsWith('/website/');
+  const isPublicRoute = PUBLIC_PAGES.includes(location.pathname) || isMarketingRoute;
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
   // Unauthenticated non-guest users → redirect to Auth (except public pages)
@@ -945,21 +979,44 @@ function LayoutInner({ children }) {
   }, [isAuthenticated]);
 
   // Guest guard: if guest hasn't confirmed entry via Auth screen, redirect there (skip public pages)
+  //
+  // Exempt for the marketing preview, and it cannot be satisfied instead of
+  // exempted. The guard asks "did this person choose guest mode?", which the
+  // preview's visitor never did: the frame forced it on them. Writing
+  // `guest_confirmed` to satisfy it would be worse than the redirect, because
+  // sessionStorage is shared across the whole origin, so a marketing page
+  // would be silently changing how the real app treats the visitor's next
+  // visit. Without this the preview redirected to /Auth on its first hop and
+  // showed a sign-in screen, which the spec forbids outright.
+  const demoMode = isDemoMode();
   useEffect(() => {
+    if (demoMode) return;
     if (isGuest && !isAuthRoute && !isPublicRoute && !sessionStorage.getItem('guest_confirmed')) {
       navigate(createPageUrl('Auth'), { replace: true });
     }
-  }, [isGuest, isAuthRoute, isPublicRoute, navigate]);
+  }, [demoMode, isGuest, isAuthRoute, isPublicRoute, navigate]);
 
   // Auth page + public legal pages render standalone - no chrome, no auth required
   const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
   if (STANDALONE_PAGES.includes(location.pathname) && !isAuthenticated && !isGuest) {
     return <>{children}</>;
   }
+  // The marketing site renders without the app shell, but it must still say
+  // which environment it is. This early return sits ABOVE the StagingBanner
+  // in the main tree, so without this the staging preview served marketing
+  // pages that were pixel-identical to production, and the one place where
+  // "am I looking at prod?" is easiest to get wrong is a page that has no
+  // chrome to tell you apart. StagingBanner renders null unless the hostname
+  // contains `git-staging`, so production and localhost are untouched, which
+  // also keeps the QA screenshots clean. Non-sticky: see the prop's comment.
+  if (isMarketingRoute) {
+    return <><StagingBanner sticky={false} />{children}</>;
+  }
   // /dev/components is a developer-facing style guide. Render it raw —
   // no chrome, no welcome popup, no guest banner — even when the visitor
   // happens to be authenticated or in guest mode. Otherwise the screenshots
-  // and design checks get polluted with the app shell.
+  // and design checks get polluted with the app shell. It gets no staging
+  // banner either: a colour swatch page is graded on pixels.
   if (location.pathname === '/dev/components') {
     return <>{children}</>;
   }
@@ -971,8 +1028,23 @@ function LayoutInner({ children }) {
   return (
     <div>
       <StagingBanner />
+      {/* Directly below StagingBanner so on a staging preview the two stack
+          instead of overlapping. Renders null whenever the user is online. */}
+      <OfflineBanner />
+      {/* Every app popup is suppressed in the marketing preview. They are all
+          written for someone who chose to be here: a welcome, a what's-new,
+          a review request, an admin campaign. Inside a 390px frame on a
+          marketing page they are an interruption on top of an interruption,
+          and the preview already has exactly one thing it wants to say, the
+          conversion dialog.
+          GuestWelcomePopup is the one that would certainly fire, since the
+          preview is a guest by construction, and PopupEngine is the one that
+          could fire with anything: admin campaigns can target user_type
+          'guest', so an unrelated promo could appear inside the phone. Its
+          onClose here also writes to sessionStorage, which is shared with the
+          real app on this origin, so suppressing it avoids that too. */}
       <SafeComponent label="GuestWelcomePopup">
-        <GuestWelcomePopup open={isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
+        <GuestWelcomePopup open={!demoMode && !isPublicRoute && isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
       </SafeComponent>
       <SafeComponent label="WelcomePopup">
         <WelcomePopup open={welcomeState !== null} isReturningUser={welcomeState?.isReturning ?? false} userName={welcomeState?.userName ?? ''} onClose={() => setWelcomeState(null)} />
@@ -1004,6 +1076,20 @@ function LayoutInner({ children }) {
       <SafeComponent label="AiScanUnavailableDialog">
         <AiScanUnavailableDialog />
       </SafeComponent>
+      {/* AiConsentSheet — sister to the dialog above and mounted the
+          same way: a singleton with no props that listens for any AI
+          call needing permission (App Store 5.1.2(i)). The difference
+          is that this one is part of a request's control flow, not a
+          notice: aiRequest awaits the user's answer here before the
+          payload leaves the device.
+
+          ⚠️ Must stay mounted app-wide. AI is reachable from the chat,
+          the community, the vehicle screens and the scan wizards, and
+          an ask with nothing listening resolves as "no answer" and
+          fails the request. */}
+      <SafeComponent label="AiConsentSheet">
+        <AiConsentSheet />
+      </SafeComponent>
       {/* UpdateAvailableBanner — sister to AppUpdateGate. The gate
           hard-blocks the app when below *_min_version; this banner
           softly nudges when below *_latest_version. Renders only on
@@ -1011,9 +1097,15 @@ function LayoutInner({ children }) {
           contained — useUpdateAvailable handles all the gating;
           mounting it everywhere is fine because it returns null when
           there's nothing to show. */}
-      <SafeComponent label="UpdateAvailableBanner">
-        <UpdateAvailableBanner />
-      </SafeComponent>
+      {/* Suppressed in the preview: "a new version is available, reload" is
+          addressed to someone running the app, and inside the marketing frame
+          it is both meaningless and a reload invitation that would drop demo
+          mode (the flag is URL-derived and does not survive a reload). */}
+      {!demoMode && (
+        <SafeComponent label="UpdateAvailableBanner">
+          <UpdateAvailableBanner />
+        </SafeComponent>
+      )}
       {isAuthenticated && mileageCheckDone && <SafeComponent label="ReviewManager"><ReviewManager /></SafeComponent>}
       {/* Scheduled review prompt.
        *
@@ -1035,13 +1127,19 @@ function LayoutInner({ children }) {
        * welcome popup. The engine itself enforces a 15-minute global
        * throttle + per-popup frequency, so even with many active popups
        * the user sees at most one at a time. */}
-      {(isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && !releaseAnn.show && (
+      {!demoMode && (isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && !releaseAnn.show && (
         <SafeComponent label="PopupEngine">
           <PopupEngine />
         </SafeComponent>
       )}
-      <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />
-      <DraggableA11yButton onClick={() => { window.dispatchEvent(new CustomEvent('cr:close-popups')); setA11yOpen(true); }} />
+      {/* Both suppressed in the preview. The floating accessibility button is
+          a draggable control that belongs to someone using the app on their
+          own device, and the real page around the frame has its own
+          accessibility affordances, so inside a 390px marketing mockup it is
+          just a thing sitting on top of the screenshot. Removing the button
+          removes the only way to open the panel, so the panel goes with it. */}
+      {!demoMode && <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />}
+      {!demoMode && <DraggableA11yButton onClick={() => { window.dispatchEvent(new CustomEvent('cr:close-popups')); setA11yOpen(true); }} />}
       <div className="min-h-screen bg-white flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 bg-white border-l border-gray-100 flex-col fixed right-0 top-0 bottom-0 z-30">
@@ -1091,7 +1189,13 @@ function LayoutInner({ children }) {
         background: C.primary,
         zIndex: 9998,
       }}>
-        {isGuest && <GuestBanner />}
+        {/* Suppressed in the preview, and this was a real escape hatch rather
+            than cosmetics. The banner carries a "יש לי חשבון" Link straight to
+            /Auth plus a "הירשם" button, on EVERY screen, so the preview was one
+            tap from a sign-in screen that a marketing visitor can neither use
+            nor leave. It also competed with the conversion dialog, which the
+            previous round settled as the preview's single conversion moment. */}
+        {isGuest && !demoMode && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
           {(() => {
             // Ref prevents race condition: overlay close + button toggle fighting
@@ -1157,7 +1261,11 @@ function LayoutInner({ children }) {
         layout vertical scroll behaviour on every WebView, while the
         body-level overflow-x:hidden still catches horizontal bleed.
       */}
-      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
+      {/* The extra top padding exists to clear the GuestBanner, so it has to
+          follow the banner rather than `isGuest`. In the preview the banner is
+          suppressed while isGuest stays true, and without this the pt-24 left
+          a strip of dead space above every screen in the frame. */}
+      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest && !demoMode ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
         <ViewAsBanner />
         <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0">
           {children}
@@ -1180,13 +1288,74 @@ function LayoutInner({ children }) {
 }
 
 export default function Layout({ children }) {
+  // The marketing preview needs its decision made HERE, above GuestProvider,
+  // not inside a screen. forceGuest stops the auth bootstrap from ever
+  // running, and MarketingDemoProvider shadows the localStorage-backed guest
+  // store, so a signed-in visitor can neither see their own data in the
+  // frame nor have their session touched by it. Both guarantees come from
+  // the provider tree rather than from screens remembering to check.
+  const demo = isDemoMode();
+  const [gateOpen, setGateOpen] = React.useState(false);
+  const demoLocation = useLocation();
+  const demoNavigate = useNavigate();
+
+  // Stop the preview at the door of a write-only screen instead of letting
+  // the visitor fill a form that can never be submitted. Bouncing back to
+  // the home screen keeps them somewhere they can keep exploring, rather
+  // than on a form skeleton behind a modal.
+  React.useEffect(() => {
+    if (!demo) return;
+    if (!isWriteOnlyRoute(demoLocation.pathname)) return;
+    setGateOpen(true);
+    demoNavigate(DEMO_HOME_PATH, { replace: true });
+  }, [demo, demoLocation.pathname, demoNavigate]);
+
+  /**
+   * A forbidden route bounces home AND opens the conversion dialog.
+   *
+   * This started out silent, on the reasoning that a visitor who arrived at a
+   * sign-in screen by accident should not be sold anything. Then the audit
+   * found how they actually get there, and it is not by accident: the app
+   * scatters guest conversion prompts across its screens, "הירשם / התחבר" on
+   * every one, plus "הירשם לשמירת הנתונים" and "הירשם כדי לשמור לצמיתות". All
+   * of them head for /Auth, and all of them are deliberate taps.
+   *
+   * Silently bouncing turned every one into a button that visibly does
+   * nothing. Answering with the dialog turns them into what they were always
+   * trying to be, and it covers prompts nobody has found yet, including ones
+   * added later, without having to hunt each one down at its source.
+   */
+  React.useEffect(() => {
+    if (!demo) return;
+    if (!isForbiddenDemoRoute(demoLocation.pathname)) return;
+    setGateOpen(true);
+    demoNavigate(DEMO_HOME_PATH, { replace: true });
+  }, [demo, demoLocation.pathname, demoNavigate]);
+
+  // Stable identity: MarketingDemoProvider memoises its context value on this
+  // callback, so a new function each render would rebuild the value and
+  // re-render every screen in the preview.
+  const openDemoGate = React.useCallback(() => setGateOpen(true), []);
+  const closeDemoGate = React.useCallback(() => setGateOpen(false), []);
   return (
     <AccessibilityProvider>
       <FontScaleProvider>
-        <GuestProvider>
-          <WorkspaceProvider>
-            <LayoutInner>{children}</LayoutInner>
-          </WorkspaceProvider>
+        <GuestProvider forceGuest={demo}>
+          {demo ? (
+            <MarketingDemoProvider onBlockedWrite={openDemoGate}>
+              <WorkspaceProvider>
+                <LayoutInner>{children}</LayoutInner>
+                <MarketingDemoGate open={gateOpen} onClose={closeDemoGate} />
+                {/* Renders nothing. Reports this frame's route to the
+                    marketing page and accepts its screen requests. */}
+                <MarketingDemoBridge />
+              </WorkspaceProvider>
+            </MarketingDemoProvider>
+          ) : (
+            <WorkspaceProvider>
+              <LayoutInner>{children}</LayoutInner>
+            </WorkspaceProvider>
+          )}
         </GuestProvider>
       </FontScaleProvider>
     </AccessibilityProvider>

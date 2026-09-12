@@ -25,6 +25,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { PHASE_LABELS } from '@/lib/checklistTemplates';
 import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2, Pin, AlertTriangle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -189,7 +190,7 @@ export default function Checklist() {
 
         // Create a fresh run snapshot
         const snapshot = buildSnapshotFromTemplate(template);
-        const created = await db.vessel_checklist_runs.create({
+        const created = await dal.run('checklistRun.create', {
           template_id: template.id,
           vehicle_id: vehicleId,
           account_id: acc,
@@ -214,7 +215,7 @@ export default function Checklist() {
     hasUnsavedChangesRef.current = true;
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await db.vessel_checklist_runs.update(runId, { items: nextItems });
+        await dal.run('checklistRun.update', { id: runId, items: nextItems });
         hasUnsavedChangesRef.current = false;
       } catch (e) {
         if (import.meta.env.DEV) console.warn('[Checklist save] failed:', e?.message);
@@ -252,7 +253,7 @@ export default function Checklist() {
       if (!rid || !it) return;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       try {
-        await db.vessel_checklist_runs.update(rid, { items: it });
+        await dal.run('checklistRun.update', { id: rid, items: it });
         hasUnsavedChangesRef.current = false;
       } catch {}
     };
@@ -320,7 +321,7 @@ export default function Checklist() {
     // 1) Optional cork note
     if (addToCorkboard) {
       try {
-        const created = await db.cork_notes.create({
+        const created = await dal.run('corkNote.create', {
           vehicle_id: vehicleId,
           title: `תקלה: ${itemTitle}`,
           content: fullNote,
@@ -342,7 +343,7 @@ export default function Checklist() {
     // 2) Optional vessel_issues row
     if (addToIssues) {
       try {
-        const created = await db.vessel_issues.create({
+        const created = await dal.run('vesselIssue.create', {
           vehicle_id: vehicleId,
           account_id: accountId,
           title: itemTitle,
@@ -412,7 +413,8 @@ export default function Checklist() {
     setFinishing(true);
     try {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      await db.vessel_checklist_runs.update(runId, {
+      await dal.run('checklistRun.update', {
+        id: runId,
         items,
         completed_at: new Date().toISOString(),
       });

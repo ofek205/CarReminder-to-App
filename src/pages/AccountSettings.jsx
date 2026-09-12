@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { MEMBER_STATUS, INVITE_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -230,9 +231,9 @@ function AuthAccountSettings({ embedded = false }) {
   const removeMember = async (member) => {
     try {
       const { error } = await withTimeout(
-        supabase.rpc('remove_member', {
-          p_account_id: accountId,
-          p_member_user_id: member.user_id,
+        dal.run('member.remove', {
+          accountId,
+          memberUserId: member.user_id,
         }),
         'remove_member'
       );
@@ -250,10 +251,10 @@ function AuthAccountSettings({ embedded = false }) {
   const changeRole = async (member, newRole) => {
     try {
       const { error } = await withTimeout(
-        supabase.rpc('change_member_role', {
-          p_account_id: accountId,
-          p_member_user_id: member.user_id,
-          p_new_role: newRole,
+        dal.run('member.changeRole', {
+          accountId,
+          memberUserId: member.user_id,
+          newRole,
         }),
         'change_member_role'
       );

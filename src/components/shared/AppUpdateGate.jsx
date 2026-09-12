@@ -70,7 +70,7 @@ export default function AppUpdateGate({ children }) {
         </div>
 
         <h1
-          className="text-2xl font-black text-center mb-2"
+          className="text-2xl font-extrabold text-center mb-2"
           style={{ color: C.primaryDark, letterSpacing: '-0.02em' }}
         >
           נדרש עדכון לאפליקציה
@@ -96,7 +96,7 @@ export default function AppUpdateGate({ children }) {
               <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#7A6E58' }}>
                 הגרסה שלך
               </p>
-              <p className="font-black tabular-nums mt-1" style={{ color: '#B91C1C', fontSize: '1.1rem' }} dir="ltr">
+              <p className="font-extrabold tabular-nums mt-1" style={{ color: '#B91C1C', fontSize: '1.1rem' }} dir="ltr">
                 {currentVersion || '—'}
               </p>
             </div>
@@ -105,7 +105,7 @@ export default function AppUpdateGate({ children }) {
               <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#7A6E58' }}>
                 הנדרשת
               </p>
-              <p className="font-black tabular-nums mt-1" style={{ color: '#047857', fontSize: '1.1rem' }} dir="ltr">
+              <p className="font-extrabold tabular-nums mt-1" style={{ color: '#047857', fontSize: '1.1rem' }} dir="ltr">
                 {minVersion || '—'}
               </p>
             </div>

@@ -1,0 +1,317 @@
+/**
+ * The Phase 3 integration seam: offline, a queueable write now SUCCEEDS instead
+ * of being refused. That is a user-visible contract change at every call site
+ * for those commands, so it is pinned here.
+ *
+ * The two things most worth protecting are the boundaries of the allowlist.
+ * Widening it by accident would start queueing updates to server rows, which
+ * cannot be done safely until `updated_at` exists to detect conflicts — and
+ * narrowing it silently would take offline writes away again.
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { onlineManager } from '@tanstack/react-query';
+
+vi.mock('idb-keyval', () => {
+  const dbs = new Map();
+  const nameOf = (s) => s?.__name || 'default';
+  const mapFor = (s) => { const n = nameOf(s); if (!dbs.has(n)) dbs.set(n, new Map()); return dbs.get(n); };
+  return {
+    createStore: (db, st) => ({ __name: `${db}/${st}` }),
+    get: async (k, s) => mapFor(s).get(k),
+    set: async (k, v, s) => { mapFor(s).set(k, v); },
+    del: async (k, s) => { mapFor(s).delete(k); },
+    update: async (k, fn, s) => { const m = mapFor(s); m.set(k, fn(m.get(k))); },
+  };
+});
+
+// A stored session, which is what getSession() returns offline.
+let session = { user: { id: 'user-a' } };
+vi.mock('@/lib/supabase', () => ({
+  supabase: { auth: { getSession: async () => ({ data: { session } }) } },
+}));
+
+const { runCommand } = await import('./run');
+const { defineCommand } = await import('./registry');
+const { canQueue, isLocalId, LOCAL_ID_PREFIX } = await import('./queueWrite');
+const { listPending, clearOutbox } = await import('./outbox');
+
+// Register the real command names the allowlist refers to, without importing
+// dal/index.js (which would pull in the live Supabase client).
+let serverCalls = [];
+const T = 'cork_notes';
+defineCommand('corkNote.create', { offlineCapable: true, outboxOp: 'insert', table: T, invalidates: (p) => [['cork-notes', p?.vehicle_id]], run: (p) => { serverCalls.push(p); return Promise.resolve({ id: 'server-1' }); } });
+defineCommand('corkNote.update', { offlineCapable: true, outboxOp: 'update', table: T, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+defineCommand('corkNote.delete', { offlineCapable: true, outboxOp: 'delete', table: T, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+// offlineCapable AND an insert, but NOT in OUTBOX_ENABLED — the flag alone must
+// never be enough to start queueing.
+defineCommand('expense.create', { offlineCapable: true, outboxOp: 'insert', table: 'vehicle_expenses', run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+defineCommand('share.revoke', { offlineCapable: false, returnsEnvelope: true, run: () => Promise.resolve({ data: null, error: null }) });
+// Enabled by name but declaring no outboxOp: must still refuse, so a
+// half-registered command cannot slip through the set.
+defineCommand('task.toggleDone', { offlineCapable: true, table: T, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+
+beforeEach(async () => {
+  serverCalls = [];
+  session = { user: { id: 'user-a' } };
+  await clearOutbox();
+  onlineManager.setOnline(true);
+});
+
+describe('canQueue — the allowlist boundary', () => {
+  it('allows the creates that carry no clobber risk', () => {
+    expect(canQueue('corkNote.create', {})).toBe(true);
+  });
+
+  it('refuses a command that is enabled but declares no outboxOp', () => {
+    // Behaviour comes from the command's own declaration, so a name in the set
+    // without one is a half-registration and must not queue silently.
+    expect(canQueue('task.toggleDone', { id: `${LOCAL_ID_PREFIX}abc` })).toBe(false);
+  });
+
+  it('does NOT allow an offlineCapable command that is merely offline-capable', () => {
+    // expense.create declares offlineCapable:true but is not on the outbox
+    // allowlist. The flag alone must not be enough, or adding the flag anywhere
+    // would silently start queueing.
+    expect(canQueue('expense.create', {})).toBe(false);
+  });
+
+  it('never allows an online-required command', () => {
+    expect(canQueue('share.revoke', {})).toBe(false);
+  });
+
+  it('allows an update/delete ONLY against a local row', () => {
+    // Against a server id these need conflict detection, which needs
+    // `updated_at`. Against a local id they are purely local edits.
+    expect(canQueue('corkNote.update', { id: `${LOCAL_ID_PREFIX}abc` })).toBe(true);
+    expect(canQueue('corkNote.update', { id: 'real-server-uuid' })).toBe(false);
+    expect(canQueue('corkNote.delete', { id: `${LOCAL_ID_PREFIX}abc` })).toBe(true);
+    expect(canQueue('corkNote.delete', { id: 'real-server-uuid' })).toBe(false);
+  });
+});
+
+describe('runCommand offline, for a queueable create', () => {
+  beforeEach(() => { onlineManager.setOnline(false); });
+
+  it('RESOLVES with the optimistic row instead of throwing', async () => {
+    const row = await runCommand('corkNote.create', { body: 'in a parking garage' });
+    expect(row.body).toBe('in a parking garage');
+    expect(isLocalId(row.id)).toBe(true);
+    expect(row._pendingSync).toBe(true);
+  });
+
+  it('puts exactly one item on the queue, and does not touch the server', async () => {
+    await runCommand('corkNote.create', { body: 'x' });
+    const pending = await listPending('user-a');
+    expect(pending).toHaveLength(1);
+    expect(pending[0].command).toBe('corkNote.create');
+    expect(serverCalls).toEqual([]);
+  });
+
+  it('does NOT send a client-supplied id — the server assigns it', async () => {
+    // Sidesteps the open RLS prerequisite: nothing verifies that a client id
+    // passes each table's WITH CHECK, so no client id is ever sent.
+    await runCommand('corkNote.create', { body: 'x' });
+    const [item] = await listPending('user-a');
+    expect(item.payload).not.toHaveProperty('id');
+    expect(isLocalId(item.localId)).toBe(true);
+  });
+
+  it('still REFUSES a command that is not on the allowlist', async () => {
+    await expect(runCommand('expense.create', { amount: 1 })).rejects.toMatchObject({ isOffline: true });
+    expect(await listPending('user-a')).toEqual([]);
+  });
+
+  it('refuses honestly when there is no session to attribute the write to', async () => {
+    // Better a refusal than a queued write that could replay as the wrong
+    // person after the next sign-in.
+    session = null;
+    await expect(runCommand('corkNote.create', { body: 'x' })).rejects.toMatchObject({ isOffline: true });
+    expect(await listPending('user-a')).toEqual([]);
+  });
+});
+
+describe('editing a row whose create has not been sent yet', () => {
+  beforeEach(() => { onlineManager.setOnline(false); });
+
+  it('folds an edit into the pending create instead of queueing a second op', async () => {
+    // Queueing an update for a local id would guarantee a terminal failure at
+    // flush, landing in the review inbox for something the user already fixed.
+    const row = await runCommand('corkNote.create', { body: 'first' });
+    await runCommand('corkNote.update', { id: row.id, body: 'edited' });
+    const pending = await listPending('user-a');
+    expect(pending).toHaveLength(1);
+    expect(pending[0].payload.body).toBe('edited');
+  });
+
+  it('cancels the pending create when the local row is deleted', async () => {
+    const row = await runCommand('corkNote.create', { body: 'oops' });
+    await runCommand('corkNote.delete', { id: row.id });
+    expect(await listPending('user-a')).toEqual([]);
+    expect(serverCalls).toEqual([]);
+  });
+});
+
+describe('the optimistic patch stays on the right list', () => {
+  beforeEach(() => { onlineManager.setOnline(false); });
+
+  it('does NOT put the new row on another vehicle\'s list', async () => {
+    // The real keys are parameterised (['cork-notes', vehicleId]) and
+    // setQueriesData matches by PREFIX, so patching ['cork-notes'] would put a
+    // note added to one car onto every car's board.
+    const { queryClientInstance: qc } = await import('../query-client');
+    qc.setQueryData(['cork-notes', 'veh-A'], [{ id: 'a1' }]);
+    qc.setQueryData(['cork-notes', 'veh-B'], [{ id: 'b1' }]);
+
+    await runCommand('corkNote.create', { vehicle_id: 'veh-A', body: 'for A only' });
+
+    const listA = qc.getQueryData(['cork-notes', 'veh-A']);
+    const listB = qc.getQueryData(['cork-notes', 'veh-B']);
+    expect(listA).toHaveLength(2);
+    expect(listA[0].body).toBe('for A only');
+    expect(listB).toEqual([{ id: 'b1' }]);   // untouched
+  });
+
+  it('patches no list at all when the scoping field is missing', async () => {
+    // A key of ['cork-notes', undefined] would match by prefix and hit every
+    // list, so it is refused rather than applied to the wrong screens. The
+    // write is still queued — the queue is the source of truth.
+    const { queryClientInstance: qc } = await import('../query-client');
+    qc.setQueryData(['cork-notes', 'veh-C'], [{ id: 'c1' }]);
+    await runCommand('corkNote.create', { body: 'no vehicle id' });
+    expect(qc.getQueryData(['cork-notes', 'veh-C'])).toEqual([{ id: 'c1' }]);
+    expect(await listPending('user-a')).toHaveLength(1);
+  });
+});
+
+describe('runCommand ONLINE', () => {
+  it('goes straight to the server and queues nothing', async () => {
+    // Positive control: the outbox must not intercept a normal online write.
+    await runCommand('corkNote.create', { body: 'online' });
+    expect(serverCalls).toEqual([{ body: 'online' }]);
+    expect(await listPending('user-a')).toEqual([]);
+  });
+});
+
+/**
+ * Phase 3's remaining boundary: a SERVER row. Until 2026-09-09 this was refused
+ * outright because no table had `updated_at`; the migration added it to all 16
+ * offline-write tables, so the gate is now about whether the command opted in
+ * and whether the caller told us which version it edited.
+ *
+ * corkNote.update is re-registered in each test below. It is already on the
+ * allowlist, so it exercises the new branch WITHOUT switching a real command
+ * on — defineCommand overwrites by design, for HMR.
+ */
+describe('canQueue — a server row needs opt-in AND a base version', () => {
+  const SERVER_ID = 'a3f1c8e2-0000-4000-8000-000000000001';
+  const BASE = '2026-09-09T10:00:00.000Z';
+  const register = (extra) => defineCommand('corkNote.update', {
+    offlineCapable: true, outboxOp: 'update', table: T,
+    run: () => Promise.resolve({}), ...extra,
+  });
+
+  it('allows it when the command opts in and a base version is supplied', () => {
+    register({ conflict: 'detect' });
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(true);
+  });
+
+  it('refuses without a base version, since a stale overwrite would be indistinguishable', () => {
+    register({ conflict: 'detect' });
+    expect(canQueue('corkNote.update', { id: SERVER_ID })).toBe(false);
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: '' })).toBe(false);
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: null })).toBe(false);
+  });
+
+  it('refuses when the command never opted in, even with a base version', () => {
+    // The column existing database-wide must not be enough on its own. Opting
+    // in is per command, because each one has to answer what a conflict MEANS
+    // for its screen.
+    register({});
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(false);
+  });
+
+  it('leaves the local-row path alone, which needs no base version', () => {
+    register({ conflict: 'detect' });
+    expect(canQueue('corkNote.update', { id: `${LOCAL_ID_PREFIX}abc` })).toBe(true);
+  });
+
+  it('does not open deletes of server rows, which have no conflict story yet', () => {
+    defineCommand('corkNote.delete', {
+      offlineCapable: true, outboxOp: 'delete', conflict: 'detect', table: T,
+      run: () => Promise.resolve({}),
+    });
+    expect(canQueue('corkNote.delete', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(false);
+  });
+});
+
+/**
+ * The first offline write against a SERVER row. Every earlier queued command
+ * writes a row that exists only on this device, where nothing can be
+ * clobbered. This one edits a row the server already has, which is why it had
+ * to wait for updated_at (2026-09-09) and the conflict layer.
+ */
+describe('maintenance.update — the first server-row write', () => {
+  const SERVER_ID = 'b7c2d1a4-0000-4000-8000-00000000000f';
+  const BASE = '2026-09-10T08:00:00.000Z';
+  const edit = (extra) => ({ id: SERVER_ID, vehicle_id: 'veh-1', title: 'oil change', ...extra });
+
+  beforeEach(() => {
+    onlineManager.setOnline(false);
+    defineCommand('maintenance.update', {
+      offlineCapable: true,
+      outboxOp: 'update',
+      conflict: 'detect',
+      table: 'maintenance_logs',
+      invalidates: (p) => [['maintenance-logs-v2', p?.vehicle_id]],
+      run: (p) => { serverCalls.push(p); return Promise.resolve({}); },
+    });
+  });
+
+  it('queues the edit instead of refusing it, and never reaches the server', async () => {
+    await runCommand('maintenance.update', edit({ baseUpdatedAt: BASE }));
+    expect(await listPending('user-a')).toHaveLength(1);
+    expect(serverCalls).toHaveLength(0);
+  });
+
+  it('stores the base version, because the check happens at drain and not now', async () => {
+    await runCommand('maintenance.update', edit({ baseUpdatedAt: BASE }));
+    const [item] = await listPending('user-a');
+    expect(item.payload.baseUpdatedAt).toBe(BASE);
+    expect(item.table).toBe('maintenance_logs');
+  });
+
+  it('refuses when no base version is supplied, rather than queueing a blind overwrite', async () => {
+    await expect(runCommand('maintenance.update', edit())).rejects.toThrow();
+    expect(await listPending('user-a')).toHaveLength(0);
+  });
+});
+
+/**
+ * The queued edit is only useful if the drain refetches the list the screen
+ * actually reads. The key is written twice — once in the command's
+ * `invalidates`, once where MaintenanceSection invalidates by hand — and there
+ * is no shared builder for it, so the two are pinned against each other here.
+ */
+describe('maintenance list key — the command and the screen must agree', () => {
+  it('uses the same query key in both places', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { cwd } = await import('node:process');
+    const path = await import('node:path');
+    const read = (rel) => readFileSync(path.join(cwd(), rel), 'utf8');
+
+    const KEY = "'maintenance-logs-v2'";
+    expect(read('src/lib/dal/commands/maintenance.js')).toContain(KEY);
+    expect(read('src/components/vehicle/MaintenanceSection.jsx')).toContain(KEY);
+  });
+
+  it('has the screen supply the base version at its one call site', async () => {
+    // If this call site stops passing it, the command silently falls back to a
+    // plain update and offline editing stops queueing — with no error anywhere.
+    const { readFileSync } = await import('node:fs');
+    const { cwd } = await import('node:process');
+    const path = await import('node:path');
+    const src = readFileSync(path.join(cwd(), 'src/components/vehicle/MaintenanceSection.jsx'), 'utf8');
+    const flat = src.replace(/\s+/g, '');
+    expect(flat).toContain("dal.run('maintenance.update',{...row,id:editingId,baseUpdatedAt}");
+  });
+});

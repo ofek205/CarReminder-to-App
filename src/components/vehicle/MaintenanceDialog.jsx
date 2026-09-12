@@ -11,6 +11,7 @@ import { usesKm, usesHours, isVessel } from "../shared/DateStatusUtils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { getCatalogChipsForService } from '@/components/shared/MaintenanceCatalog';
 import { toast } from 'sonner';
 
@@ -241,7 +242,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
     const hasReminder = form.reminder_type !== 'none';
 
     try {
-      await db.maintenance_reminder_prefs.create({
+      await dal.run('maintPref.create', {
         user_id: user.id,
         is_custom: true,
         custom_name: form.name.trim(),

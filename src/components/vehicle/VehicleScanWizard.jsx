@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { aiRequest } from '@/lib/aiProxy';
 import { compressImage } from '@/lib/imageCompress';
-import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -15,6 +15,10 @@ import { Loader2, Upload, Pencil, ScanLine, AlertTriangle, Check, Camera } from 
 import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
+import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import useAccountPlan from '@/hooks/useAccountPlan';
+import useVehicleCapacity from '@/hooks/useVehicleCapacity';
+import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 
 function parseIsraeliDate(dateStr) {
   if (!dateStr) return '';
@@ -65,6 +69,11 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [duplicateVehicle, setDuplicateVehicle] = useState(null); // existing vehicle with same plate
+  // Personal-vehicle-cap block (dormant while enforcement is gated off).
+  const [capReached, setCapReached] = useState(false);
+  const [capKind, setCapKind] = useState('personal');
+  const { plan: accountPlan } = useAccountPlan();
+  const capacity = useVehicleCapacity();
   // completion fields (not from license)
   const [completion, setCompletion] = useState({
     nickname: '',
@@ -145,6 +154,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     // hallucinate plausible-but-wrong fields).
     let raw = null;
     let aiErrorCode = null;
+    let aiErrorMessage = '';
     try {
       const mimeMatch = fileUrl.match(/^data:([^;]+);base64,/);
       const mediaType = mimeMatch?.[1] || 'image/jpeg';
@@ -194,6 +204,10 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       // said "I couldn't read the document", which was misleading when
       // the real cause was network / auth / quota.
       aiErrorCode = err?.code || 'UNKNOWN';
+      // Kept because the consent gate raises errors whose message is
+      // already the copy we want to show, and `err` is out of scope by
+      // the time the switch below runs.
+      aiErrorMessage = err?.message || '';
       console.warn('Scan error:', aiErrorCode, err?.message);
     }
 
@@ -225,6 +239,13 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         case 'PROVIDER_UNAVAILABLE':
         case 'AI_UNAVAILABLE':
           msg = 'שירות AI לא זמין כרגע. נסה שוב בעוד רגע.'; break;
+        // Consent errors arrive with copy meant for the user. Falling
+        // through to `default` would tell someone who declined
+        // permission that their photo was not sharp enough, blaming
+        // their picture for their own choice.
+        case 'AI_CONSENT_DECLINED':
+        case 'AI_CONSENT_UNAVAILABLE':
+          msg = aiErrorMessage || 'שיתוף עם שירות AI לא אושר. אפשר לאשר בהגדרות.'; break;
         default:
           // No error code → AI replied but couldn't extract. The
           // document itself was the problem, not the plumbing.
@@ -344,12 +365,12 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     try {
-      const vehicle = await db.vehicles.create(data);
+      const vehicle = await dal.run('vehicle.create', data);
 
       // Save document
       if (fileUrl && vehicle?.id) {
         try {
-          await db.documents.create({
+          await dal.run('document.create', {
             account_id: accountId,
             vehicle_id: vehicle.id,
             document_type: 'רישיון רכב',
@@ -364,6 +385,17 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       navigate(createPageUrl(`VehicleDetail?id=${vehicle.id}`));
     } catch (err) {
       setSaving(false);
+      // A vehicle-cap block — show the wall instead of a generic save
+      // error. It is a policy stop, not a failure.
+      if (isVehicleCapError(err)) {
+        capacity.refetch?.();
+        // WHICH cap fired decides the wall's ceiling and its remedy. Left
+        // unset, a plan-cap refusal would show accounts.vehicle_cap and
+        // offer a business account that a paid plan already includes.
+        setCapKind(vehicleCapKind(err) || 'personal');
+        setCapReached(true);
+        return;
+      }
       setError('שגיאה בשמירה: ' + (err?.message || ''));
     }
   };
@@ -386,11 +418,11 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
 
     try {
       if (Object.keys(vehicleUpdate).length > 0) {
-        await db.vehicles.update(selectedVehicleId, vehicleUpdate);
+        await dal.run('vehicle.update', { ...vehicleUpdate, id: selectedVehicleId });
       }
       if (fileUrl) {
         try {
-          await db.documents.create({
+          await dal.run('document.create', {
             account_id: accountId,
             vehicle_id: selectedVehicleId,
             document_type: 'רישיון רכב',
@@ -413,7 +445,15 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const nonEmptyFields = Object.entries(editableFields).filter(([, v]) => v && v !== '');
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+   <>
+    <VehicleCapReachedModal
+      open={capReached}
+      kind={capKind}
+      planCap={accountPlan?.maxVehicles ?? null}
+      onClose={() => setCapReached(false)}
+      capacity={capacity}
+    />
+    <Dialog open={open && !capReached} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-right">
@@ -709,5 +749,6 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         )}
       </DialogContent>
     </Dialog>
+   </>
   );
 }

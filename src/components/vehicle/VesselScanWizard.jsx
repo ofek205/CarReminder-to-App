@@ -5,10 +5,11 @@
  * Storage for the uploaded image.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +118,11 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
   const [fields, setFields] = useState({});        // parsed + editable extracted fields
   const [editingField, setEditingField] = useState(null);
   const [partialWarning, setPartialWarning] = useState(false);
+  // Mirror of app_config.scan_extraction_enabled, re-read on every open
+  // because the flag is cached for 60s and an admin can flip it mid-session.
+  // Starts false so the AI label never flashes in on a slow network.
+  // Admins always resolve true, so QA can still exercise the scan.
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   const [error, setError] = useState('');
   // Keep the storage path separately so we can delete the file from the
   // bucket if the user abandons the wizard before confirming extraction.
@@ -126,6 +132,29 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
   // Set to true when extraction has been accepted — tells the close
   // handler NOT to delete the file (it's now owned by a real document).
   const extractedRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [open]);
+
+  // Straight to the editable form with no fields and no AI call. This is
+  // the same transition handleExtract already makes when the document
+  // cannot be read, reused so the scan being switched off cannot dead-end
+  // the wizard: every route to step 'preview' ran through handleExtract,
+  // so a disabled button here would have left no way forward at all.
+  // Deliberately does NOT touch extractedRef: that flag means "the user
+  // confirmed, stop reaping the blob" and it is set at the real confirm
+  // step. Setting it here would leak an orphan upload every time someone
+  // reached the manual form and then cancelled.
+  const skipToManual = () => {
+    setError('');
+    setFields({});
+    setPartialWarning(false);
+    setStep('preview');
+  };
 
   //  Reset
   const reset = () => {
@@ -331,15 +360,31 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
               <p className="text-sm text-red-500 bg-red-50 p-2 rounded-lg">{error}</p>
             )}
 
+            {/* Quiet notice, not an alarm — only when an admin switched
+                scan extraction off. Without it the button below changes
+                meaning with no explanation. */}
+            {!aiScanAllowed && (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-lg flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>סריקה אוטומטית כרגע לא זמינה. הקובץ יישמר, ואת הפרטים אפשר למלא ידנית.</span>
+              </p>
+            )}
+
             <div className="flex gap-2 pt-2">
+              {/* One button, two meanings. With the gate off it goes straight
+                  to the editable form rather than being disabled: every route
+                  to step 'preview' used to run through handleExtract, so a
+                  disabled button here would dead-end the wizard. */}
               <Button
-                onClick={handleExtract}
+                onClick={aiScanAllowed ? handleExtract : skipToManual}
                 disabled={!fileUrl || extracting || uploading}
                 className="flex-1 bg-cyan-700 hover:bg-cyan-800 text-white"
               >
                 {extracting
                   ? <><Loader2 className="h-4 w-4 animate-spin ml-2" />מנתח מסמך...</>
-                  : <><Anchor className="h-4 w-4 ml-2" />חלץ פרטי כלי השייט</>
+                  : aiScanAllowed
+                    ? <><Anchor className="h-4 w-4 ml-2" />חלץ פרטי כלי השייט</>
+                    : <><Pencil className="h-4 w-4 ml-2" />המשך להזנה ידנית</>
                 }
               </Button>
               <Button variant="outline" onClick={handleClose}>ביטול</Button>

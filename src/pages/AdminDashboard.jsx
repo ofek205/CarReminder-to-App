@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { db } from '@/lib/supabaseEntities';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -1505,8 +1506,8 @@ export function AdminUsersTab({ onOpenDrawer }) {
     }
     setDeleting(true);
     try {
-      const { error } = await supabase.rpc('admin_delete_user_full', {
-        p_user_id: pendingDelete.owner_user_id,
+      const { error } = await dal.run('admin.deleteUserFull', {
+        userId: pendingDelete.owner_user_id,
       });
       if (error) throw error;
       toast.success('החשבון נמחק');
@@ -1533,7 +1534,7 @@ export function AdminUsersTab({ onOpenDrawer }) {
     if (!u.owner_user_id) { toast.error('אין בעלים לחשבון'); return; }
     const nextRole = u.role === 'admin' ? 'user' : 'admin';
     try {
-      const { error } = await supabase.rpc('admin_set_role', { p_user_id: u.owner_user_id, p_role: nextRole });
+      const { error } = await dal.run('admin.setRole', { userId: u.owner_user_id, role: nextRole });
       if (error) throw error;
       toast.success(nextRole === 'admin' ? 'הוגדר כאדמין' : 'הוסר מנהל');
       setRefreshKey(k => k + 1);
@@ -2020,7 +2021,7 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         <span
-                          className="text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shrink-0 tabular-nums"
+                          className="text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shrink-0 tabular-nums"
                           style={{ background: c.bg, color: c.icon }}
                         >
                           {idx + 1}
@@ -2029,7 +2030,7 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
                           {r.name}
                         </span>
                       </div>
-                      <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: c.icon }} dir="ltr">
+                      <span className="text-[11px] font-extrabold tabular-nums shrink-0" style={{ color: c.icon }} dir="ltr">
                         {value}
                         {sec !== null && sec > 0 && (
                           <span className="text-[10px] mr-1 font-bold" style={{ color: C.borderAlt }}>
@@ -2288,7 +2289,7 @@ function AdminBugsTab() {
   const markResolved = async (bug) => {
     if (source !== 'remote' || !bug.id) return;
     try {
-      const { error } = await supabase.from('app_errors').update({ resolved: true }).eq('id', bug.id);
+      const { error } = await dal.run('admin.resolveBug', { id: bug.id });
       if (error) throw error;
       toast.success('סומן כטופל');
       loadBugs();

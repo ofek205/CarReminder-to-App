@@ -736,7 +736,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
             total over ~1.3 s, so the figure visually "loads in"
             instead of snapping. Falls back to a static placeholder
             while the query is still in flight. */}
-        <p className="text-3xl sm:text-4xl font-black tabular-nums mt-1">
+        <p className="text-3xl sm:text-4xl font-extrabold tabular-nums mt-1">
           {loading ? '...' : <AnimatedCount value={totalNum} format={fmtMoney} duration={1300} />}
         </p>
         <p className="text-xs opacity-90 mt-1">
@@ -833,7 +833,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
                         <span className="text-sm font-bold truncate">{name}</span>
                         {isLeader && (
                           <span
-                            className="text-[9px] font-black px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 shrink-0"
+                            className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 shrink-0"
                             style={{ background: 'rgba(253,230,138,0.22)', color: C.warnBorder }}
                             title="ההוצאה הגבוהה ביותר"
                           >
@@ -854,7 +854,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
 
                     {/* Amount + % column */}
                     <div className="text-left shrink-0">
-                      <p className="text-sm font-black tabular-nums leading-tight">
+                      <p className="text-sm font-extrabold tabular-nums leading-tight">
                         {fmtMoney(amt)}
                       </p>
                       <p className="text-[10px] opacity-70 tabular-nums leading-tight mt-0.5">

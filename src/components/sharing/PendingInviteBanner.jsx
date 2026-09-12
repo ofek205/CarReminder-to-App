@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, Check, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useViewAs from '@/hooks/useViewAs';
@@ -113,7 +114,7 @@ export default function PendingInviteBanner() {
       // resolved server-side, so the only cost is that the target still sees
       // the notification until they open it themselves.
       if (!viewAs) {
-        await supabase.from('app_notifications').update({ is_read: true }).eq('id', invite.id);
+        await dal.run('appNotification.markRead', { id: invite.id });
       }
       window.dispatchEvent(new CustomEvent('cr:notifications-changed'));
 

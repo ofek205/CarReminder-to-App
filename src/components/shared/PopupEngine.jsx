@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import PopupRenderer from '@/components/shared/PopupRenderer';
 import {
@@ -171,7 +172,7 @@ export default function PopupEngine({ vehicles = [], mountGate = true }) {
 // break the UI because an event insert failed (RLS, network, etc).
 function logEvent(popupId, kind, userId) {
   try {
-    supabase.from('admin_popup_events').insert({
+    dal.run('telemetry.popupEvent', {
       popup_id: popupId, kind, user_id: userId || null,
     }).then(() => {}, () => {});
   } catch {}

@@ -18,6 +18,25 @@ import { runCommand } from './run';
 import './commands/expenses';
 import './commands/corkNotes';
 import './commands/vehicles';
+import './commands/vesselIssues';
+import './commands/maintenance';
+import './commands/repairs';
+import './commands/documents';
+import './commands/accidents';
+import './commands/checklists';
+import './commands/profile';
+import './commands/routes';
+import './commands/access';
+import './commands/drivers';
+import './commands/community';
+import './commands/admin';
+import './commands/account';
+import './commands/notifications';
+import './commands/emailAdmin';
+import './commands/telemetry';
+import './commands/cap';
+import './commands/transfers';
+import './commands/storage';
 
 export const dal = {
   run: runCommand,

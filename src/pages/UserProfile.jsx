@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -161,7 +162,7 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
             "warning / nudge" tone. The percentage sits on top of a
             slim filled track so progress is readable at a glance. */}
         <div className="shrink-0 flex flex-col items-center gap-1">
-          <span className="text-lg font-black tabular-nums" style={{ color: C.warnDark }} dir="ltr">
+          <span className="text-lg font-extrabold tabular-nums" style={{ color: C.warnDark }} dir="ltr">
             {Math.round((filledCount / 3) * 100)}%
           </span>
           <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: C.warnBg }}>
@@ -311,9 +312,9 @@ function AuthUserProfile({ embedded = false }) {
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
     try {
       if (profileId) {
-        await db.user_profiles.update(profileId, data);
+        await dal.run('profile.update', { ...data, id: profileId });
       } else {
-        const created = await db.user_profiles.create(data);
+        const created = await dal.run('profile.create', data);
         setProfileId(created.id);
       }
     } catch (err) {
@@ -362,9 +363,9 @@ function AuthUserProfile({ embedded = false }) {
       };
       try {
         if (profileId) {
-          await db.user_profiles.update(profileId, profileData);
+          await dal.run('profile.update', { ...profileData, id: profileId });
         } else {
-          const created = await db.user_profiles.create(profileData);
+          const created = await dal.run('profile.create', profileData);
           setProfileId(created.id);
         }
       } catch (err) {
@@ -498,7 +499,7 @@ function AuthUserProfile({ embedded = false }) {
               >
                 <ScanLine className="h-5 w-5" />
                 <span
-                  className="absolute -top-1 -left-1 text-[8px] font-black px-1 rounded-full"
+                  className="absolute -top-1 -left-1 text-[8px] font-extrabold px-1 rounded-full"
                   style={{
                     background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 100%)`,
                     color: '#FFFFFF',

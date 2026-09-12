@@ -11,6 +11,12 @@ import { toastError } from '@/lib/userErrorReport';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal, plateQuotaCopy } from '@/lib/plateQuotaGate';
+import useVehicleCapacity from '@/hooks/useVehicleCapacity';
+import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import useAccountPlan from '@/hooks/useAccountPlan';
+import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 import LicensePlate from '@/components/shared/LicensePlate';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 import RecallCard from '@/components/vehicle/RecallCard';
@@ -21,6 +27,7 @@ import {
 import {
   QUICK_CHECK_RETURN_KEY,
   hasUsedQuickCheck,
+  isPlateCached,
   lookupVehicleQuickCheck,
   markQuickCheckUsed,
   normalizeQuickCheckPlate,
@@ -68,7 +75,7 @@ const TONE_TEXT = {
 };
 const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
 
-export default function VehicleCheck() {
+export default function VehicleCheck({ marketingPlate }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -78,7 +85,15 @@ export default function VehicleCheck() {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [loadingIndex, setLoadingIndex] = useState(0);
+  // Personal-vehicle-cap block (dormant while enforcement is gated off).
+  const [capReached, setCapReached] = useState(false);
+  const [capKind, setCapKind] = useState('personal');
+  const { plan: accountPlan } = useAccountPlan();
+  const capacity = useVehicleCapacity();
   const [limitLocked, setLimitLocked] = useState(false);
+  // The plan quota refusal, or null. Holds the VERDICT rather than a boolean
+  // so the card can show the real numbers instead of a generic message.
+  const [planLocked, setPlanLocked] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [reportMode, setReportMode] = useState(null);
@@ -98,6 +113,18 @@ export default function VehicleCheck() {
   const validation = useMemo(() => validateQuickCheckPlate(plate), [plate]);
 
   useEffect(() => {
+    if (marketingPlate) {
+      const requestedPlate = normalizeQuickCheckPlate(marketingPlate).slice(0, 8);
+      setPlate(requestedPlate);
+      const previousResult = readLastQuickCheckResult();
+      if (previousResult?.plate === requestedPlate) {
+        setResult(previousResult);
+        setStatus('success');
+        return;
+      }
+      setAutoSearchQueued(true);
+      return;
+    }
     try {
       const prefilledPlate = sessionStorage.getItem(QUICK_CHECK_PREFILL_KEY);
       if (prefilledPlate) {
@@ -134,6 +161,7 @@ export default function VehicleCheck() {
     setPlate(clean);
     setError('');
     setLimitLocked(false);
+    setPlanLocked(null);
     setSaved(false);
   };
 
@@ -157,6 +185,7 @@ export default function VehicleCheck() {
     if (isBusy) return;
     setError('');
     setLimitLocked(false);
+    setPlanLocked(null);
     setSaved(false);
 
     const v = validateQuickCheckPlate(plate);
@@ -174,7 +203,33 @@ export default function VehicleCheck() {
     setStatus('loading');
     setLoadingIndex(0);
     try {
+      // Monetization phase 5c. A RE-VIEW INSIDE THE CACHE WINDOW IS FREE,
+      // which is what phase 3's note here said had to happen "before phase
+      // 5, where the same call becomes a charge". Now it is a charge, so a
+      // back-button must not spend one of a free account's three monthly
+      // checks on a result the app did not even re-fetch.
+      //
+      // Read BEFORE the lookup, because the lookup is what populates the
+      // cache; asking afterwards would always answer "cached".
+      const fromCache = isPlateCached(v.plate);
+
+      // The plan gate. Guests are handled above by their own one-check
+      // rule, so this only applies to signed-in users, and it is skipped
+      // entirely for a cached re-view: refusing a result already on screen
+      // would be indefensible.
+      if (isAuthenticated && !fromCache) {
+        const verdict = await checkPlateQuota(1);
+        if (isPlateQuotaRefusal(verdict)) {
+          setPlanLocked(verdict);
+          setStatus('idle');
+          return;
+        }
+      }
+
       const data = await lookupVehicleQuickCheck(v.plate);
+      // Count, never block. Not awaited, so a counter failure can never
+      // cost the user their result.
+      if (!fromCache) countPlateLookup(accountId, 'vehicle_check');
       if (!isAuthenticated) markQuickCheckUsed();
       if (!data) {
         setResult(null);
@@ -221,7 +276,7 @@ export default function VehicleCheck() {
   };
 
   useEffect(() => {
-    if (!autoSearchQueued || isBusy) return;
+    if (!autoSearchQueued || isBusy || authLoading) return;
     const v = validateQuickCheckPlate(plate);
     if (!v.ok) {
       setAutoSearchQueued(false);
@@ -230,7 +285,7 @@ export default function VehicleCheck() {
     setAutoSearchQueued(false);
     void search();
      
-  }, [autoSearchQueued, plate, isBusy]);
+  }, [autoSearchQueued, plate, isBusy, authLoading]);
 
   const goToAuth = () => {
     if (result) saveLastQuickCheckResult(result);
@@ -273,7 +328,15 @@ export default function VehicleCheck() {
         toast.success('הרכב נוסף לרכבים שלך');
       }
     } catch (err) {
-      if (err?.code === 'duplicate_vehicle') {
+      if (isVehicleCapError(err)) {
+        // A cap is full — show the wall, not an error.
+        capacity.refetch?.();
+        // WHICH cap fired decides the wall's ceiling and its remedy. Left
+        // unset, a plan-cap refusal would show accounts.vehicle_cap and
+        // offer a business account that a paid plan already includes.
+        setCapKind(vehicleCapKind(err) || 'personal');
+        setCapReached(true);
+      } else if (err?.code === 'duplicate_vehicle') {
         // Duplicate is expected validation — show toast but don't report
         // as an error (toastError was triggering user_visible_error_spike
         // alerts for what is normal user flow).
@@ -297,6 +360,7 @@ export default function VehicleCheck() {
     setStatus('idle');
     setError('');
     setLimitLocked(false);
+    setPlanLocked(null);
     setSaved(false);
     setLoadingIndex(0);
     setReportMode(null);
@@ -310,6 +374,14 @@ export default function VehicleCheck() {
   return (
     <div dir="rtl" className="vehicle-check-root min-h-screen -m-4 lg:-m-8 px-4 py-6 sm:px-6 lg:px-10"
       style={{ background: 'linear-gradient(180deg, #F5FAF6 0%, #FFFFFF 52%)' }}>
+      <VehicleCapReachedModal
+        open={capReached}
+        kind={capKind}
+        planCap={accountPlan?.maxVehicles ?? null}
+        onClose={() => setCapReached(false)}
+        capacity={capacity}
+      />
+
       <PrintStyles />
       <div className="vehicle-check-screen max-w-5xl mx-auto">
         <Header isAuthenticated={isAuthenticated} />
@@ -377,6 +449,7 @@ export default function VehicleCheck() {
         )}
 
         {limitLocked && <GuestLimitCard onAuth={goToAuth} />}
+        {planLocked && <PlateQuotaCard verdict={planLocked} />}
         {isBusy && <SmartLoading text={loadingMessages[loadingIndex]} />}
         {status === 'not_found' && (
           <StateCard
@@ -1138,6 +1211,41 @@ function GuestLimitCard({ onAuth }) {
   );
 }
 
+/**
+ * The plan quota wall. Same visual language as GuestLimitCard above, on
+ * purpose: both are "you have run out of checks", and a second look for the
+ * same message would read as a different kind of problem.
+ *
+ * The words and the platform rule come from plateQuotaCopy, NOT from here.
+ * Four surfaces can show this refusal, and App Store Guideline 3.1.1(a)
+ * covers prose rather than only controls, so "a paid plan exists" is itself
+ * steering on iOS. Deciding that per screen is four chances to get it wrong,
+ * and the one that is wrong is a review rejection.
+ */
+function PlateQuotaCard({ verdict }) {
+  const { title, body, cta } = plateQuotaCopy(verdict);
+
+  return (
+    <section className="bg-white border border-yellow-100 rounded-3xl p-5 mb-5 shadow-sm text-center">
+      <LockKeyhole className="h-9 w-9 text-yellow-700 mx-auto mb-3" />
+      <h2 className="text-lg font-bold text-gray-900 mb-1">{title}</h2>
+      <p className="text-sm text-gray-500 mb-4">{body}</p>
+      {/* Web only. The label points at what the screen actually does: /MyPlan
+          shows the plan and its limits, it does not take a payment, and a
+          button reading "שדרג" would promise a checkout that is not there. */}
+      {cta === 'plan' && (
+        <Link
+          to={createPageUrl('MyPlan')}
+          className="inline-flex items-center justify-center px-4 py-2 rounded-2xl font-bold text-white min-h-[44px]"
+          style={{ background: C.primary }}
+        >
+          המסלול והמגבלות שלי
+        </Link>
+      )}
+    </section>
+  );
+}
+
 function StateCard({ tone, title, text, details, ctaLabel, ctaHref }) {
   const cls = tone === 'danger' ? 'border-red-100 bg-red-50 text-red-900' : 'border-yellow-100 bg-yellow-50 text-yellow-900';
   return (
@@ -1187,7 +1295,7 @@ function VehiclePrintReport({ result, variant = 'print' }) {
         <div className="report-brand">
           <BrandMark />
           <div>
-            <p className="report-brand-name">CarReminder</p>
+            <p className="report-brand-name">Car Reminder</p>
             <p className="report-brand-subtitle">דוח בדיקת רכב</p>
           </div>
         </div>
@@ -1654,6 +1762,10 @@ function PrintStyles() {
 function labelFor(key) {
   return ({
     licensePlate: 'מספר רישוי',
+    displayName: 'תיאור הרכב',
+    testDueEstimated: 'מועד טסט משוער',
+    isInactive: 'רכב לא פעיל',
+    ownershipDistribution: 'התפלגות סוגי בעלות',
     manufacturer: 'יצרן',
     model: 'דגם',
     year: 'שנה',

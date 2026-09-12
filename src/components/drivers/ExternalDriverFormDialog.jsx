@@ -22,11 +22,8 @@ import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { Loader2, Upload, Camera, Trash2, Check, IdCard, ExternalLink, Plus } from 'lucide-react';
 import { C } from '@/lib/designTokens';
-import {
-  LICENSE_CATEGORIES,
-  createExternalDriver,
-  updateExternalDriver,
-} from '@/services/drivers';
+import { LICENSE_CATEGORIES } from '@/services/drivers';
+import { dal } from '@/lib/dal';
 import useFileUpload from '@/hooks/useFileUpload';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { deleteFile, refreshSignedUrl } from '@/lib/supabaseStorage';
@@ -232,7 +229,8 @@ export default function ExternalDriverFormDialog({
     setSubmitting(true);
     try {
       if (isEdit) {
-        await updateExternalDriver(initial.id, {
+        await dal.run('externalDriver.update', {
+          id: initial.id,
           fullName: cleanName,
           phone:    cleanPhone,
           email:    cleanEmail || null,
@@ -254,7 +252,7 @@ export default function ExternalDriverFormDialog({
         savedRef.current = true;
         onSaved?.(initial.id, newDriverName);
       } else {
-        const newId = await createExternalDriver({
+        const newId = await dal.run('externalDriver.create', {
           accountId,
           fullName: cleanName,
           phone:    cleanPhone,

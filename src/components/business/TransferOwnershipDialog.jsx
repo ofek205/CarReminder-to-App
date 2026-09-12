@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Crown, Shield, Eye, Loader2, AlertTriangle, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
@@ -69,9 +70,9 @@ export default function TransferOwnershipDialog({ open, onOpenChange, accountId,
     setSubmitting(true);
     try {
       const { error } = await withTimeout(
-        supabase.rpc('transfer_ownership', {
-          p_account_id: accountId,
-          p_new_owner_user_id: heir.user_id,
+        dal.run('ownership.transfer', {
+          accountId,
+          newOwnerUserId: heir.user_id,
         }),
         'transfer_ownership'
       );

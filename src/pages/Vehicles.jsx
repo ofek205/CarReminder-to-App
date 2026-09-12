@@ -10,6 +10,7 @@ import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { ListSkeleton } from '../components/shared/Skeletons';
+import VehicleCapMeter from '@/components/vehicles/VehicleCapMeter';
 import VehicleCardEnhanced from '../components/vehicles/VehicleCardEnhanced';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import { useAuth } from '../components/shared/GuestContext';
@@ -382,6 +383,13 @@ function VehiclesContent({ vehicles, isLoading }) {
     // Sort
     result.sort((a, b) => {
       const va = a.vehicle, vb = b.vehicle;
+      // Sold vehicles sink to the bottom BEFORE the chosen order is applied,
+      // and they do it under every sort option. A car the user no longer owns
+      // should never sit above one they drive — least of all under "newest",
+      // where a recent sale would land it first.
+      const soldA = va.lifecycle === 'sold_archive' ? 1 : 0;
+      const soldB = vb.lifecycle === 'sold_archive' ? 1 : 0;
+      if (soldA !== soldB) return soldA - soldB;
       switch (sortBy) {
         case 'newest':
           return new Date(vb.created_at || vb.created_date || 0) - new Date(va.created_at || va.created_date || 0);
@@ -448,6 +456,11 @@ function VehiclesContent({ vehicles, isLoading }) {
           </Link>
         }
       />
+
+      {/* Proactive personal-vehicle-cap nudge (self-hides for business /
+          guests / accounts far from the cap). Vehicles page only — the cap
+          is account-wide but the copy speaks of "רכבים". */}
+      {!isVesselPage && <VehicleCapMeter />}
 
       {/* Demo banner */}
       {filteredByPage.some(v => v._isDemo) && (

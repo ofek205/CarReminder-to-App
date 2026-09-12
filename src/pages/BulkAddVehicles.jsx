@@ -23,8 +23,14 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
+import { checkVehicleCapRoom, isCapRefusal } from '@/lib/vehicleCapRoom';
+import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
+import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
 import { LEASING_COMPANIES, canonicalizeLeasingCompany } from '@/constants/leasingCompanies';
@@ -299,6 +305,20 @@ export default function BulkAddVehicles() {
   const queryClient = useQueryClient();
 
   const [step, setStep]       = useState('input'); // 'input' | 'review' | 'result'
+  // Set when the plan quota refuses this import. Cleared on every new
+  // attempt so a trimmed list is not judged by the previous refusal.
+  const [quotaVerdict, setQuotaVerdict] = useState(null);
+  // ⚠️ GUARDS A DOUBLE-SUBMIT THAT THE QUOTA CHECK INTRODUCED. startReview
+  // used to advance the step synchronously on click; it now awaits the quota
+  // read first, which leaves a window where the button is still live and the
+  // screen has not changed. Two clicks in that window would run the whole
+  // import twice.
+  const [checkingQuota, setCheckingQuota] = useState(false);
+  const checkingQuotaRef = useRef(false);
+  // The plan vehicle-cap verdict when the import would not fit. Reuses the
+  // established wall for this exact limit rather than inventing a second
+  // look for the same refusal.
+  const [capRoom, setCapRoom] = useState(null);
   const [matrix, setMatrix]   = useState([]);      // raw parsed cells (rows × columns)
   const [mapping, setMapping] = useState(null);    // { plateCol, nicknameCol, kmCol, hasHeader }
   const [rows, setRows]       = useState([]);      // [{plate, nickname, current_km, data, status, included, ...}]
@@ -356,8 +376,83 @@ export default function BulkAddVehicles() {
 
   const startReview = async () => {
     if (inputRows.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
+    // The ref, not the state, is the guard: setCheckingQuota does not update
+    // this closure, so two clicks inside one tick would both read false and
+    // both run the import. The state exists only to disable the button.
+    // Checked BEFORE clearing the notice, or a second click would blank the
+    // explanation the user is still reading.
+    if (checkingQuotaRef.current) return;
+    checkingQuotaRef.current = true;
+    setQuotaVerdict(null);
+    setCapRoom(null);
+    setCheckingQuota(true);
+
+    // Monetization phase 5c. CHECKED AS N, NOT AS 1, and checked BEFORE the
+    // step advances. Asking "may I do one more" for a 200-row import would
+    // let a 3-a-month account consume 200 and stay nominally inside its cap:
+    // the same hole p_delta was added to close on the counting side.
+    //
+    // The whole batch is refused rather than partially run. A partial import
+    // would leave the user staring at a review screen where an arbitrary
+    // subset resolved, with no way to tell a plate that failed lookup from
+    // one that was never attempted.
+    // The VEHICLE cap, checked here too, and this is the more expensive dead
+    // end of the two. It is a different limit from the plate quota: an
+    // account can have plenty of monthly checks left and still be at its
+    // max_vehicles. Without this, a free account at 5 of 5 passes the quota,
+    // spends N gov API lookups, sits through the whole review screen, presses
+    // submit, and only THEN meets the trigger.
+    //
+    // ⚠️ ADVISORY ONLY. The trigger on public.vehicles is the authority and
+    // this read fails open, so a failure here costs the old behaviour
+    // (refused at submit, with the mapped modal) rather than a false block.
+    // See src/lib/vehicleCapRoom.js.
+    let verdict;
+    let room;
+    try {
+      // Both reads together: they are independent, and one round trip of
+      // latency on a button press is better than two.
+      [verdict, room] = await Promise.all([
+        checkPlateQuota(inputRows.length),
+        checkVehicleCapRoom(accountId, inputRows.length),
+      ]);
+    } finally {
+      checkingQuotaRef.current = false;
+      setCheckingQuota(false);
+    }
+    if (isPlateQuotaRefusal(verdict)) {
+      setQuotaVerdict(verdict);
+      return;
+    }
+    if (isCapRefusal(room)) {
+      setCapRoom(room);
+      return;
+    }
+
     setStep('review');
     setProgress({ done: 0, total: inputRows.length, phase: 'lookup' });
+
+    // Monetization phase 3: count, never block. §3.2 flags bulk import as N
+    // lookups per run with no ceiling, the largest single harvest of
+    // specifications in the app, and requires an explicit in-or-out
+    // decision. It is IN, and counted as N rather than 1, because phase 3
+    // exists to reveal true volume: charging an import of 200 plates as one
+    // check would hide exactly the pattern the cap has to be set against.
+    //
+    // Batched, not N calls: the RPC takes a delta, so a large import does
+    // not fire hundreds of round trips. Counted BEFORE the lookups, on the
+    // row count the user submitted, because that is the number of requests
+    // about to be made regardless of how many succeed. The sweeps below are
+    // RETRIES of the same plates and are deliberately not counted again.
+    //
+    // ⚠️ CHUNKED RATHER THAN CLAMPED. The delta is capped at 500 per call
+    // (both sides), and an earlier version passed min(length, 500), which
+    // silently discarded every row past the 500th. In a subsystem whose
+    // only purpose is measurement, dropping observations distorts the exact
+    // number the cap will later be set from, so the whole import is counted.
+    for (let i = 0; i < inputRows.length; i += 500) {
+      countPlateLookup(accountId, 'bulk_add', Math.min(500, inputRows.length - i));
+    }
 
     let results = await lookupAll(
       inputRows,
@@ -431,9 +526,9 @@ export default function BulkAddVehicles() {
         };
       });
 
-      const { data, error } = await supabase.rpc('bulk_add_vehicles', {
-        p_account_id: accountId,
-        p_vehicles:   payload,
+      const { data, error } = await dal.run('vehicle.bulkAdd', {
+        accountId,
+        vehicles: payload,
       });
       if (error) throw error;
 
@@ -452,7 +547,40 @@ export default function BulkAddVehicles() {
       queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
       queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
       queryClient.invalidateQueries({ queryKey: ['bulk-add-existing-plates', accountId] });
-      toast.success(`${data.added_count} רכבים נוספו לצי`);
+
+      // ⚠️ READ `errors`, NOT JUST added_count. bulk_add_vehicles wraps
+      // every insert in its own `exception when others`
+      // (supabase-phase9-bulk-vehicles.sql:110), so ANY per-row failure is
+      // swallowed into errors[] and the RPC still returns 200. Reading only
+      // added_count is why a user importing 50 vehicles into a capped
+      // account would see "5 רכבים נוספו לצי" and no explanation at all:
+      // no popup, no error, no hint that a limit exists. Total silence on a
+      // paywall is worse than a refusal.
+      const errs = Array.isArray(data?.errors) ? data.errors : [];
+      const capBlocked = errs.filter((e) => String(e?.reason || '').includes('vehicle_plan_cap_exceeded'));
+      const otherErrs = errs.length - capBlocked.length;
+
+      if (data.added_count > 0) toast.success(`${data.added_count} רכבים נוספו לצי`);
+
+      if (capBlocked.length > 0) {
+        // Named as a limit, not as a failure, because nothing is broken:
+        // the account is full. The count is what makes it actionable.
+        toastError(
+          `${capBlocked.length} רכבים לא נוספו כי הצי הגיע לתקרת המסלול. אפשר לפנות מקום או לעבור למסלול גדול יותר.`,
+          { action: 'bulk_add_cap_exceeded' },
+        );
+      }
+      if (otherErrs > 0) {
+        toastError(`${otherErrs} רכבים לא נוספו. בדוק את הרשימה ונסה שוב.`, {
+          action: 'bulk_add_partial_errors',
+          context: { reasons: errs.filter((e) => !String(e?.reason || '').includes('vehicle_plan_cap_exceeded')).slice(0, 5) },
+        });
+      }
+      if (data.added_count === 0 && errs.length === 0) {
+        // Neither added nor errored: nothing matched. Silence here would
+        // leave the user staring at a success screen with no vehicles.
+        toastError('לא נוסף אף רכב.', { action: 'bulk_add_none' });
+      }
     } catch (err) {
       const msg = err?.message || '';
       if      (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מנהל', { action: 'bulk_add_forbidden', err });
@@ -485,14 +613,38 @@ export default function BulkAddVehicles() {
       <Stepper current={step} />
 
       {step === 'input' && (
-        <InputStep
-          onMatrixParsed={(m) => { setMatrix(m); setMapping(detectColumns(m)); }}
-          onMappingChange={setMapping}
-          onContinue={startReview}
-          matrix={matrix}
-          mapping={mapping}
-          inputRows={inputRows}
-        />
+        <>
+          <InputStep
+            onMatrixParsed={(m) => { setMatrix(m); setMapping(detectColumns(m)); }}
+            onMappingChange={setMapping}
+            onContinue={startReview}
+          busy={checkingQuota}
+            matrix={matrix}
+            mapping={mapping}
+            inputRows={inputRows}
+          />
+          {/* Stays on the input step, below the button the user just
+              pressed, so the plate list they pasted is still on screen and
+              they can trim it to what their remaining allowance covers
+              instead of starting over. */}
+          {quotaVerdict && (
+            <PlateQuotaNotice
+              verdict={quotaVerdict}
+              tail={`בקשת לבדוק ${inputRows.length} מספרי רישוי בייבוא הזה.`}
+            />
+          )}
+          {/* The plan vehicle cap. A modal rather than an inline notice
+              because this one is not "trim the list and retry" — the
+              account is full, and the same wall appears when adding a
+              single vehicle, so it must look identical here. */}
+          <VehicleCapReachedModal
+            open={!!capRoom}
+            onClose={() => setCapRoom(null)}
+            kind="plan"
+            planCap={capRoom?.cap ?? null}
+            capacity={{ cap: capRoom?.cap ?? null, count: capRoom?.used ?? null }}
+          />
+        </>
       )}
 
       {step === 'review' && (
@@ -582,7 +734,7 @@ function Stepper({ current }) {
 
 // ---------- Step 1: Input --------------------------------------------
 
-function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mapping, inputRows }) {
+function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mapping, inputRows, busy }) {
   const [mode, setMode]   = useState('paste');
   const [text, setText]   = useState('');
   const [fileName, setFileName] = useState('');
@@ -713,7 +865,7 @@ function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mappin
         <button
           type="button"
           onClick={onContinue}
-          disabled={inputRows.length === 0}
+          disabled={inputRows.length === 0 || busy}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           style={{
             background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,

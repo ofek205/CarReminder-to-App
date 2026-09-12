@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '@/lib/supabaseEntities';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 
 // ── Reminder ID → DB key mapping ────────────────────────────────
 
@@ -181,17 +181,12 @@ export default function useReminderSnooze(userId) {
 
     try {
       // Upsert via raw supabase (entity layer doesn't support ON CONFLICT)
-      const { error } = await supabase
-        .from('reminder_snoozes')
-        .upsert(
-          {
-            user_id: userId,
-            vehicle_id: vehicleId,
-            reminder_type: reminderType,
-            snoozed_until: until.toISOString(),
-          },
-          { onConflict: 'user_id,vehicle_id,reminder_type' }
-        );
+      const { error } = await dal.run('reminderSnooze.upsert', {
+        user_id: userId,
+        vehicle_id: vehicleId,
+        reminder_type: reminderType,
+        snoozed_until: until.toISOString(),
+      });
       if (error) throw error;
     } catch (err) {
       // Rollback optimistic update
@@ -232,7 +227,7 @@ export default function useReminderSnooze(userId) {
         reminder_type: reminderType,
       });
       for (const row of rows) {
-        await db.reminder_snoozes.delete(row.id);
+        await dal.run('reminderSnooze.delete', { id: row.id });
       }
     } catch (err) {
       // Rollback

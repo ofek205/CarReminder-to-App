@@ -21,6 +21,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/supabaseQuery";
+import useAccountPlanRollup, { planFor } from "@/hooks/useAccountPlanRollup";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,6 +157,7 @@ function exportUsersCsv(rows) {
     "שם", "אימייל", "טלפון", "גיל", "תאריך לידה",
     "כלי תחבורה (בעלות)", "כלי תחבורה (משותפים)",
     "מסמכים", "חברים",
+    "מסלול",
     "חשבון עסקי", "נהג",
     "סטטוס", "תאריך הרשמה", "התחברות אחרונה", "ימים מהרשמה",
   ];
@@ -165,6 +167,7 @@ function exportUsersCsv(rows) {
     u.birth_date ? format(parseISO(u.birth_date), "dd/MM/yyyy") : "",
     u.vehicles_owned ?? 0, u.vehicles_shared ?? 0,
     u.documents_total ?? 0, u.members_total ?? 0,
+    u._planLabel || "",
     u.has_business ? "כן" : "לא",
     u.is_driver ? "כן" : "לא",
     STATUS_META[u.activity_status]?.label || u.activity_status || "",
@@ -227,6 +230,23 @@ export default function AdminUsers() {
     staleTime: 60 * 1000,
   });
 
+  // The plan each account is on. admin_user_list() returns
+  // primary_account_id and no plan, so the join happens here rather than in
+  // the RPC: the rollup is a plain admin-readable select, and changing the
+  // RPC would have meant a migration before this column could show anything.
+  const planRollup = useAccountPlanRollup();
+
+  // Decorated once, so the table, the mobile card and the CSV all read the
+  // same two fields instead of each repeating the lookup and the free
+  // fallback. An account with no subscription row IS on free: account_plan()
+  // resolves it through coalesce(..., 'free').
+  const usersWithPlan = useMemo(() => users.map((u) => {
+    const code = u.primary_account_id
+      ? planFor(planRollup.byAccount, u.primary_account_id)
+      : null;
+    return { ...u, _planCode: code, _planLabel: code ? planRollup.labelFor(code) : "" };
+  }), [users, planRollup.byAccount, planRollup.labelFor]);
+
   const { data: guestStats } = useQuery({
     queryKey: ["admin-guest-stats"],
     queryFn: async () => {
@@ -263,7 +283,7 @@ export default function AdminUsers() {
 
     // Normalize search query: strip dashes/spaces for phone matching.
     const qNorm = q.replace(/[\s-]/g, "");
-    return users.filter((u) => {
+    return usersWithPlan.filter((u) => {
       if (q) {
         const phoneNorm = (u.phone || "").replace(/[\s-]/g, "");
         const haystack = `${u.full_name || ""} ${u.email || ""} ${u.phone || ""} ${phoneNorm}`.toLowerCase();
@@ -282,7 +302,7 @@ export default function AdminUsers() {
 
       return true;
     });
-  }, [users, debouncedSearch, filterStatus, filterAsset, filterSignup, filterAccountType]);
+  }, [usersWithPlan, debouncedSearch, filterStatus, filterAsset, filterSignup, filterAccountType]);
 
   //  Sort
   const sorted = useMemo(() => {
@@ -564,6 +584,7 @@ function UsersTable({ users, sortKey, sortDir, onSort, onRowClick }) {
                 tooltip="בעלות / משותף" />
             <Th name="documents_total"label="מסמכים"     sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
             <Th name="members_total"  label="חברים"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
+            <Th name="_planLabel"     label="מסלול"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="py-2 px-2 font-medium text-gray-600 text-xs text-right whitespace-nowrap">תגים</th>
             <Th name="activity_status"label="סטטוס"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <Th name="signup_at"      label="הרשמה"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
@@ -619,6 +640,15 @@ function UserRowDesktop({ user, onClick }) {
       </td>
       <td className="py-2 px-2 text-left text-gray-700" dir="ltr">{user.documents_total}</td>
       <td className="py-2 px-2 text-left text-gray-700" dir="ltr">{user.members_total}</td>
+      {/* The column reads the plan plainly, because a header makes "חינם"
+          informative rather than noise. The mobile card shows a badge only
+          for a paid plan, where an absent badge is the free case and a badge
+          on all 737 rows would say nothing. */}
+      <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+        {user._planLabel
+          ? <span dir="auto">{user._planLabel}</span>
+          : <span className="text-gray-300">—</span>}
+      </td>
       <td className="py-2 px-2">
         <div className="flex gap-1 flex-wrap">
           {user.has_business && <TagBadge label="עסקי" tone="purple" />}
@@ -675,8 +705,14 @@ function UserCardMobile({ user, onClick }) {
             <span>כלי תחבורה <span dir="ltr">{user.vehicles_owned}{user.vehicles_shared > 0 && ` / ${user.vehicles_shared}`}</span></span>
             <span>מסמכים <span dir="ltr">{user.documents_total}</span></span>
           </div>
-          {(user.has_business || user.is_driver) && (
+          {(user.has_business || user.is_driver || (user._planCode && user._planCode !== "free")) && (
             <div className="flex gap-1 mt-1.5">
+              {/* Paid plans only. A badge on every row would carry no
+                  information when 737 of 737 accounts are free, and the
+                  absence of one already means free. */}
+              {user._planCode && user._planCode !== "free" && (
+                <TagBadge label={user._planLabel} tone="amber" />
+              )}
               {user.has_business && <TagBadge label="עסקי" tone="purple" />}
               {user.is_driver && <TagBadge label="נהג" tone="teal" />}
             </div>
@@ -709,6 +745,10 @@ function TagBadge({ label, tone }) {
   const tones = {
     purple: { bg: "#F3E8FF", color: "#7C3AED" },
     teal:   { bg: "#E0F7FA", color: "#0891B2" },
+    // Paying accounts. A separate hue from the two above on purpose: the
+    // fallback below is `purple`, so an undefined tone renders as the
+    // business badge and the two become indistinguishable at a glance.
+    amber:  { bg: "#FEF3C7", color: "#B45309" },
   };
   const t = tones[tone] || tones.purple;
   return (

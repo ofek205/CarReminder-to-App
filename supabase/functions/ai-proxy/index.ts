@@ -35,6 +35,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
 import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
+import { countsTowardAiQuota, aiQuotaFeature } from '../_shared/aiQuota.ts';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -196,6 +197,24 @@ const ALLOWED_SURFACES = new Set([
   'maintenance_log_scan',   // garage receipt scan in MaintenanceSection
   'plate_scan',             // license-plate camera in PlateScanButton
 ]);
+
+/**
+ * The one place the request's `surface` tag is validated.
+ *
+ * This expression was copy-pasted at three call sites (the extraction usage
+ * log, the quota decision, and the advisor usage log), which is one copy per
+ * reason to care and three places to forget. It matters more than ordinary
+ * duplication because the quota consults the SAME sanitised value: a surface
+ * dropped to NULL here is one that `countsTowardAiQuota` treats as billable,
+ * so a fourth site that sanitised differently would decide money differently
+ * from the site that logs it.
+ *
+ * Unknown values become null rather than an error, preserving the existing
+ * behaviour that a client typo never fails the request.
+ */
+function sanitizeSurface(b: any): string | null {
+  return (typeof b?.surface === 'string' && ALLOWED_SURFACES.has(b.surface)) ? b.surface : null;
+}
 
 // Known feature values for ai_usage_logs. Mirrors the DB CHECK
 // constraint. logAiUsage maps anything outside this set to NULL so a
@@ -658,10 +677,7 @@ async function extractDocument(
   // — lets the dashboard separate vehicle_scan from expense_personal_scan
   // even though both ride the same feature key.
   const um = j?.usageMetadata || {};
-  const extractSurface: string | null =
-    (typeof body?.surface === 'string' && ALLOWED_SURFACES.has(body.surface))
-      ? body.surface
-      : null;
+  const extractSurface: string | null = sanitizeSurface(body);
   await logAiUsage(sb, {
     user_id:           userId,
     provider:          'gemini',
@@ -855,6 +871,96 @@ serve(async (req) => {
     }
   }
 
+  // ── Monetization phase 5b: the advisor quota ──────────────────────────
+  //
+  // Placed after the Default-mode rate limit and BEFORE any provider call,
+  // because a refused request must not cost a provider token.
+  //
+  // ⚠️ 402 AND 429 ARE DIFFERENT ON PURPOSE. aiProxy.js maps every 429 to
+  // "נסה שוב בעוד דקה" and AiAssistant to "המתן דקה" — right for the
+  // per-minute limiter above, and wrong for a plan block: it would tell a
+  // free user who spent their one question to wait sixty seconds for
+  // something that never arrives. The reason string is what lets the client
+  // tell a paywall from a cooldown.
+  //
+  // ⚠️ FAIL OPEN ON AN RPC ERROR, deliberately, and this is the ONE place in
+  // the monetization work that does. Everywhere else a swallowed error is a
+  // way to skip paying. Here the flag is off until deliberately enabled, the
+  // whole decision already lives in SQL where the client cannot reach it,
+  // and a Supabase blip must not take the advisor down for every paying
+  // customer. The cost of the open direction is a handful of free calls
+  // during an outage; the cost of the closed direction is the feature dark.
+  {
+    const surfaceForQuota: string | null = sanitizeSurface(body);
+
+    if (countsTowardAiQuota(surfaceForQuota)) {
+      try {
+        const { data: verdict, error: qErr } = await supabase.rpc('ai_quota_check', {
+          p_user_id: user.id,
+        });
+        if (qErr) throw qErr;
+
+        if (verdict && verdict.allowed === false) {
+          const reason = String(verdict.reason || '');
+          // ⚠️ DELIBERATELY NOT logSecurityEvent. A quota block is not an
+          // anomaly: it is the expected outcome of every free user's second
+          // question, so at this user count it would emit hundreds of
+          // "security events" and bury the stream's real signals
+          // (ssrf_rejected, auth_failed) under routine paywall hits.
+          // 'ai_quota_block' is also not in the SecurityEvent union, and
+          // widening that union is the wrong fix. The decision is already
+          // recoverable from feature_usage_counters, which holds the counts
+          // that produced it, and the client receives an explicit reason.
+          if (reason === 'ai_requires_paid_plan') {
+            // 402 Payment Required: the remedy is an upgrade.
+            return json({
+              error: 'ai_requires_paid_plan',
+              reason: 'ai_requires_paid_plan',
+              limit: verdict.limit ?? null,
+              used: verdict.used ?? null,
+            }, 402, req);
+          }
+          // 429 for the daily ceiling: the remedy is tomorrow, not money.
+          // The body's `reason` is how the client avoids reusing the
+          // rate-limiter copy.
+          //
+          // Also the default for any reason this code does not recognise.
+          // `allowed: false` is authoritative, so an unknown reason must
+          // still refuse, and of the two shapes this is the safe one to
+          // guess: it never names a paid plan, so it cannot become an
+          // anti-steering violation on iOS, and it never promises the
+          // 60-second wait that the rate-limiter copy would.
+          return json({
+            error: 'ai_daily_cap_reached',
+            reason: 'ai_daily_cap_reached',
+            limit: verdict.limit ?? null,
+            used: verdict.used ?? null,
+          }, 429, req);
+        }
+      } catch (e) {
+        // ⚠️ "FUNCTION MISSING" IS AN EXPECTED STATE AND MUST NOT BE
+        // REPORTED. This code ships before its migration is applied, so
+        // until Ofek runs phase 5b every advisor call gets PGRST202 from
+        // PostgREST. Reporting that would write one app_errors row per AI
+        // request across the whole user base, which is how a useful error
+        // table becomes one nobody reads. Phase 3's counter took the same
+        // decision, for the same reason.
+        //
+        // Every OTHER failure IS reported, and the asymmetry is the point:
+        // once the function exists, an error here means the paywall is
+        // silently open, which is exactly the condition worth an alert.
+        const msg = String((e as any)?.message || '');
+        const code = String((e as any)?.code || '');
+        const notDeployedYet =
+          code === 'PGRST202' || /could not find the function|does not exist/i.test(msg);
+        console.warn('[ai-proxy] quota check failed, allowing:', msg);
+        if (!notDeployedYet) {
+          await reportEdgeError('ai_quota_check_failed', e as Error, { user_id: user.id });
+        }
+      }
+    }
+  }
+
   const hasImages = (body.messages || []).some((m: any) =>
     Array.isArray(m.content) && m.content.some((p: any) => p.type === 'image' || p.type === 'document')
   );
@@ -912,12 +1018,54 @@ serve(async (req) => {
   // ~50 ms but guarantees the analytics surface stays consistent.
   // Pick up the surface tag from the request body and validate it.
   // Anything unknown is dropped to NULL — keeps the dashboard clean.
-  const requestSurface: string | null =
-    (typeof body?.surface === 'string' && ALLOWED_SURFACES.has(body.surface))
-      ? body.surface
-      : null;
+  const requestSurface: string | null = sanitizeSurface(body);
+
+  // Monetization phase 3: count the advisor call. COUNTING ONLY, no refusal.
+  //
+  // ⚠️ SEPARATE FROM logAiUsage, AND THAT IS THE REQUIREMENT, NOT A STYLE
+  // CHOICE. logAiUsage checks app_config.ai_usage_tracking_enabled before it
+  // writes, so a quota built on ai_usage_logs would become INFINITE the
+  // moment analytics were switched off. The AC demand the opposite, so this
+  // write is deliberately outside that gate and reads no flag.
+  //
+  // Counted on SUCCESS only (§3.1 step 7): a provider that failed cost the
+  // user nothing and must not consume an allowance.
+  //
+  // Failures here are swallowed. Before the phase-3 migration the RPCs do
+  // not exist, and an advisor answer must never be lost because a counter
+  // could not be written. Phase 5 is where the decision moves in front of
+  // the call and a failure has to mean something.
+  const countAdvisorUsage = async () => {
+    if (!countsTowardAiQuota(requestSurface)) return;
+    try {
+      const { data: acct } = await supabase.rpc('resolve_usage_account', {
+        p_user_id: user.id,
+      });
+      if (!acct) return;
+      // Which bucket: 'ai_advisor' for a question the user asked, 'ai_forum'
+      // for the community reply that a post triggers on its own. Only the
+      // advisor bucket is measured against the free lifetime teaser, so a
+      // forum reply cannot spend the one free question the user never asked
+      // to use. See NON_TEASER_SURFACES in _shared/aiQuota.ts.
+      const quotaFeature = aiQuotaFeature(requestSurface);
+      // Both horizons, because the free plan is bounded by a lifetime
+      // teaser while the paid plans are bounded by a daily ceiling, and
+      // phase 3 has to measure against whichever the plan turns out to use.
+      await supabase.rpc('bump_feature_usage', {
+        p_account_id: acct, p_user_id: user.id,
+        p_feature: quotaFeature, p_horizon: 'lifetime',
+      });
+      await supabase.rpc('bump_feature_usage', {
+        p_account_id: acct, p_user_id: user.id,
+        p_feature: quotaFeature, p_horizon: 'day',
+      });
+    } catch (e) {
+      console.warn('[ai-proxy] usage count failed:', (e as any)?.message);
+    }
+  };
 
   const respondAndLog = async (r: any) => {
+    await countAdvisorUsage();
     await logAiUsage(supabase, {
       user_id:           user.id,
       provider:          r?.provider,

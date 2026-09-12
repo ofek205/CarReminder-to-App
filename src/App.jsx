@@ -1,7 +1,8 @@
 import React from 'react'
 import { Toaster as SonnerToaster } from "sonner"
-import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { queryClientInstance } from '@/lib/query-client'
+import { idbPersister, PERSIST_MAX_AGE, shouldDehydrateQuery, shouldDehydrateMutation } from '@/lib/query-persister'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
@@ -14,6 +15,8 @@ import RootGate from './components/shared/RootGate';
 import PageErrorBoundary from '@/components/shared/PageErrorBoundary';
 import ReportBugDialog from '@/components/shared/ReportBugDialog';
 import { C } from '@/lib/designTokens';
+import { useIsRestoring } from '@tanstack/react-query';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -88,6 +91,37 @@ const SuspenseFallback = () => {
       </div>
     </div>
   );
+};
+
+/**
+ * Hold page content until the persisted cache has finished restoring.
+ *
+ * The bug this fixes: while PersistQueryClientProvider restores, React Query
+ * holds every query in `pending` with `fetchStatus: 'idle'`, so `isLoading` is
+ * FALSE and `data` is undefined. Screens that gate their skeleton on isLoading
+ * therefore fall straight through to their empty state, and a user who opens
+ * the app offline is told "אין רכבים" / "אין מסמכים" — which reads as "the app
+ * lost my data" at the exact moment the offline cache is about to prove
+ * otherwise. It affects 14+ screens.
+ *
+ * Gating here fixes all of them in one place instead of auditing every screen's
+ * loading condition. The cost is showing the house spinner for the length of a
+ * single IndexedDB read (raced to 2.5s in query-persister.js) instead of a
+ * wrong empty state, so there is no real trade to make.
+ *
+ * Two deliberate scoping decisions:
+ *   - It wraps ONLY the routed pages, never `/`. That route renders RootGate,
+ *     whose whole purpose is a synchronous redirect decision that avoids the
+ *     login-screen flash on cold launch (see the comment on the `/` route);
+ *     delaying it would reintroduce that bug.
+ *   - It renders LoadingSpinner, NOT SuspenseFallback. The Suspense fallback
+ *     hard-reloads the WebView after 8s to escape WKWebView's stuck
+ *     module-loader, which is the right recovery for a missing chunk and quite
+ *     wrong for a cache read — a slow restore must never trigger a reload.
+ */
+const RestoreGate = ({ children }) => {
+  const isRestoring = useIsRestoring();
+  return isRestoring ? <LoadingSpinner /> : children;
 };
 
 const LayoutWrapper = ({ children, currentPageName }) => {
@@ -177,7 +211,7 @@ class AppErrorBoundary extends React.Component {
       }
       return (
         <div dir="rtl" style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui' }}>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>משהו השתבש 😕</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>משהו השתבש 😕</h2>
           <p style={{ color: '#666', marginBottom: 8 }}>נסה לרענן את הדף</p>
           {this.state.errorMsg && (
             <p style={{ color: C.error, fontSize: 11, marginBottom: 16, direction: 'ltr', maxWidth: 300, margin: '0 auto 16px', wordBreak: 'break-all' }}>
@@ -227,7 +261,25 @@ function App() {
   return (
     <div>
       <AppErrorBoundary>
-        <QueryClientProvider client={queryClientInstance}>
+        {/* PersistQueryClientProvider = QueryClientProvider + an async restore
+            of the last cache snapshot from IndexedDB, which is what makes reads
+            work with no signal. It renders children IMMEDIATELY and hydrates in
+            the background, so it cannot delay first paint or the auth watchdog
+            in main.jsx — a hard requirement given the app's history of
+            splash-forever bugs on iOS. See docs/offline-architecture-spec.md §4. */}
+        <PersistQueryClientProvider
+          client={queryClientInstance}
+          persistOptions={{
+            persister: idbPersister,
+            maxAge: PERSIST_MAX_AGE,
+            // Every release bumps package.json's version (mandated by the
+            // production gates), so this discards the previous build's cache
+            // automatically. That protects against a query's row shape
+            // changing under a snapshot written by an older build.
+            buster: typeof __APP_VERSION__ !== 'undefined' ? String(__APP_VERSION__) : 'dev',
+            dehydrateOptions: { shouldDehydrateQuery, shouldDehydrateMutation },
+          }}
+        >
           {/* AppUpdateGate sits high in the tree so it can hide the
               entire app if the installed native version is below the
               server-defined minimum. It's wrapped in QueryClientProvider
@@ -267,7 +319,9 @@ function App() {
                             hidden link is not a guard — /AdminHome was fully
                             reachable by URL mid-session. */}
                         <ViewAsRouteGuard routeName={path}>
-                          <Page />
+                          <RestoreGate>
+                            <Page />
+                          </RestoreGate>
                         </ViewAsRouteGuard>
                       </PageErrorBoundary>
                     </LayoutWrapper>
@@ -283,7 +337,7 @@ function App() {
             </PinGate>
           </Router>
           </AppUpdateGate>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </AppErrorBoundary>
       {/* sonner is the ONLY toast renderer — the old shadcn Toaster was
           mounted but received no toasts (every caller uses sonner's toast())

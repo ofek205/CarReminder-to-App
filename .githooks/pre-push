@@ -26,25 +26,79 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   esac
 done
 
+# Find bash before anything else needs it.
+#
+# The skip-if-no-npm guard below was written for GitHub Desktop's stripped PATH,
+# but it checked the wrong tool. npm IS on that PATH, so the guard passes and
+# `npm run lint` runs -- and npm is configured here with
+# script-shell=C:\Program Files\Git\bin\bash.exe, so it immediately dies with
+#
+#   /usr/bin/env: 'bash': No such file or directory
+#
+# which the hook then reported as "[BLOCKED] ESLint failed". ESLint never ran.
+# That misdiagnosis blocked every push from GitHub Desktop for six weeks while
+# the code was clean the whole time. Locate bash ourselves so the gates actually
+# execute, and never let a PATH problem masquerade as a code problem.
+if ! command -v bash >/dev/null 2>&1; then
+  GIT_BIN_DIR=""
+  if command -v git >/dev/null 2>&1; then
+    GIT_BIN_DIR="$(dirname "$(command -v git)")"
+  fi
+  for d in "$GIT_BIN_DIR" "/c/Program Files/Git/bin" "/c/Program Files (x86)/Git/bin"; do
+    [ -n "$d" ] || continue
+    if [ -x "$d/bash.exe" ] || [ -x "$d/bash" ]; then
+      PATH="$d:$PATH"; export PATH
+      warn "bash was not on PATH; added $d so npm scripts can run."
+      break
+    fi
+  done
+fi
+
 HAVE_NPM=0;  if command -v npm  >/dev/null 2>&1; then HAVE_NPM=1;  fi
 HAVE_NODE=0; if command -v node >/dev/null 2>&1; then HAVE_NODE=1; fi
+HAVE_BASH=0; if command -v bash >/dev/null 2>&1; then HAVE_BASH=1; fi
+
+# npm without a usable shell cannot run a single script. Skipping is correct
+# here -- CI enforces lint and build on every PR to main -- and it is far better
+# than blocking a clean push with a wrong reason.
+if [ "$HAVE_NPM" = 1 ] && [ "$HAVE_BASH" = 0 ]; then
+  warn "npm found but bash is not -- npm scripts cannot run. Skipping lint/build; CI enforces both on PR to main."
+  HAVE_NPM=0
+fi
 
 if [ "$HAVE_NPM" = 1 ]; then
   # 2. Full ESLint
   if [ -x node_modules/.bin/eslint ]; then
-    npm run -s lint || fail "ESLint failed. Fix with: npm run lint:fix"
+    npm run -s lint || fail "Lint step failed. If the output above shows a missing shell or command, that is an environment problem, not your code -- read it before running: npm run lint:fix"
     ok "eslint passed"
   fi
-  # 3. Production build must succeed
+  # 3. Unit tests. Run BEFORE the build: the suite takes well under a second
+  # and pins invariants the build cannot see (what may reach the offline cache,
+  # the seam's envelope-vs-throw contract, every dal.run name resolving), so
+  # failing here saves waiting ~30s for a build that was never the problem.
+  if [ -x node_modules/.bin/vitest ]; then
+    npm run -s test || fail "Unit tests failed. These pin offline-cache privacy and the DAL contract - read the failure before pushing."
+    ok "unit tests passed"
+  fi
+  # 4. Production build must succeed
   if [ -x node_modules/.bin/vite ]; then
     npm run -s build || fail "Production build failed."
     ok "build passed"
+  fi
+  # 4b. Marketing gate. It reads dist/, so it can only run after the build,
+  # and it was wired to NOTHING until now: no npm script, no hook, no CI. It
+  # holds the dash ban, one-h1-per-page, that every heading reads as words
+  # across its line break, and the search-result budgets. All four fail
+  # invisibly, which is exactly why they were worth a gate.
+  if [ -f scripts/test-marketing.mjs ] && [ -d dist/website ]; then
+    npm run -s test:marketing || fail "Marketing gate failed. Headings, titles or descriptions broke a rule that only shows up in a search result."
+    ok "marketing gate passed"
   fi
 else
   warn "npm not found (e.g. GitHub Desktop git env) - skipping local lint/build. CI enforces them on PR to main."
 fi
 
-# 4. Query-timeout gate - every Supabase call inside a useQuery must be wrapped
+# 5. Query-timeout gate - every Supabase call inside a useQuery must be wrapped
 # with withTimeout(...) or Promise.race(...). Only needs node, so run it whenever
 # node is present even if npm is not. See scripts/check-query-timeouts.cjs.
 if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-query-timeouts.cjs ]; then
@@ -54,7 +108,7 @@ elif [ "$HAVE_NODE" != 1 ]; then
   warn "node not found - skipping query-timeout gate. CI enforces it on PR to main."
 fi
 
-# 5. View-as identity gate - admin RPCs must go through adminSupabase, never the
+# 6. View-as identity gate - admin RPCs must go through adminSupabase, never the
 # impersonation-proxied `supabase`. On the proxied client they arrive as the
 # viewed user and fail is_admin(), usually silently. Fixed three times by hand in
 # one day before this gate existed. See scripts/check-view-as-identity.cjs.
@@ -63,6 +117,50 @@ if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-view-as-identity.cjs ]; then
   ok "view-as identity gate passed"
 elif [ "$HAVE_NODE" != 1 ]; then
   warn "node not found - skipping view-as identity gate. CI enforces it on PR to main."
+fi
+
+# 7. Duplicated-statement gate - the same SQL statement line twice with only
+# comments between the copies. On 2026-09-09 that shape made phase 2b of the
+# monetization work die with `syntax error at or near "public"` halfway
+# through, leaving it PARTIALLY APPLIED against the database staging shares
+# with production. Balance checks passed with the bug present, eslint does not
+# read SQL, and there is no Postgres here to parse it, so this is the only
+# place the class gets caught before it reaches a live database.
+#
+# Node-only, and that is the reason it is here as well as in `npm test`: the
+# npm block above is SKIPPED entirely on GitHub Desktop's stripped PATH, which
+# is exactly the environment where a hand-edited migration is likely to be
+# pushed. See scripts/sql-duplicate-statements.cjs.
+if [ "$HAVE_NODE" = 1 ] && [ -f scripts/sql-duplicate-statements.cjs ]; then
+  node scripts/sql-duplicate-statements.cjs || fail "sql duplicate-statement gate failed. A comment was probably inserted above a statement and the original line left behind - see the line numbers above."
+  ok "sql duplicate-statement gate passed"
+elif [ "$HAVE_NODE" != 1 ]; then
+  # Deliberately NOT claiming "CI enforces it", unlike the two gates above.
+  # In CI this only runs inside the `Unit tests` job, and that job is not
+  # among the ruleset's required checks, so there it is advisory.
+  warn "node not found - skipping sql duplicate-statement gate. NOT enforced by a required CI check; re-run it before merging."
+fi
+
+# 8. SQL hazard gate - gate 5 (DB Safety) is the only production gate with no
+# automation, and CLAUDE.md calls it the biggest hole in the process. The
+# script existed and was committed, but was wired to NOTHING, while its own
+# docblock claimed it ran in pre-push and in CI. Both claims were false.
+#
+# It catches the shapes that fail on a SECOND run against a database staging
+# shares with production: a bare `create table`, `add column` without
+# `if not exists`, an unguarded `drop`, a SECURITY DEFINER function with no
+# `revoke`, and cron registrations.
+#
+# Baselined at 237 hazards across 81 files on 2026-09-11, the same bargain
+# already made for query-timeouts: existing debt is grandfathered, new debt
+# is refused. It does NOT clean anything up; it stops the pile growing.
+if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-sql-hazards.cjs ]; then
+  node scripts/check-sql-hazards.cjs || fail "check-sql-hazards gate failed. A new migration adds a hazard the baseline does not cover - read the lines above, then either guard the statement or run: node scripts/check-sql-hazards.cjs --update-baseline"
+  ok "sql hazard gate passed"
+elif [ "$HAVE_NODE" != 1 ]; then
+  # Same honesty as gate 7: this one is not in production-gates.yml either,
+  # so there is no CI backstop to promise.
+  warn "node not found - skipping sql hazard gate. NOT enforced by any CI check; re-run it before merging."
 fi
 
 printf "${GRN}[ok] pre-push checks done${NC}\n"

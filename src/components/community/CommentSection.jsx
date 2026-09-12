@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { Send, Wrench, Loader2, Flag, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -82,11 +83,11 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       // happen in one transaction with an advisory lock per post. Replaces
       // the two-step "get_anonymous_number + db.community_comments.create"
       // that let two concurrent anonymous commenters grab the same number.
-      const { data: result, error: rpcErr } = await supabase.rpc('post_comment', {
-        p_post_id: postId,
-        p_body: userMessage,
-        p_is_anonymous: !!anonymous,
-        p_author_name: anonymous ? null : realName,
+      const { data: result, error: rpcErr } = await dal.run('community.commentPost', {
+        postId,
+        body: userMessage,
+        isAnonymous: !!anonymous,
+        authorName: anonymous ? null : realName,
       });
       if (rpcErr) throw rpcErr;
 
@@ -104,10 +105,10 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
           // a native push to all of the recipient's device tokens via
           // dispatch-push — no extra round-trip from the client.
           const bodySnippet = (userMessage || '').slice(0, 120);
-          await supabase.rpc('notify_community_comment', {
-            p_post_id:        postId,
-            p_commenter_name: authorName,
-            p_body_snippet:   bodySnippet,
+          await dal.run('community.commentNotify', {
+            postId,
+            commenterName: authorName,
+            bodySnippet,
           });
         } catch {}
       }
@@ -163,7 +164,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
               if (replyNumber === 3) {
                 aiText = `${aiText}\n\n${buildPrivateChatInvite(expert)}`;
               }
-              await db.community_comments.create({
+              await dal.run('community.commentCreate', {
                 post_id: postId,
                 user_id: null,
                 author_name: expert.communityName,

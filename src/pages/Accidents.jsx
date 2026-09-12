@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { PRINT_PAINT_DELAY_MS } from '@/lib/timingConstants';
@@ -443,7 +443,7 @@ export default function Accidents() {
       if (isGuest) {
         updateGuestAccident?.(accident.id, { ...accident, status: newStatus });
       } else {
-        await db.accidents.update(accident.id, { status: newStatus });
+        await dal.run('accident.update', { id: accident.id, status: newStatus });
         await queryClient.invalidateQueries({ queryKey: ['accidents', accountId] });
       }
       toast.success(`הסטטוס עודכן ל-${newStatus}`);

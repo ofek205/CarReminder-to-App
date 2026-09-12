@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -79,7 +80,7 @@ export default function AdminPopupsTab() {
   const handleToggleStatus = async (popup) => {
     const next = popup.status === 'active' ? 'paused' : 'active';
     try {
-      const { error } = await supabase.from('admin_popups').update({ status: next }).eq('id', popup.id);
+      const { error } = await dal.run('admin.popupUpdate', { id: popup.id, status: next });
       if (error) throw error;
       toast.success(next === 'active' ? 'הופעל' : 'הושהה');
       setRefreshTick(t => t + 1);
@@ -95,7 +96,7 @@ export default function AdminPopupsTab() {
       // A duplicate of a system popup must lose the lock — otherwise the
       // new row would inherit is_system=true and be uneditable too.
       copy.is_system = false;
-      const { error } = await supabase.from('admin_popups').insert(copy);
+      const { error } = await dal.run('admin.popupCreate', copy);
       if (error) throw error;
       toast.success('שוכפל');
       setRefreshTick(t => t + 1);
@@ -105,7 +106,7 @@ export default function AdminPopupsTab() {
   const handleDelete = async () => {
     if (!deleting) return;
     try {
-      const { error } = await supabase.from('admin_popups').delete().eq('id', deleting.id);
+      const { error } = await dal.run('admin.popupDelete', { id: deleting.id });
       if (error) throw error;
       toast.success('נמחק');
       setDeleting(null);

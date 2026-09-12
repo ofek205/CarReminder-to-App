@@ -31,6 +31,7 @@
  */
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { isNative } from '@/lib/capacitor';
 
 const SNOOZE_KEY      = 'update_banner_snoozed_until';   // ISO timestamp
@@ -178,9 +179,9 @@ export default function useUpdateAvailable() {
       // Fire-and-forget: failures are silently swallowed so a network
       // blip never affects the user's session or the banner flow.
       try {
-        supabase.rpc('report_app_version', {
-          p_platform: platform,
-          p_version: currentVersion,
+        dal.run('telemetry.reportAppVersion', {
+          platform,
+          version: currentVersion,
         }).then(() => {}).catch(() => {});
       } catch {}
 

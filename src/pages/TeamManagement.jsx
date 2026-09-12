@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { toastError } from '@/lib/userErrorReport';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -135,8 +136,8 @@ export default function TeamManagement() {
 
   const handleChangeRole = (m, newRole) => runMutation(
     `${m.user_id}:role`,
-    () => withTimeout(supabase.rpc('change_member_role', {
-      p_account_id: accountId, p_member_user_id: m.user_id, p_new_role: newRole,
+    () => withTimeout(dal.run('member.changeRole', {
+      accountId, memberUserId: m.user_id, newRole,
     }), 'change_member_role'),
     `התפקיד שונה ל${roleMeta(newRole).label}`,
     'שגיאה בשינוי התפקיד',
@@ -144,8 +145,8 @@ export default function TeamManagement() {
 
   const handleRemove = (m) => runMutation(
     `${m.user_id}:remove`,
-    () => withTimeout(supabase.rpc('remove_member', {
-      p_account_id: accountId, p_member_user_id: m.user_id,
+    () => withTimeout(dal.run('member.remove', {
+      accountId, memberUserId: m.user_id,
     }), 'remove_member'),
     'איש הצוות הוסר מהחשבון',
     'שגיאה בהסרת איש הצוות',
@@ -153,8 +154,8 @@ export default function TeamManagement() {
 
   const handleCancelPending = (m) => runMutation(
     `${m.user_id}:cancel`,
-    () => withTimeout(supabase.rpc('cancel_pending_invite', {
-      p_account_id: accountId, p_member_user_id: m.user_id,
+    () => withTimeout(dal.run('member.cancelInvite', {
+      accountId, memberUserId: m.user_id,
     }), 'cancel_pending_invite'),
     'ההזמנה בוטלה',
     'שגיאה בביטול ההזמנה',

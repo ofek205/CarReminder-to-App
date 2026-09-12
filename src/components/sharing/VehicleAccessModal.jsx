@@ -15,6 +15,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -102,7 +103,7 @@ export default function VehicleAccessModal({
     if (!confirmRevoke) return;
     setWorking(true);
     try {
-      const { error } = await supabase.rpc('revoke_vehicle_share', { p_share_id: confirmRevoke.share_id });
+      const { error } = await dal.run('share.revoke', { shareId: confirmRevoke.share_id });
       if (error) throw error;
       toast.success('השיתוף בוטל');
       // Refetch share list + vehicle list to reflect immediately.
@@ -125,9 +126,9 @@ export default function VehicleAccessModal({
     if (!confirmRoleChange) return;
     setWorking(true);
     try {
-      const { error } = await supabase.rpc('update_vehicle_share_role', {
-        p_share_id: confirmRoleChange.share_id,
-        p_role:     confirmRoleChange.newRole,
+      const { error } = await dal.run('share.updateRole', {
+        shareId: confirmRoleChange.share_id,
+        role:    confirmRoleChange.newRole,
       });
       if (error) throw error;
       toast.success(`ההרשאה של ${confirmRoleChange.name} עודכנה ל${confirmRoleChange.newLabel}`);
@@ -153,7 +154,7 @@ export default function VehicleAccessModal({
   const handleLeave = async () => {
     setWorking(true);
     try {
-      const { error } = await supabase.rpc('leave_vehicle_share', { p_vehicle_id: vehicle.id });
+      const { error } = await dal.run('share.leave', { vehicleId: vehicle.id });
       if (error) throw error;
       toast.success('יצאת מהשיתוף');
       setConfirmLeave(false);

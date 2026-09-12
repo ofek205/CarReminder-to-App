@@ -12,6 +12,8 @@
  */
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
+import { clearPersistedCache } from '@/lib/query-persister';
 import { GuestDataProvider, GuestDataCtx, DEFAULT_REMINDER_SETTINGS } from '@/contexts/GuestDataContext';
 
 const AuthCtx = createContext(null);
@@ -91,17 +93,43 @@ function normalizeUser(supabaseUser) {
  * Inner auth provider. MUST be rendered inside <GuestDataProvider>
  * so it can access migrateGuestDataIfNeeded via context.
  */
-function AuthInner({ children }) {
+function AuthInner({ children, forceGuest = false }) {
   // Access guest data context via ref so the mount-time useEffect
   // closure always sees the latest context value.
   const guestData = useContext(GuestDataCtx);
   const guestDataRef = useRef(guestData);
   guestDataRef.current = guestData;
 
-  const [authState, setAuthState] = useState('loading');
+  const [authState, setAuthState] = useState(forceGuest ? 'guest' : 'loading');
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // forceGuest is the marketing site's read-only demo (/website/demo,
+    // rendered inside an iframe on the same origin as the real app).
+    //
+    // It returns BEFORE any auth work rather than flipping state after it,
+    // and the difference is the whole point. Everything below this line
+    // reads or mutates the visitor's real session: getSession() restores
+    // it, onAuthStateChange() subscribes to it, account.ensure writes a
+    // membership row, and the recovery branch clears sessionStorage keys.
+    // A demo that ran all that and then set authState='guest' would show
+    // a signed-in visitor their own vehicles inside a marketing page, and
+    // could log them out of the tab they left open. Skipping the effect
+    // makes both impossible by construction instead of by care.
+    //
+    // authState is already 'guest' from useState above, but the resolved-at
+    // stamp still has to be set: main.jsx polls window.__crAuthResolvedAt to
+    // decide whether a launch reached a usable screen, and after 7s without
+    // it, it paints the "הפתיחה לוקחת יותר מהרגיל" recovery overlay over the
+    // app. Every other branch below stamps it, and the first version of this
+    // guard did not, so the preview booted correctly and was then buried by
+    // the watchdog. That is what makes it part of finishing auth, not a
+    // detail of the branch that happens to be taken.
+    if (forceGuest) {
+      try { window.__crAuthResolvedAt = Date.now(); } catch { /* non-DOM host */ }
+      return undefined;
+    }
+
     // ensure_user_account is idempotent: returns the existing account
     // for already-provisioned users, atomically creates one for first-
     // timers. Calling it from the single auth chokepoint here means
@@ -120,7 +148,7 @@ function AuthInner({ children }) {
     const provisionIfNeeded = async () => {
       try {
         await Promise.race([
-          supabase.rpc('ensure_user_account'),
+          dal.run('account.ensure', {}),
           new Promise(resolve => setTimeout(resolve, 5000)),
         ]);
       } catch { /* fall through; pages will surface the error */ }
@@ -288,6 +316,13 @@ function AuthInner({ children }) {
           // so this helper short-circuits on provider==='email' to avoid
           // double-dispatch. See dispatchOAuthWelcomeEmail above for gates.
           dispatchOAuthWelcomeEmail(session.user);
+          // Stamp acquisition source (utm / referrer captured at first load)
+          // onto genuinely NEW accounts — one write path for every provider.
+          // Self-gating: no-ops for returning users, for users already
+          // stamped, and when nothing was captured. Fire-and-forget.
+          import('@/lib/signupAttribution')
+            .then(({ persistAttributionIfNewUser }) => persistAttributionIfNewUser(session.user))
+            .catch(() => {});
         }
         // Synchronous "has-session" flag for RootGate. Supabase v2
         // stores the actual token in Capacitor Preferences on native
@@ -313,6 +348,21 @@ function AuthInner({ children }) {
         // server-revoked token on next API call).
         try { localStorage.removeItem('cr_has_session'); } catch {}
         try { localStorage.removeItem('cr_is_admin'); } catch {}
+        // The central sign-out chokepoint: this fires for our own logout
+        // buttons, PIN lockout, and externally-revoked sessions alike. Drop
+        // the on-disk query snapshot here so the next person to sign in on
+        // this device cannot rehydrate the previous user's vehicles and
+        // documents from IndexedDB.
+        //
+        // Scoped to a REAL sign-out. Supabase also emits INITIAL_SESSION with
+        // a null session on every session-less boot, and clearing on that was
+        // wiping the snapshot moments after the persister restored it —
+        // verified: a planted row did not survive one reload. It would also
+        // destroy a user's offline data the moment their token expired while
+        // they had no connection, which is precisely when they need it.
+        if (event !== 'INITIAL_SESSION') {
+          clearPersistedCache();
+        }
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Detach PIN — every subsequent isPinEnabled() / tryUnlock()
@@ -336,7 +386,7 @@ function AuthInner({ children }) {
       if (hardFallbackTimer) clearTimeout(hardFallbackTimer);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [forceGuest]);
 
   //  User refresh
   const refreshUser = async () => {
@@ -366,10 +416,10 @@ function AuthInner({ children }) {
  * Public provider — wraps GuestDataProvider + AuthInner.
  * Drop-in replacement for the old monolithic GuestProvider.
  */
-export function GuestProvider({ children }) {
+export function GuestProvider({ children, forceGuest = false }) {
   return (
     <GuestDataProvider>
-      <AuthInner>{children}</AuthInner>
+      <AuthInner forceGuest={forceGuest}>{children}</AuthInner>
     </GuestDataProvider>
   );
 }

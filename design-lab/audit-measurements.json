@@ -1,0 +1,386 @@
+[
+  {
+    "width": 320,
+    "rows": [
+      {
+        "selector": ".greeting",
+        "text": "יום חמישי, 10 בספטמברבוקר טוב, אופק",
+        "x": 14,
+        "y": 117,
+        "width": 292,
+        "height": 57.796875,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".quick-check",
+        "text": "בדיקת רכב סריקה מצילוםILישראלבדיקה ",
+        "x": 14,
+        "y": 174.796875,
+        "width": 292,
+        "height": 110,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(246, 248, 241)",
+        "contrast": 11.93
+      },
+      {
+        "selector": ".garage-heading",
+        "text": "כלי התחבורה שלי03 הוספה",
+        "x": 14,
+        "y": 292.796875,
+        "width": 292,
+        "height": 44,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".attention-row",
+        "text": "ביטוח הקורולה מתחדש בעוד 5 ימיםיום שלישי, 15 בספטמבר",
+        "x": 14,
+        "y": 342.796875,
+        "width": 292,
+        "height": 51.5,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(252, 247, 232)",
+        "contrast": 11.93
+      },
+      {
+        "selector": ".list-controls",
+        "text": "לפי חשיבותלפי שם",
+        "x": 14,
+        "y": 400.296875,
+        "width": 292,
+        "height": 47,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".vehicle",
+        "text": "הקורולה שליטויוטה קורולה · 2016ILישראל12-345-67ק״מ148,200עדכון טסט01.0",
+        "x": 14,
+        "y": 447.296875,
+        "width": 292,
+        "height": 207.046875,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".bottom-nav",
+        "text": "ראשימסמכיםמצא מוסךתאונותמומחה AI",
+        "x": 0,
+        "y": 755,
+        "width": 320,
+        "height": 89,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".meter-button",
+        "text": "ק״מ148,200עדכון ",
+        "x": 221,
+        "y": 563.296875,
+        "width": 79,
+        "height": 65.046875,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(244, 246, 240)",
+        "contrast": 11.73
+      },
+      {
+        "selector": ".garage-heading .text-button",
+        "text": " הוספה",
+        "x": 14,
+        "y": 292.796875,
+        "width": 56.78125,
+        "height": 44,
+        "font": "13px",
+        "color": "rgb(45, 82, 51)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 8.87
+      },
+      {
+        "selector": ".scan-button",
+        "text": " סריקה מצילום",
+        "x": 23,
+        "y": 175.796875,
+        "width": 98.09375,
+        "height": 44,
+        "font": "12px",
+        "color": "rgb(45, 82, 51)",
+        "background": "rgb(246, 248, 241)",
+        "contrast": 8.29
+      },
+      {
+        "selector": ".vehicle-description p",
+        "text": "טויוטה קורולה · 2016",
+        "x": 42,
+        "y": 489.875,
+        "width": 166,
+        "height": 18.59375,
+        "font": "12px",
+        "color": "rgb(89, 104, 81)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 5.96
+      },
+      {
+        "selector": ".vehicle-details span",
+        "text": "ק״מ",
+        "x": 228,
+        "y": 563.296875,
+        "width": 72,
+        "height": 14,
+        "font": "11px",
+        "color": "rgb(89, 104, 81)",
+        "background": "rgb(244, 246, 240)",
+        "contrast": 5.47
+      },
+      {
+        "selector": ".bottom-nav button:nth-child(2)>span:last-child",
+        "text": "מסמכים",
+        "x": 203.453125,
+        "y": 816.5,
+        "width": 37.90625,
+        "height": 13,
+        "font": "11px",
+        "color": "rgb(94, 105, 94)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 5.74
+      },
+      {
+        "selector": ".bottom-nav .ai-tab>span:last-child",
+        "text": "מומחה AI",
+        "x": 12.15625,
+        "y": 816.5,
+        "width": 46.09375,
+        "height": 13,
+        "font": "11px",
+        "color": "rgb(153, 82, 5)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 5.89
+      }
+    ],
+    "visibleVehicles": [
+      {
+        "text": "הקורולה שלי",
+        "visibleHeight": 207.046875,
+        "height": 207.046875
+      },
+      {
+        "text": "לסוף השבוע",
+        "visibleHeight": 100.65625,
+        "height": 214.296875
+      },
+      {
+        "text": "הרוח שלנו",
+        "visibleHeight": 0,
+        "height": 207.046875
+      }
+    ],
+    "focusReturned": true,
+    "navBlockedByDrawer": false
+  },
+  {
+    "width": 390,
+    "rows": [
+      {
+        "selector": ".greeting",
+        "text": "יום חמישי, 10 בספטמברבוקר טוב, אופק",
+        "x": 19,
+        "y": 117,
+        "width": 352,
+        "height": 57.796875,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".quick-check",
+        "text": "בדיקת רכב סריקה מצילוםILישראלבדיקה ",
+        "x": 19,
+        "y": 174.796875,
+        "width": 352,
+        "height": 110,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(246, 248, 241)",
+        "contrast": 11.93
+      },
+      {
+        "selector": ".garage-heading",
+        "text": "כלי התחבורה שלי03 הוספה",
+        "x": 19,
+        "y": 292.796875,
+        "width": 352,
+        "height": 44,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".attention-row",
+        "text": "ביטוח הקורולה מתחדש בעוד 5 ימיםיום שלישי, 15 בספטמבר",
+        "x": 19,
+        "y": 342.796875,
+        "width": 352,
+        "height": 51.5,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(252, 247, 232)",
+        "contrast": 11.93
+      },
+      {
+        "selector": ".list-controls",
+        "text": "לפי חשיבותלפי שם",
+        "x": 19,
+        "y": 400.296875,
+        "width": 352,
+        "height": 47,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".vehicle",
+        "text": "הקורולה שליטויוטה קורולה · 2016ILישראל12-345-67ק״מ148,200עדכון טסט01.0",
+        "x": 19,
+        "y": 447.296875,
+        "width": 352,
+        "height": 214.296875,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".bottom-nav",
+        "text": "ראשימסמכיםמצא מוסךתאונותמומחה AI",
+        "x": 0,
+        "y": 768,
+        "width": 390,
+        "height": 76,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 12.77
+      },
+      {
+        "selector": ".meter-button",
+        "text": "ק״מ148,200עדכון ",
+        "x": 274,
+        "y": 569.296875,
+        "width": 88,
+        "height": 66.296875,
+        "font": "16px",
+        "color": "rgb(32, 55, 44)",
+        "background": "rgb(244, 246, 240)",
+        "contrast": 11.73
+      },
+      {
+        "selector": ".garage-heading .text-button",
+        "text": " הוספה",
+        "x": 19,
+        "y": 292.796875,
+        "width": 56.78125,
+        "height": 44,
+        "font": "13px",
+        "color": "rgb(45, 82, 51)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 8.87
+      },
+      {
+        "selector": ".scan-button",
+        "text": " סריקה מצילום",
+        "x": 28,
+        "y": 175.796875,
+        "width": 98.09375,
+        "height": 44,
+        "font": "12px",
+        "color": "rgb(45, 82, 51)",
+        "background": "rgb(246, 248, 241)",
+        "contrast": 8.29
+      },
+      {
+        "selector": ".vehicle-description p",
+        "text": "טויוטה קורולה · 2016",
+        "x": 51,
+        "y": 492.734375,
+        "width": 198,
+        "height": 20.140625,
+        "font": "13px",
+        "color": "rgb(89, 104, 81)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 5.96
+      },
+      {
+        "selector": ".vehicle-details span",
+        "text": "ק״מ",
+        "x": 285,
+        "y": 569.296875,
+        "width": 77,
+        "height": 14,
+        "font": "12px",
+        "color": "rgb(89, 104, 81)",
+        "background": "rgb(244, 246, 240)",
+        "contrast": 5.47
+      },
+      {
+        "selector": ".bottom-nav button:nth-child(2)>span:last-child",
+        "text": "מסמכים",
+        "x": 252.453125,
+        "y": 823,
+        "width": 37.90625,
+        "height": 13,
+        "font": "11px",
+        "color": "rgb(94, 105, 94)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 5.74
+      },
+      {
+        "selector": ".bottom-nav .ai-tab>span:last-child",
+        "text": "מומחה AI",
+        "x": 19.15625,
+        "y": 823,
+        "width": 46.09375,
+        "height": 13,
+        "font": "11px",
+        "color": "rgb(153, 82, 5)",
+        "background": "rgb(255, 255, 255)",
+        "contrast": 5.89
+      }
+    ],
+    "visibleVehicles": [
+      {
+        "text": "הקורולה שלי",
+        "visibleHeight": 214.296875,
+        "height": 214.296875
+      },
+      {
+        "text": "לסוף השבוע",
+        "visibleHeight": 106.40625,
+        "height": 223.09375
+      },
+      {
+        "text": "הרוח שלנו",
+        "visibleHeight": 0,
+        "height": 214.296875
+      }
+    ],
+    "focusReturned": true,
+    "navBlockedByDrawer": false
+  }
+]

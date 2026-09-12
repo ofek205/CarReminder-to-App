@@ -19,12 +19,17 @@ You review code with the goal of making it healthier — clearer, more maintaina
 
 ## Project-Specific Patterns
 
+*Verified 2026-09-01.*
+
 - **React 18** — functional components, hooks, no class components
-- **TypeScript** — type safety should be leveraged, not bypassed with `any`
-- **shadcn/ui + Tailwind** — follow existing component patterns, don't introduce competing approaches
+- **JavaScript, not TypeScript.** 289 `.jsx`, 130 `.js`, one `.ts`; `jsconfig.json` with `checkJs`, no `tsconfig.json`. Never review for type annotations or flag missing types.
+- **shadcn/ui + Tailwind** — follow existing component patterns. `src/components/ui/**` is vendored verbatim and excluded from lint; do not "improve" it.
 - **RTL layout** — verify directional CSS is correct (start/end vs left/right)
-- **Base44 migration** — Base44 imports and patterns are expected for now, but flag opportunities to decouple
+- **Base44 is gone.** The migration is complete. Flag any *new* Base44 pattern as a mistake, not as expected. The single live exception is the `ai-proxy` response envelope, which is a deliberate contract.
 - **Guest + Auth modes** — code that handles both modes should have clear branching, not tangled conditionals
+- **`withTimeout()` on every Supabase call inside `useQuery`** — without it `isLoading` can stay true forever. This is enforced by `scripts/check-query-timeouts.cjs` against a baseline, so new violations fail the push. Also require an `isError` retry state in the UI; the gate proves the call is wrapped, nothing proves the error is rendered.
+- **Design tokens over inline colors** — inline hex/rgb in `style={{}}` is an eslint `warn` (deliberately, ~200 existing sites). New code should use `@/design/tokens.css` or `bg-cr-*`. Flag new violations even though lint only warns.
+- **Watch for the three data-access layers.** Raw `supabase.from/rpc`, `db.<entity>.*`, and `dal.run()` all coexist. Mixing them inside one file is a smell worth flagging; picking a different one than the surrounding code is worth questioning.
 
 ## What You Evaluate
 

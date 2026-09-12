@@ -65,6 +65,10 @@ export default [
         // any new `__VITE_FOO__`-style constants from vite.config.js
         // here too.
         __APP_VERSION__: "readonly",
+        // Dev-login credentials from .env.local, injected by
+        // vite.config.js. Emitted as the literal `null` in any
+        // non-development build, so reads must be optional-chained.
+        __DEV_CREDS__: "readonly",
       },
       parserOptions: {
         ecmaVersion: 2022,
@@ -87,12 +91,19 @@ export default [
     rules: {
       "no-unused-vars": "off",
       "react/jsx-uses-vars": "error",
-      // no-undef does NOT see an undefined COMPONENT in JSX, only a bare
-      // identifier. That blind spot let <ScanReviewSheet> ship without its
-      // import in 16c1114 (2026-05-27) and crash the business expense
-      // editor on open for three and a half months, while lint stayed
-      // green the whole time. One error across all of src/, fixed in this
-      // same commit.
+      // The JSX half of the v5.4.1 lesson, and it was missing until
+      // 2026-09-10. `no-undef` below catches a bare identifier with no
+      // import, which is what broke production that day (`C.token` in 14
+      // files). It does NOT catch an undefined COMPONENT: `<Foo />` with no
+      // import passes lint, passes the build, and throws a ReferenceError
+      // only when that component first renders. In a codebase this
+      // component-heavy that is the far more likely shape of the same
+      // mistake.
+      //
+      // Turning it on found a live one immediately: Expenses.jsx rendered
+      // <ScanReviewSheet> with no import, so the B2B receipt-scan review
+      // would have crashed the page on open. One error across all of src/,
+      // fixed in the same commit.
       "react/jsx-no-undef": "error",
       "react/jsx-uses-react": "error",
       "unused-imports/no-unused-imports": "error",

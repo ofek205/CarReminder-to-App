@@ -12,13 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateInput } from '@/components/ui/date-input';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
-import { Loader2, Upload, Trash2, Camera, Receipt } from 'lucide-react';
+import { Loader2, Upload, Trash2, Camera, Receipt, Info } from 'lucide-react';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { C } from '@/lib/designTokens';
 import { MANUAL_EXPENSE_CATEGORIES } from '@/services/expenses';
 import { dal } from '@/lib/dal';
 import { uploadScanFile, deleteFile, refreshSignedUrl } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
 import ScanReviewSheet   from '@/components/shared/ScanReviewSheet';
 
@@ -95,6 +96,11 @@ export default function ExpenseFormDialog({
   const [pendingScanFile,    setPendingScanFile]    = useState(null);
   const [pendingScanUrl,     setPendingScanUrl]     = useState('');
   const [extractedScanData,  setExtractedScanData]  = useState({});
+  // Mirror of app_config.scan_extraction_enabled, re-read on every open
+  // because the flag is cached for 60s and an admin can flip it while the
+  // app is running. Starts false so the "we'll scan it with AI" promise in
+  // the header never shows and then retracts. Admins always resolve true.
+  const [aiScanAllowed,      setAiScanAllowed]      = useState(false);
 
   // io state
   const [submitting, setSubmitting] = useState(false);
@@ -159,6 +165,14 @@ export default function ExpenseFormDialog({
     setFieldError({ field: null, message: '' });
      
   }, [open, initial?.id, vehicleId]);
+
+  // Read the scan kill switch on every open, not once on mount.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [open]);
 
   // Auto-trigger file picker when in scan-first mode
   useEffect(() => {
@@ -389,6 +403,15 @@ export default function ExpenseFormDialog({
       // "Yes, scan" / "No, enter manually". Reduces wasted tokens for
       // documentation-only uploads and lets the user opt out before
       // the model runs.
+      //
+      // With scan extraction switched off, skip that prompt entirely
+      // rather than offering a choice whose "yes" branch cannot work.
+      // The receipt is already uploaded and attached at this point, so
+      // staying on the form is exactly the "upload for storage only"
+      // behaviour the kill switch is supposed to leave intact. The
+      // notice near the file row explains why nothing was offered.
+      if (!aiScanAllowed) return;
+
       setPendingScanFile(file);
       setPendingScanUrl(file_url);
       setScanStep('confirm');
@@ -557,7 +580,11 @@ export default function ExpenseFormDialog({
           </DialogTitle>
           <DialogDescription className="text-[11px] text-gray-500 text-right">
             {scanFirst
-              ? 'בחר חשבונית, נסרוק אותה עם AI ונמלא לך את הפרטים'
+              ? (aiScanAllowed
+                  ? 'בחר חשבונית, נסרוק אותה עם AI ונמלא לך את הפרטים'
+                  /* Do not promise a scan that cannot run. The file still
+                     uploads and attaches; only the extraction is off. */
+                  : 'בחר חשבונית לשמירה, ומלא את הפרטים למטה')
               : 'הזן את פרטי ההוצאה'}
           </DialogDescription>
         </DialogHeader>
@@ -611,6 +638,20 @@ export default function ExpenseFormDialog({
               <Receipt className="w-4 h-4" style={{ color: C.primary }} />
               <span className="text-xs font-bold" style={{ color: C.text }}>חשבונית</span>
             </div>
+
+            {/* Quiet notice, not an alarm — only when an admin switched scan
+                extraction off. Without it the "scan with AI?" prompt simply
+                never appears after upload and the user is left wondering
+                whether something failed. */}
+            {!aiScanAllowed && (
+              <p
+                className="text-[11px] p-2 rounded-lg flex items-start gap-1.5"
+                style={{ color: C.warnDark, background: C.warnSubtle, border: `1px solid ${C.warnBorder}` }}
+              >
+                <Info className="w-3.5 h-3.5 mt-px shrink-0" />
+                <span>סריקה אוטומטית כרגע לא זמינה. החשבונית תישמר, ואת הפרטים אפשר למלא ידנית.</span>
+              </p>
+            )}
             {receiptUrl ? (
               <div className="flex items-center gap-2">
                 {/* AI-scan button removed at product request — the
@@ -668,7 +709,7 @@ export default function ExpenseFormDialog({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf"
+              accept={DOC_OR_IMAGE_ACCEPT}
               onChange={handleFile}
               className="hidden"
             />

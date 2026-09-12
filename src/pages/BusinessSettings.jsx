@@ -147,7 +147,7 @@ export default function BusinessSettings() {
       <Card accent="emerald" className="mb-5">
         <div className="flex items-center gap-3">
           <div
-            className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black"
+            className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-extrabold"
             style={{
               background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
@@ -157,7 +157,7 @@ export default function BusinessSettings() {
             {workspaceInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-black truncate" style={{ color: C.primaryDark }}>
+            <p className="text-base font-extrabold truncate" style={{ color: C.primaryDark }}>
               {name || 'חשבון עסקי'}
             </p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">

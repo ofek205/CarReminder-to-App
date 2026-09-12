@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { useQueryClient } from '@tanstack/react-query';
@@ -82,9 +83,9 @@ export default function CompleteProfileScreen({ user, onDone }) {
       // Check if profile exists
       const existing = await db.user_profiles.filter({ user_id: user.id }, { light: true });
       if (existing.length > 0) {
-        await db.user_profiles.update(existing[0].id, profileData);
+        await dal.run('profile.update', { ...profileData, id: existing[0].id });
       } else {
-        await db.user_profiles.create(profileData);
+        await dal.run('profile.create', profileData);
       }
     } catch (err) {
       // Previously the error was swallowed and we still closed the popup and

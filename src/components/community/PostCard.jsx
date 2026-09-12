@@ -6,8 +6,8 @@ import { getAiExpertForDomain } from '@/lib/aiExpert';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useAuth } from '../shared/GuestContext';
-import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import useIsAdmin from '@/hooks/useIsAdmin';
@@ -16,6 +16,35 @@ import CommentSection from './CommentSection';
 import ReportDialog from './ReportDialog';
 import ConfirmDeleteDialog from '../shared/ConfirmDeleteDialog';
 
+
+/**
+ * Run a DAL command and throw if it failed.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE catch BLOCKS BELOW WERE DEAD. Every community
+ * interaction command declares `returnsEnvelope`, so `dal.run` resolves to
+ * `{ data, error }` instead of throwing (src/lib/dal/run.js:74). A failed
+ * like, reaction, save or post delete therefore resolved cleanly: the
+ * optimistic rollback never ran, and the error toast never appeared. On a
+ * delete that is the costly one, since the post looks gone until the refetch
+ * puts it back.
+ *
+ * ⚠️ AND IT IS NOT A REGRESSION FROM THE DAL MIGRATION. On main these were
+ * raw table-client mutations, which likewise resolve with an error rather
+ * than throwing, so the same catch blocks were equally dead there. The seam
+ * migration preserved the behaviour faithfully; this fixes the original bug.
+ *
+ * (Written without the literal call form on purpose: the seam test in
+ * registry.integrity.test.js scans raw lines and would read the example in
+ * this comment as a real direct write.)
+ *
+ * `res?.error` is deliberately loose: a command that throws instead of
+ * returning an envelope simply never reaches the check.
+ */
+async function runOrThrow(name, payload) {
+  const res = await dal.run(name, payload);
+  if (res?.error) throw res.error;
+  return res;
+}
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
   catch { return ''; }
@@ -144,14 +173,14 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_likes').delete().eq('id', data.id);
+        if (data) await runOrThrow('community.likeRemove', { id: data.id });
       } else {
         if (myReaction) {
           const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-          if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+          if (data) await runOrThrow('community.reactionRemove', { id: data.id });
           setOptReaction(false);
         }
-        await supabase.from('community_likes').insert({ user_id: user.id, post_id: post.id });
+        await runOrThrow('community.likeAdd', { userId: user.id, postId: post.id });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptLiked(null);
@@ -177,15 +206,15 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_likes').delete().eq('id', data.id);
+        if (data) await runOrThrow('community.likeRemove', { id: data.id });
       }
       if (toggling) {
         const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+        if (data) await runOrThrow('community.reactionRemove', { id: data.id });
       } else if (prevReaction) {
-        await supabase.from('community_reactions').update({ emoji }).eq('user_id', user.id).eq('post_id', post.id);
+        await runOrThrow('community.reactionUpdate', { userId: user.id, postId: post.id, emoji });
       } else {
-        await supabase.from('community_reactions').insert({ user_id: user.id, post_id: post.id, emoji });
+        await runOrThrow('community.reactionAdd', { userId: user.id, postId: post.id, emoji });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptReaction(null);
@@ -208,9 +237,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevSaved) {
         const { data } = await supabase.from('community_saved').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_saved').delete().eq('id', data.id);
+        if (data) await runOrThrow('community.savedRemove', { id: data.id });
       } else {
-        await supabase.from('community_saved').insert({ user_id: user.id, post_id: post.id });
+        await runOrThrow('community.savedAdd', { userId: user.id, postId: post.id });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptSaved(null);
@@ -244,7 +273,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     setConfirmDeleteOpen(false);
     setDeleting(true);
     try {
-      await db.community_posts.delete(post.id);
+      await runOrThrow('community.postDelete', { id: post.id });
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
     } catch { toast.error('שגיאה במחיקה'); }
     setDeleting(false);
@@ -269,7 +298,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (!user || !post.user_id || post.user_id === user.id) return;
     setBlocking(true);
     try {
-      const { error } = await supabase.from('blocked_users').insert({
+      const { error } = await dal.run('community.userBlock', {
         blocker_id: user.id,
         blocked_id: post.user_id,
         // Denormalized display label so the "blocked users" management
@@ -295,7 +324,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       // succeeded; the auto-report is best-effort defense-in-depth.
       // Fire-and-forget: we don't await, but we DO surface the error in
       // the console so a recurring failure shows up in QA.
-      supabase.from('reported_posts').insert({
+      dal.run('community.postReport', {
         post_id: post.id,
         reporter_id: user.id,
         reason: 'other',
@@ -324,7 +353,13 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (trimmed === post.body) { setEditing(false); return; }
     setSavingEdit(true);
     try {
-      await supabase.from('community_posts').update({ body: trimmed }).eq('id', post.id);
+      // postUpdateBody returns an envelope, so a server-side failure RESOLVES
+      // with { error } instead of throwing — the catch below could never fire
+      // for it. Without this check the editor closed on a failed save and the
+      // user was told nothing, so their edit was silently lost and reverted on
+      // the next refetch.
+      const { error } = await dal.run('community.postUpdateBody', { id: post.id, body: trimmed });
+      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
       setEditing(false);
     } catch (err) {

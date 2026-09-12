@@ -14,7 +14,7 @@
  * are visible during development.
  */
 
-import { supabase } from './supabase';
+import { dal } from './dal';
 
 /**
  * @param {string} vehicleId
@@ -24,10 +24,10 @@ import { supabase } from './supabase';
 export async function notifyVehicleChange(vehicleId, changeType, summary) {
   if (!vehicleId) return;
   try {
-    await supabase.rpc('notify_vehicle_change', {
-      p_vehicle_id: vehicleId,
-      p_change_type: changeType,
-      p_summary: summary || '',
+    await dal.run('notification.vehicleChange', {
+      vehicleId,
+      changeType,
+      summary: summary || '',
     });
   } catch (e) {
     if (import.meta.env?.DEV) {

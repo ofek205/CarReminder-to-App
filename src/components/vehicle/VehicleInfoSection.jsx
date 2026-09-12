@@ -9,7 +9,7 @@ import { COUNTRIES } from "../vehicle/CountryFlagSelect";
 import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash, Paperclip, ArrowRight, Sparkles, Info } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
-import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
@@ -186,6 +186,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש.'; break;
         case 'PROVIDER_UNAVAILABLE':
         case 'AI_UNAVAILABLE':       msg = 'שירות הסריקה לא זמין כרגע. אפשר להזין ידנית.'; break;
+        // Consent errors carry their own user-facing copy. Without this
+        // case they land on `default`, which tells someone who declined
+        // permission that the scan failed.
+        case 'AI_CONSENT_DECLINED':
+        case 'AI_CONSENT_UNAVAILABLE': msg = err.message; break;
         default:                     msg = 'הסריקה לא הצליחה. אפשר להזין ידנית.';
       }
       setError(msg);
@@ -235,7 +240,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           // accountId hasn't resolved yet — the date update on the
           // vehicle is the main action and survives that miss.
           try {
-            await db.documents.create({ ...doc, account_id: accountId });
+            await dal.run('document.create', { ...doc, account_id: accountId });
           } catch (saveErr) {
             console.warn('Document save skipped:', saveErr?.message);
           }
@@ -247,7 +252,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
       if (isGuest) {
         updateGuestVehicle(vehicle.id, update);
       } else {
-        await db.vehicles.update(vehicle.id, update);
+        await dal.run('vehicle.update', { ...update, id: vehicle.id });
         await queryClient.invalidateQueries({ queryKey: ['vehicle'] });
         await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
         await queryClient.refetchQueries({ queryKey: ['vehicle', vehicle.id] });

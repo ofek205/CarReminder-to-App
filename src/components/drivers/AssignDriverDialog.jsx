@@ -25,10 +25,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { Loader2, X } from 'lucide-react';
 import VehiclePicker from '@/components/shared/VehiclePicker';
 import { DateInput } from '@/components/ui/date-input';
-import {
-  assignRegisteredDriver,
-  assignExternalDriver,
-} from '@/services/drivers';
+import { dal } from '@/lib/dal';
 
 export default function AssignDriverDialog({
   open,
@@ -76,7 +73,7 @@ export default function AssignDriverDialog({
     try {
       let assignmentId;
       if (driver.kind === 'external') {
-        assignmentId = await assignExternalDriver({
+        assignmentId = await dal.run('driverAssignment.assignExternal', {
           accountId,
           vehicleId,
           externalDriverId: driver.id,
@@ -84,7 +81,7 @@ export default function AssignDriverDialog({
           validTo:   valid_to_iso,
         });
       } else {
-        assignmentId = await assignRegisteredDriver({
+        assignmentId = await dal.run('driverAssignment.assignRegistered', {
           accountId,
           vehicleId,
           driverUserId: driver.id,

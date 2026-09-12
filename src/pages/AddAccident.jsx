@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { compressImage } from '@/lib/imageCompress';
 import { PRINT_PAINT_DELAY_MS } from '@/lib/timingConstants';
 import { useNavigate } from 'react-router-dom';
@@ -19,10 +20,14 @@ import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import { freezeMessageFor } from '@/lib/rpcErrors';
 import PlateScanButton from '@/components/shared/PlateScanButton';
 import { useAuth } from '../components/shared/GuestContext';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
+import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import { isViewOnly } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 import ImageViewer from '../components/shared/ImageViewer';
@@ -114,6 +119,8 @@ export default function AddAccident() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [autofillFields, setAutofillFields] = useState(new Set());
   const [lookupStatus, setLookupStatus] = useState('idle');
+  // The plan-quota verdict behind lookupStatus === 'quota'.
+  const [quotaVerdict, setQuotaVerdict] = useState(null);
   const [plateQuery, setPlateQuery] = useState('');
   // Dual-registry collision on the other-driver plate lookup. See
   // vehicleLookup namespace-collision notes. Shape: { plate, matches: [...] }
@@ -261,7 +268,21 @@ export default function AddAccident() {
     if (!plateQuery.trim()) return;
     setLookupStatus('loading');
     try {
+      // Monetization phase 5c. A THIRD-PARTY plate lookup that fills the
+      // form, so it behaves like "check any vehicle for free" (§3.2) and is
+      // gated like one. The accident report itself is never blocked: the
+      // plate the user typed is saved either way, which is why the notice
+      // below says the details can be filled in by hand.
+      const verdict = await checkPlateQuota(1);
+      if (isPlateQuotaRefusal(verdict)) {
+        setQuotaVerdict(verdict);
+        setLookupStatus('quota');
+        return;
+      }
+
       const result = await lookupVehicleByPlate(plateQuery.trim());
+      // Count, never block.
+      countPlateLookup(accountId, 'add_accident');
       if (!result) { setLookupStatus('not_found'); return; }
       // Dual-registry hit — ask the user which vehicle the OTHER driver
       // owns instead of guessing. Same dialog visual as AddVehicle /
@@ -354,8 +375,8 @@ export default function AddAccident() {
         // can retry.
         const SAVE_TIMEOUT_MS = 15000;
         const savePromise = isEdit
-          ? db.accidents.update(editId, data)
-          : db.accidents.create(data);
+          ? dal.run('accident.update', { ...data, id: editId })
+          : dal.run('accident.create', data);
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('save-timeout')), SAVE_TIMEOUT_MS)
         );
@@ -369,9 +390,12 @@ export default function AddAccident() {
     } catch (err) {
       console.error('Error saving accident:', err);
       const isTimeout = err?.message === 'save-timeout';
+      // Same trigger, same reasoning as MaintenanceSection: accidents carry
+      // the freeze too, so this screen can be refused for a reason that has
+      // nothing to do with the report being saved.
       const msg = isTimeout
         ? 'השמירה נמשכת זמן רב מהצפוי. בדוק את החיבור ונסה שוב — התמונות עלולות להיות גדולות.'
-        : 'אירעה שגיאה בשמירת הדיווח';
+        : (freezeMessageFor(err) || 'אירעה שגיאה בשמירת הדיווח');
       setSystemError(msg);
       toastError(msg, { action: 'accident_save' });
     } finally {
@@ -646,6 +670,12 @@ export default function AddAccident() {
             )}
             {lookupStatus === 'error' && (
               <p className="text-xs text-red-600 mt-1">שגיאה בחיפוש - המספר יישמר כמו שהוא</p>
+            )}
+            {lookupStatus === 'quota' && (
+              <PlateQuotaNotice
+                verdict={quotaVerdict}
+                tail="מספר הרישוי יישמר כמו שהוא, ואפשר למלא את שאר הפרטים ידנית."
+              />
             )}
           </div>
 

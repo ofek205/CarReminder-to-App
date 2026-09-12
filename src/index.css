@@ -393,3 +393,29 @@ input[type="range"]::-moz-range-thumb {
 .expense-breakdown-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.35);
 }
+
+/* Ported here from the deleted src/globals.css, which was never imported by
+   anything and therefore never applied. FindGarage uses this class on three
+   horizontally scrolling filter strips (overflow-x-auto), so until now those
+   strips showed a scrollbar they were written to hide. Tailwind has no
+   built-in utility for this. */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Numbers carry the top weight, and they are the only thing that does.
+   designer: docs/design-app-typography-alignment.md
+
+   font-bold is retuned to 600 in tailwind.config.js so the app stops shouting
+   on every label. Numeric readouts are the exception: a figure needs more
+   weight than text to read as solid at the same optical size, and making the
+   number the single heaviest thing on a screen is what gives the eye somewhere
+   to land. tabular-nums is the reliable marker for "this is a figure, not
+   prose", so it is what the rule keys on. */
+.font-bold.tabular-nums {
+  font-weight: 700;
+}

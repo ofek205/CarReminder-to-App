@@ -173,6 +173,15 @@ async function readFlag(key, { defaultOnError = false } = {}) {
  */
 export async function isFeatureEnabled(key, opts = {}) {
   if (!key) return false;
+  // ignoreAdmin: for flags that switch on a RESTRICTION rather than
+  // reveal a feature. The admin bypass exists so QA can see something
+  // early, which inverts once the flag's meaning is "this rule now
+  // applies": admins get enrolled in the rule before anyone has decided
+  // to turn it on, and a rule that fails closed then breaks them alone.
+  // See lib/aiConsentGate.js for the case that found this.
+  if (opts.ignoreAdmin === true) {
+    return (await readFlag(key, opts)) === true;
+  }
   const [admin, flag] = await Promise.all([
     probeIsAdmin(),
     readFlag(key, opts),

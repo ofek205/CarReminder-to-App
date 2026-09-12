@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
-import { openFileUrlSafely, reserveFileTab } from '@/lib/securityUtils';
+import { openFileUrlSafely, reserveFileTab, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
+import { documentsListKey } from '@/lib/queryKeys';
 import { canEdit } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 
@@ -354,6 +356,12 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש'; break;
         case 'PROVIDER_UNAVAILABLE':
         case 'AI_UNAVAILABLE':       msg = 'שירות AI לא זמין כרגע'; break;
+        // The consent gate raises these with copy already written for the
+        // user. Without the case they fall to `default` and the user who
+        // declined permission is told the document was unreadable, which
+        // blames their photo for their own choice.
+        case 'AI_CONSENT_DECLINED':
+        case 'AI_CONSENT_UNAVAILABLE': msg = err.message; break;
         default:                     msg = 'שגיאה בסריקת המסמך';
       }
       toastError(msg, { action: 'doc_ai_scan' });
@@ -463,7 +471,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
                         is enforced in handleFile. */}
                     <input
                       type="file"
-                      accept="application/pdf,image/*"
+                      accept={DOC_OR_IMAGE_ACCEPT}
                       multiple
                       disabled={!canAddMore}
                       className="hidden"
@@ -1188,7 +1196,7 @@ function AuthDocuments({ vehicleIdParam }) {
   });
 
   const { data: documents = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['documents', accountId, vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
+    queryKey: documentsListKey({ accountId, vehicleId: vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds }),
     queryFn: async () => {
       try {
         const filter = { account_id: accountId };
@@ -1280,7 +1288,7 @@ function AuthDocuments({ vehicleIdParam }) {
         data.extra_storage_paths = form.extra_storage_paths || [];
       }
 
-      const created = await db.documents.create(data);
+      const created = await dal.run('document.create', data);
       if (!created) throw new Error('שמירה נכשלה');
       if (userId) await trackUserAction(userId);
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
@@ -1400,7 +1408,7 @@ function AuthDocuments({ vehicleIdParam }) {
 
   const handleDelete = async (id) => {
     try {
-      await db.documents.delete(id);
+      await dal.run('document.delete', { id });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       toast.success('הפריט נמחק בהצלחה');
     } catch (err) {

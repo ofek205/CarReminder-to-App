@@ -49,6 +49,21 @@ const SUPABASE_CALL_PATTERNS = [
   // db.* entity layer calls are no longer flagged because
   // supabaseEntities.js wraps filter() and list() with withTimeout
   // internally. See commit that added this comment for context.
+  //
+  // dal.run() IS flagged, and the db.* exemption above is exactly why that
+  // needs saying. The DAL is not a wrapped layer: run.js applies no timeout
+  // of its own, and 64 of the 70 call sites inside src/lib/dal/commands/
+  // reach for `supabase.from`/`supabase.rpc` directly rather than going
+  // through the wrapped entity layer. So a dal.run() sitting in a queryFn
+  // can hang exactly as long as a bare supabase call can, and leaves
+  // isLoading true forever in the same way.
+  //
+  // Added 2026-09-11. Before this the gate matched only the two patterns
+  // above, so the 66-file migration from `supabase.*` to `dal.run()` was
+  // invisible to it. Worse than a plain gap: a migrated file quietly LEAVES
+  // the per-file violation count, so the baseline shrinks and the gate looks
+  // healthier precisely because it stopped watching.
+  /\bdal\s*\.\s*run\s*\(/,
 ];
 const TIMEOUT_PATTERNS = [
   /\bwithTimeout\s*\(/,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { db } from '@/lib/supabaseEntities';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -586,7 +587,7 @@ function AuthNotifications() {
   const markAppNotifRead = async (id, nextRead = true) => {
     // Read-only in view-as: never mutate the target's notification state.
     if (isViewingAs) return;
-    await supabase.from('app_notifications').update({ is_read: nextRead }).eq('id', id);
+    await dal.run('appNotification.markRead', { id, isRead: nextRead });
     queryClient.invalidateQueries({ queryKey: ['app-notifs', effectiveUserId] });
     try { window.dispatchEvent(new CustomEvent('cr:notifications-changed')); } catch {}
   };

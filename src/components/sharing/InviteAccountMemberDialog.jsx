@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -114,14 +114,14 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
     }
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc('invite_account_member_by_email', {
-        p_email: cleanEmail,
-        p_role: role,
-        p_vehicle_ids: shareAll ? null : selectedVehicleIds,
+      const { data, error } = await dal.run('member.inviteByEmail', {
+        email: cleanEmail,
+        role,
+        vehicleIds: shareAll ? null : selectedVehicleIds,
         // Explicit account (the active workspace) — ends the non-deterministic
         // LIMIT 1 server-side resolve for users who belong to several accounts.
-        p_account_id: accountId,
-        p_name: name.trim() || null,
+        accountId,
+        name: name.trim() || null,
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';

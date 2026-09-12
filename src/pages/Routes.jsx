@@ -396,7 +396,7 @@ function ManagerRouteCard({ route, stats, vehicleLabel }) {
             </div>
           </div>
           <span
-            className={`shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-black ${status.cls}`}
+            className={`shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${status.cls}`}
           >
             {status.label}
           </span>
@@ -623,7 +623,7 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
         />
         <div className="relative">
           <Link to={detailHref} className="block">
-            <p className="text-base font-black text-white truncate mb-1.5">{route.title}</p>
+            <p className="text-base font-extrabold text-white truncate mb-1.5">{route.title}</p>
             <div className="flex items-center gap-3 text-[12px] text-white/85 flex-wrap">
               {vehicle && (
                 <span className="flex items-center gap-1">

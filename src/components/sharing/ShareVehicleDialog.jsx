@@ -13,21 +13,33 @@
  *   5. The recipient also gets an in-app notification (created server-side
  *      by the RPC) and a Resend email (sent client-side from here)
  *
- * The DB enforces:
- *   - Caller must own the vehicle (account_members role='בעלים')
- *   - No duplicate active invite for same (vehicle, email)
- *   - Cap of 3 ACCEPTED users per vehicle (pending unlimited)
+ * The DB enforces, per the pg_get_functiondef read on 2026-09-08:
+ *   - Caller must be the OWNER of the vehicle's account (accounts.owner_user_id)
+ *   - A live pending invite for the same (vehicle, email) is REUSED, with the
+ *     role and token refreshed, rather than refused
+ *   - Cap of 3 per vehicle counting 'pending' + 'accepted'
+ *   - Self-share refused
  *   - 7-day TTL on pending invites
+ *
+ * ⚠️ THE LINE ABOVE USED TO SAY "3 ACCEPTED users per vehicle (pending
+ *   unlimited)". That is what trg_vshare_cap does, but NOT what the deployed
+ *   RPC body does: it counts pending as occupying a slot. The two differ,
+ *   and the RPC is what this dialog calls.
+ *
+ * And from phase 5a there is a THIRD cap on a different axis: max_shares per
+ * ACCOUNT, from the plan. See shareErrorCopy() below for why its message
+ * cannot be a fixed string.
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import { capWallAction } from '@/lib/billingGate';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
@@ -62,15 +74,68 @@ const VEHICLE_ROLES = [
 // Errors raised by share_vehicle_with_email — translate to Hebrew so we
 // don't dump raw codes in the UI. Anything not on the list falls back
 // to a generic message; we still surface the raw error in DEV console.
+// ⚠️ FOUR OF THESE KEYS DID NOT MATCH THE DEPLOYED FUNCTION.
+//
+// Verified against the live pg_get_functiondef on 2026-09-08. The installed
+// share_vehicle_with_email raises `max_shares_per_vehicle`,
+// `cannot_share_with_self`, `forbidden_not_owner` and `unauthenticated`,
+// while this map only had `vehicle_share_cap_exceeded`,
+// `not_vehicle_owner` and `not_authenticated`, and nothing at all for
+// self-share. Since the lookup key is scraped out of error.message, every
+// one of those fell through to the generic branch and printed the RAW CODE
+// at the user: "שגיאה בשיתוף: max_shares_per_vehicle".
+//
+// That is the most likely error in this dialog, not an edge case: it is what
+// a user sees the moment a vehicle already has three recipients. The whole
+// stated purpose of this map is "so we don't dump raw codes in the UI".
+//
+// The older keys are kept as aliases rather than deleted. They cost nothing,
+// and the repo contains four competing CREATE OR REPLACE bodies for this
+// RPC, so another environment may still be running one of them.
 const VEHICLE_ERROR_COPY = {
-  not_authenticated:    'צריך להתחבר כדי לשתף רכב',
-  not_vehicle_owner:    'רק בעלי הרכב יכולים לשתף אותו',
-  vehicle_not_found:    'הרכב לא נמצא',
-  share_already_exists: 'הרכב כבר משותף עם המייל הזה',
-  vehicle_share_cap_exceeded: 'הרכב כבר משותף עם 3 משתמשים — המקסימום. כדי להוסיף חדש, צריך לבטל אחד קיים.',
-  invalid_email:        'כתובת מייל לא תקינה',
-  invalid_role:         'הרשאה לא תקינה',
+  // Codes the DEPLOYED function actually raises.
+  unauthenticated:       'צריך להתחבר כדי לשתף רכב',
+  forbidden_not_owner:   'רק בעלי הרכב יכולים לשתף אותו',
+  vehicle_not_found:     'הרכב לא נמצא',
+  max_shares_per_vehicle: 'הרכב כבר משותף עם 3 משתמשים, שזה המקסימום. כדי להוסיף עוד, צריך לבטל שיתוף קיים.',
+  cannot_share_with_self: 'זו כתובת המייל שלך. אפשר לשתף רק עם מישהו אחר.',
+  invalid_email:         'כתובת מייל לא תקינה',
+  invalid_role:          'הרשאה לא תקינה',
+
+  // Aliases from earlier versions of the RPC.
+  not_authenticated:     'צריך להתחבר כדי לשתף רכב',
+  not_vehicle_owner:     'רק בעלי הרכב יכולים לשתף אותו',
+  vehicle_share_cap_exceeded: 'הרכב כבר משותף עם 3 משתמשים, שזה המקסימום. כדי להוסיף עוד, צריך לבטל שיתוף קיים.',
+  // Dead against the deployed version, which REUSES a live pending row for
+  // the same (vehicle, email) instead of refusing, so a re-invite just
+  // refreshes the token. Kept for the older bodies.
+  share_already_exists:  'הרכב כבר משותף עם המייל הזה',
 };
+
+/**
+ * The message for one share failure.
+ *
+ * ⚠️ ONE CODE CANNOT LIVE IN THE STATIC MAP ABOVE, and that is why this
+ * function exists. `account_share_cap_exceeded` comes from the per-ACCOUNT
+ * plan cap (phase 5a), so its remedy is a bigger plan, and on iOS naming a
+ * paid plan at all breaches Guideline 3.1.1(a) — which covers prose, not
+ * just buttons. A fixed string would either steer on iOS or under-inform
+ * everywhere else, so the platform decides, through the same billingGate
+ * that governs the cap wall.
+ *
+ * ⚠️ AND IT IS A DIFFERENT LIMIT FROM max_shares_per_vehicle. That one is
+ * "this vehicle already has 3 recipients", fixable for free by removing
+ * one. Conflating them would tell someone to pay when they need not.
+ */
+function shareErrorCopy(code) {
+  if (code === 'account_share_cap_exceeded') {
+    return capWallAction('plan').mayMentionPlans
+      ? 'הגעת למספר הרכבים המשותפים שהמסלול הנוכחי כולל. במסלול גדול יותר אפשר לשתף יותר.'
+      // iOS: states the limit and the only action available inside the app.
+      : 'הגעת למספר הרכבים המשותפים שהמסלול הנוכחי כולל. כדי לשתף רכב אחר, אפשר לבטל שיתוף קיים.';
+  }
+  return VEHICLE_ERROR_COPY[code];
+}
 
 export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   const { user } = useAuth();
@@ -120,14 +185,14 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         setSubmitting(false);
         return;
       }
-      const { data, error } = await supabase.rpc('share_vehicle_with_email', {
-        p_vehicle_id: vehicle.id,
-        p_email:      cleanEmail,
-        p_role:       role,
+      const { data, error } = await dal.run('share.byEmail', {
+        vehicleId: vehicle.id,
+        email:     cleanEmail,
+        role,
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
-        const msg = VEHICLE_ERROR_COPY[code] || `שגיאה בשיתוף: ${error.message}`;
+        const msg = shareErrorCopy(code) || `שגיאה בשיתוף: ${error.message}`;
         toastError(msg, { action: 'share_vehicle_send', err: error });
         if (import.meta.env.DEV) console.warn('share_vehicle_with_email error:', error);
         setSubmitting(false);

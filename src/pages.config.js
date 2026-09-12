@@ -17,6 +17,23 @@ import React from 'react';
 // bugs that App Review repeatedly flagged as Guideline 2.1(a).
 import Dashboard from './pages/Dashboard';
 import AuthPage from './pages/AuthPage';
+import { marketingRoutes } from './lib/marketingContent';
+const Marketing = React.lazy(() => import('./pages/Marketing'));
+// Entry point for the marketing site's read-only preview: redirects to the
+// app's home screen, with demo mode already on (lib/demoMode reads it from
+// the URL at import time).
+//
+// TOP-LEVEL '/demo', not '/website/demo', and the flat path is load-bearing.
+// The build sets `base: './'`, so dist/index.html references its bundle as
+// './assets/x.js'. Served from a nested path that resolves to
+// /website/assets/x.js, a 404, and the frame sat on "טוען..." forever. The
+// prerendered marketing pages escape this because the prerender rewrites
+// '="./' to '="/', and this route is deliberately not prerendered. Same trap
+// as the './sw.js' registration in main.jsx.
+//
+// Deliberately NOT in marketingRoutes: those become crawlable HTML listed in
+// the sitemap, and this is neither a page nor something to index.
+const MarketingDemo = React.lazy(() => import('./pages/MarketingDemo'));
 import __Layout from './Layout.jsx';
 
 // Vehicles / VehicleDetail are still lazy: they're not the landing
@@ -45,9 +62,16 @@ const AccountSettings = React.lazy(() => import('./pages/AccountSettings'));
 const AdminReviews = React.lazy(() => import('./pages/AdminReviews'));
 const DemoVehicleDetail = React.lazy(() => import('./pages/DemoVehicleDetail'));
 const JoinInvite = React.lazy(() => import('./pages/JoinInvite'));
+// The recipient's side of an ownership transfer. Lazy like its sibling:
+// it is only ever reached from a link or a notification, never from
+// navigation, so it has no business in the initial bundle.
+const VehicleTransfer = React.lazy(() => import('./pages/VehicleTransfer'));
 const MaintenanceTemplates = React.lazy(() => import('./pages/MaintenanceTemplates'));
 const Notifications = React.lazy(() => import('./pages/Notifications'));
 const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPage'));
+const AiServices = React.lazy(() => import('./pages/AiServices'));
+const MyPlan = React.lazy(() => import('./pages/MyPlan'));
+const Plans = React.lazy(() => import('./pages/Plans'));
 const RepairTypes = React.lazy(() => import('./pages/RepairTypes'));
 const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
@@ -74,6 +98,7 @@ const Reports           = React.lazy(() => import('./pages/Reports'));
 const Drivers           = React.lazy(() => import('./pages/Drivers'));
 const DriverDetail      = React.lazy(() => import('./pages/DriverDetail'));
 const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
+const AdminPlans = React.lazy(() => import('./pages/AdminPlans'));
 const AdminAlerts           = React.lazy(() => import('./pages/AdminAlerts'));
 const AdminUsers            = React.lazy(() => import('./pages/AdminUsers'));
 const AdminAuditLog         = React.lazy(() => import('./pages/AdminAuditLog'));
@@ -104,6 +129,8 @@ const DevComponents         = import.meta.env.DEV
 export const PAGES = {
     "Accidents": Accidents,
     "AccountSettings": AccountSettings,
+    ...Object.fromEntries(marketingRoutes.map(path => [path.slice(1), Marketing])),
+    "demo": MarketingDemo,
     "AiAssistant": AiAssistant,
     "AddAccident": AddAccident,
     "Auth": AuthPage,
@@ -122,9 +149,13 @@ export const PAGES = {
     "EditVehicle": EditVehicle,
     "FindGarage": FindGarage,
     "JoinInvite": JoinInvite,
+    "VehicleTransfer": VehicleTransfer,
     "MaintenanceTemplates": MaintenanceTemplates,
     "Notifications": Notifications,
     "ReminderSettingsPage": ReminderSettingsPage,
+    "AiServices": AiServices,
+    "MyPlan": MyPlan,
+    "Plans": Plans,
     "RepairTypes": RepairTypes,
     "UserProfile": UserProfile,
     "VehicleDetail": VehicleDetail,
@@ -153,6 +184,7 @@ export const PAGES = {
     // Intentionally NOT in Layout.jsx menu (per product decision).
     "DriverDetail": DriverDetail,
     "AdminBusinessRequests": AdminBusinessRequests,
+    "AdminPlans": AdminPlans,
     "AdminAlerts": AdminAlerts,
     "AdminUsers": AdminUsers,
     "AdminAuditLog": AdminAuditLog,

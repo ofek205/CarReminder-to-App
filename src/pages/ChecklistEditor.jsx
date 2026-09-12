@@ -18,6 +18,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { PHASE_LABELS, getDefaultSections } from '@/lib/checklistTemplates';
 import {
   ArrowRight, Plus, Trash2, Pencil, Check, X, FolderPlus, Download, Anchor, GripVertical,
@@ -128,9 +129,9 @@ export default function ChecklistEditor() {
     setSaving(true);
     try {
       if (row) {
-        await db.vessel_checklists.update(row.id, { items: next, ...extra });
+        await dal.run('checklist.update', { items: next, ...extra, id: row.id });
       } else {
-        const created = await db.vessel_checklists.create({
+        const created = await dal.run('checklist.create', {
           vehicle_id: vehicle.id,
           account_id: vehicle.account_id,
           phase: phaseParam || 'custom',
@@ -152,7 +153,7 @@ export default function ChecklistEditor() {
     const n = (newName || '').trim();
     if (!n || !row) return;
     try {
-      await db.vessel_checklists.update(row.id, { name: n });
+      await dal.run('checklist.update', { id: row.id, name: n });
       setRow({ ...row, name: n });
       qc.invalidateQueries({ queryKey: ['vessel_checklists', vehicleId] });
     } catch (e) {

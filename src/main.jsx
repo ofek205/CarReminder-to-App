@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { isDemoMode } from '@/lib/demoMode';
 import App from '@/App.jsx'
 // Self-hosted Rubik (bundled by Vite → same-origin, no font CSP needed).
 // The app declared 'Rubik' as its font but never loaded it; these imports
@@ -14,6 +15,7 @@ import { isNative, isIOS, isAndroid, initStatusBar, initKeyboard, initBackButton
 import { reportError } from '@/lib/crashReporter';
 import { initBootLog, recordBootStage, markBootSucceeded, flushPreviousFailedBoot } from '@/lib/bootDiagnostics';
 import { validateEnv } from '@/lib/envValidator';
+import { captureAttribution } from '@/lib/signupAttribution';
 import { C } from '@/lib/designTokens';
 
 // Boot log is the FIRST thing we initialize — even before plugin init,
@@ -21,6 +23,12 @@ import { C } from '@/lib/designTokens';
 // post-mortem analysis. Synchronous, never throws.
 initBootLog();
 recordBootStage('main_entry', { isNative, ua: navigator?.userAgent?.slice(0, 120) });
+
+// Signup attribution — capture the acquisition context of this visit BEFORE
+// React mounts and the router rewrites the URL (which would drop ?utm_*).
+// First-touch only, idempotent, never throws. Store installs have no referrer
+// or UTM and are recorded as store_or_direct; see signupAttribution.js.
+try { captureAttribution(); } catch {}
 
 // Flush previous-launch boot log if it ended without `boot_succeeded`.
 // Fire-and-forget — never blocks current boot. Gives us a remote
@@ -56,6 +64,12 @@ try {
 // but iOS WKWebView and desktop Chrome are unaffected. Splitting the
 // class into iOS/Android variants lets each platform's CSS opt in
 // independently to behaviors that are safe on its rendering engine.
+// The marketing preview runs the real app inside an iframe, so it inherits the
+// full web chrome including the legal footer. This flag lets index.html drop
+// that footer there; the reasoning sits beside the rule. Derived from the URL
+// exactly like isDemoMode() itself, so it can never land on a normal app tab.
+if (isDemoMode()) document.documentElement.classList.add('cr-demo');
+
 if (isNative) {
   document.documentElement.classList.add('native-app');
   if (isIOS) document.documentElement.classList.add('ios-app');
@@ -192,9 +206,19 @@ try {
 
 // Service Worker. offline support for web users only (Capacitor loads from
 // file:// and doesn't need/benefit from a SW).
+//
+// The path is ROOT-ABSOLUTE on purpose. It used to be './sw.js', which was
+// fine while every URL was either '/' or a single segment, but the marketing
+// site added nested routes: from '/website/guides/engine-hours' the browser
+// resolved './sw.js' to '/website/guides/sw.js', got the SPA's index.html
+// back from the rewrite, and refused it with "unsupported MIME type
+// ('text/html')" on all 19 marketing pages. '/sw.js' also gives the worker
+// the root scope it needs to serve the whole origin, which a nested
+// registration could never do. Safe next to `base: './'` because the
+// !isNative guard means this line never runs under file://.
 if (!isNative && 'serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
       console.warn('Service Worker registration failed:', err);
     });
   });

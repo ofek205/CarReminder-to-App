@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -329,14 +330,14 @@ export default function CreateRoute() {
         stopAddressText(s) && s.geo_status === 'failed'
       ).length;
 
-      const { data: newRouteId, error } = await supabase.rpc('create_route_with_stops', {
-        p_account_id:              accountId,
-        p_vehicle_id:              vehicleId,
-        p_assigned_driver_user_id: driverUserId || null,
-        p_title:                   cleanTitle,
-        p_notes:                   notes.trim() || null,
-        p_scheduled_for:           scheduledFor || null,
-        p_stops:                   finalStops,
+      const { data: newRouteId, error } = await dal.run('route.createWithStops', {
+        accountId,
+        vehicleId,
+        driverUserId: driverUserId || null,
+        title:        cleanTitle,
+        notes:        notes.trim() || null,
+        scheduledFor: scheduledFor || null,
+        stops:        finalStops,
       });
       if (error) throw error;
       if (!newRouteId) throw new Error('no_id_returned');

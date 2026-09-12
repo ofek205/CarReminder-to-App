@@ -72,6 +72,11 @@ ios/App/App/public/
 .claude/todos/
 .claude/projects/
 .claude/worktrees/
+# Per-machine permission grants. Was tracked until 2026-09-01 and had drifted
+# into ~80 rules full of another machine's absolute paths, plus blanket
+# `node -e` / `powershell -Command` allows that defeated permissions.deny
+# entirely. It is machine-local by definition — it does not belong in the repo.
+.claude/settings.local.json
 
 # Supabase CLI local state (linked-project.json, version pins, etc.)
 supabase/.temp/
@@ -93,3 +98,6 @@ sprint*-*.png
 scripts/welcome-recipients.json
 scripts/*-recipients.json
 scripts/*-recipients.csv
+
+# 196KB GitHub API dump, a working file that was swept in by a wildcard add.
+prs.json

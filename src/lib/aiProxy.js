@@ -19,6 +19,8 @@
  */
 
 import { isAiScanEnabled, emitAiScanDisabled } from './aiScanGate';
+import { requireAiConsent } from './aiConsentGate';
+import { capWallAction } from './billingGate';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 // Cold-start on Gemini can push a single request to 15-25s, plus our
@@ -175,7 +177,41 @@ async function callEdgeProxy(body) {
     }
   }
 
+  // 402 = the plan quota, not a fault. The remedy is an upgrade, so this
+  // must never share copy with the rate limiter below.
+  if (res.status === 402) {
+    // ⚠️ THE MESSAGE CANNOT NAME A PAID PLAN ON iOS. Guideline 3.1.1(a)
+    // covers prose, not just controls, so "the advisor is open on a paid
+    // plan" is itself steering there. Same decision source as the cap wall
+    // and the share-cap toast, so the three cannot disagree about what a
+    // platform may say. On iOS the copy states the limit only.
+    const e = new Error(
+      capWallAction('plan').mayMentionPlans
+        ? 'נוצלה שאלת ההתרשמות ביועץ. במסלול בתשלום היועץ פתוח.'
+        : 'נוצלה שאלת ההתרשמות ביועץ.',
+    );
+    e.code = 'AI_REQUIRES_PAID_PLAN';
+    try {
+      const d = await res.clone().json();
+      e.quotaLimit = d?.limit ?? null;
+      e.quotaUsed = d?.used ?? null;
+    } catch { /* the code alone is enough to pick copy */ }
+    throw e;
+  }
   if (res.status === 429) {
+    // ⚠️ TWO DIFFERENT 429s SHARE THIS STATUS, AND THE COPY BELOW WAS
+    // WRITTEN FOR ONLY ONE OF THEM. The per-minute limiter genuinely means
+    // "try again in a minute". The plan's daily fair-use ceiling means
+    // "come back tomorrow", and telling that user to wait sixty seconds
+    // promises something that will not arrive. The server tags the second
+    // one with reason: 'ai_daily_cap_reached'.
+    let reason = '';
+    try { reason = String((await res.clone().json())?.reason || ''); } catch {}
+    if (reason === 'ai_daily_cap_reached') {
+      const e = new Error('הגעת למספר שאלות היועץ להיום. המכסה מתאפסת מחר.');
+      e.code = 'AI_DAILY_CAP_REACHED';
+      throw e;
+    }
     const e = new Error('חרגת ממגבלת קריאות ה-AI. נסה שוב בעוד דקה.');
     e.code = 'RATE_LIMIT';
     throw e;
@@ -280,6 +316,24 @@ export async function aiRequest(body) {
       if (gateErr?.code === 'SCAN_EXTRACTION_DISABLED') throw gateErr;
     }
   }
+
+  // App Store 5.1.2(i): explicit permission before sharing personal data
+  // with a third-party AI. This is the LAST point at which the payload is
+  // still on the device, which is why the check lives here and not in the
+  // eleven surfaces that call us. It raises the consent sheet, waits for
+  // the answer, and returns normally when permission is on record, so the
+  // request the user already triggered completes without them pressing
+  // send a second time.
+  //
+  // Deliberately NOT wrapped in a catch. Every error it raises is coded
+  // (AI_CONSENT_DECLINED / AI_CONSENT_UNAVAILABLE) and carries copy meant
+  // for the user, and swallowing one would send the payload anyway, which
+  // is the single outcome this whole feature exists to prevent.
+  //
+  // Inert until app_config.ai_consent_enforced is true, admins excepted.
+  // See lib/aiConsentGate.js for why that flag is the only kill switch
+  // that reaches the native apps.
+  await requireAiConsent(body);
 
   try {
     const result = await callEdgeProxy(body);

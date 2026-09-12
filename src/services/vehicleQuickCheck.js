@@ -1,5 +1,5 @@
 import { db } from '@/lib/supabaseEntities';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
@@ -11,6 +11,35 @@ export const QUICK_CHECK_RETURN_KEY = 'vehicle_quick_check_return';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const cache = new Map();
+
+/**
+ * Would lookupVehicleQuickCheck(plate) be served from the cache right now?
+ *
+ * Exists because the plate check became a CHARGE in phase 5c, and phase 3's
+ * counter had no way to tell a fresh lookup from a re-view. It counted both,
+ * and the note at VehicleCheck.jsx said so and said it had to be revisited
+ * "before phase 5, where the same call becomes a charge". This is that fix.
+ *
+ * §3.2 of the plan requires a re-view inside the cache window to be free,
+ * "so nobody complains they paid twice for the same vehicle" — and once a
+ * cap exists, double-charging a back-button is not just a billing nit: it
+ * spends one of a free account's three monthly checks on a result the app
+ * did not even re-fetch.
+ *
+ * Deliberately a PREDICATE rather than a changed return shape: five call
+ * sites read the result of lookupVehicleQuickCheck (the four counted
+ * surfaces plus the Dashboard hero), and adding a wrapper object to all of
+ * them to carry one boolean would be a much larger change than the problem.
+ *
+ * Call it IMMEDIATELY before the lookup. Nothing else populates the cache,
+ * so there is no window in which the answer can go stale between the two.
+ */
+export function isPlateCached(plate) {
+  const validation = validateQuickCheckPlate(plate);
+  if (!validation.ok) return false;
+  const cached = cache.get(validation.plate);
+  return !!cached && Date.now() - cached.cachedAt < CACHE_TTL_MS;
+}
 
 const DB_COLUMNS = [
   'account_id', 'vehicle_type', 'manufacturer', 'model', 'year',
@@ -329,7 +358,7 @@ export async function vehicleExistsInAccount(accountId, plate) {
 async function resolveAccountId(accountId) {
   if (accountId) return accountId;
   const { data, error } = await withTimeout(
-    supabase.rpc('ensure_user_account'),
+    dal.run('account.ensure', {}),
     'ensure_user_account'
   );
   if (error) throw error;
@@ -356,5 +385,5 @@ export async function saveQuickCheckVehicle(result, accountId) {
     err.vehicle = duplicate;
     throw err;
   }
-  return db.vehicles.create(buildVehicleInsertPayload(result, acctId));
+  return dal.run('vehicle.create', buildVehicleInsertPayload(result, acctId));
 }

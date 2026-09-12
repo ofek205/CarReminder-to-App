@@ -420,10 +420,10 @@ export default function BusinessDashboard() {
         </div>
 
         <h1
-          className="font-black leading-none tracking-tight truncate"
+          className="font-extrabold leading-none tracking-tight truncate"
           style={{
             color: C.primaryDark,
-            fontWeight: 900,
+            fontWeight: 700,
             fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
             letterSpacing: '-0.025em',
           }}
@@ -483,11 +483,11 @@ export default function BusinessDashboard() {
             {/* Big number */}
             <div className="flex items-end gap-3 leading-none">
               <span
-                className="font-black tabular-nums"
+                className="font-extrabold tabular-nums"
                 style={{
                   color: '#FFFFFF',
                   fontSize: 'clamp(4rem, 11vw, 6.5rem)',
-                  fontWeight: 900,
+                  fontWeight: 700,
                   letterSpacing: '-0.05em',
                   lineHeight: 0.85,
                   textShadow: '0 2px 20px rgba(0,0,0,0.15)',
@@ -514,7 +514,7 @@ export default function BusinessDashboard() {
                     ? <CheckCircle2 className="w-4 h-4 text-white" />
                     : <AlertTriangle className="w-4 h-4 text-white" />}
                 </div>
-                <p className="text-base font-black text-white">
+                <p className="text-base font-extrabold text-white">
                   {fleetHealthy
                     ? 'הצי במצב תקין'
                     : overdueCount > 0
@@ -631,7 +631,7 @@ export default function BusinessDashboard() {
               דורש תשומת לב
             </h2>
             <span
-              className="ml-auto inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black"
+              className="ml-auto inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-extrabold"
               style={{ background: C.warnIcon, color: '#FFFFFF' }}
             >
               {attentionItems.length}

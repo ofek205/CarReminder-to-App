@@ -52,7 +52,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import ScanReviewSheet from '@/components/shared/ScanReviewSheet';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { reportUserError } from '@/lib/crashReporter';
 // Living Dashboard system - one language across all B2B pages.
 import {
@@ -338,14 +338,14 @@ function ExpenseRow({ expense, vehicle, onEdit, onDelete }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2 mb-1.5 flex-wrap">
               <span
-                className="text-base font-black tabular-nums"
+                className="text-base font-extrabold tabular-nums"
                 style={{ color: C.primaryDark }}
                 dir="ltr"
               >
                 {fmtMoney(expense.amount, expense.currency)}
               </span>
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-black"
+                className="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
                 style={{ background: tone.bg, color: tone.text }}
               >
                 {CATEGORY_LABELS[cat] || cat}
@@ -809,7 +809,7 @@ function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, aiScanAll
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,.pdf"
+              accept={DOC_OR_IMAGE_ACCEPT}
               onChange={(e) => handleFileEvent(e, { thenScan: false })}
               className="hidden"
             />

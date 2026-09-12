@@ -15,6 +15,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import {
   getDefaultSections,
   PHASE_LABELS,
@@ -187,9 +188,9 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
   // Persistence helper. always writes the whole sections object back.
   const persist = async (next, extra = {}) => {
     if (row) {
-      await db.vessel_checklists.update(row.id, { items: next, ...extra });
+      await dal.run('checklist.update', { items: next, ...extra, id: row.id });
     } else {
-      await db.vessel_checklists.create({
+      await dal.run('checklist.create', {
         vehicle_id: vehicle.id,
         account_id: vehicle.account_id,
         phase,
@@ -261,7 +262,7 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
     // persist engine_type on vehicle so next import remembers it
     if (phase === 'engine' && engineTypeForPhase && engineTypeForPhase !== vehicle.engine_type) {
       try {
-        await db.vehicles.update(vehicle.id, { engine_type: engineTypeForPhase });
+        await dal.run('vehicle.update', { id: vehicle.id, engine_type: engineTypeForPhase });
         qc.invalidateQueries({ queryKey: ['vehicles'] });
         qc.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       } catch (e) {

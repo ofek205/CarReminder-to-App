@@ -2,9 +2,11 @@ import { toastError } from '@/lib/userErrorReport';
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
 import useAccountRole from '@/hooks/useAccountRole';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
+import { compressImage } from '@/lib/imageCompress';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -157,10 +159,10 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       }));
       const accidentPayload = data.repairData.is_accident ? accidentDetails : null;
 
-      const { error } = await supabase.rpc('save_repair_with_children', {
-        p_repair_log: repairLog,
-        p_attachments: attachmentsPayload,
-        p_accident: accidentPayload,
+      const { error } = await dal.run('repair.save', {
+        repairLog,
+        attachments: attachmentsPayload,
+        accident: accidentPayload,
       });
       if (error) throw error;
     },
@@ -185,7 +187,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
   // here immediately shows up there too.
   const createRepairTypeMutation = useMutation({
     mutationFn: async (name) => {
-      return db.repair_types.create({
+      return dal.run('repairType.create', {
         owner_user_id: currentUser.id,
         scope: 'user',
         is_active: true,
@@ -207,8 +209,16 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     if (!validation.ok) { toastError(validation.error, { action: 'add_repair_attach_validate' }); e.target.value = ''; return; }
     setUploading(true);
     try {
+      // Compress images before upload, same as RepairsSection. This used
+      // to happen by accident on native: the picker went through the
+      // Camera plugin, which handed back a re-encoded 1200px JPEG. Now
+      // that documents need a real file input, the original file arrives
+      // untouched, and a phone photo is several MB. It would still pass
+      // the 10MB check, so the only symptom would be slow uploads and
+      // storage cost.
+      const payload = file.type?.startsWith('image/') ? await compressImage(file) : file;
       const { file_url, storage_path } = await uploadVehicleFile({
-        file,
+        file: payload,
         accountId: vehicle.account_id || accountId,
         vehicleId: vehicle.id,
       });
@@ -503,7 +513,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
                 </div>
               ))}
               <FileOrCameraUpload
-                accept="image/*,application/pdf"
+                accept={DOC_OR_IMAGE_ACCEPT}
                 onChange={handleFileUpload}
                 disabled={uploading}
                 uploading={uploading}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
@@ -52,11 +53,19 @@ import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
+import { GUEST_VEHICLE_CAP } from "@/contexts/GuestDataContext";
+import { isVehicleCapError, vehicleCapKind } from "@/lib/vehicleCapError";
+import useVehicleCapacity from "@/hooks/useVehicleCapacity";
+import useAccountPlan from "@/hooks/useAccountPlan";
+import VehicleCapReachedModal from "@/components/vehicles/VehicleCapReachedModal";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
+import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
@@ -199,6 +208,9 @@ export default function AddVehicle() {
   const [shipyardQuestion, setShipyardQuestion] = useState(null);
   const [plateQuery, setPlateQuery] = useState('');
   const [lookupStatus, setLookupStatus] = useState('idle');
+  // The plan-quota verdict behind lookupStatus === 'quota'. Held so the
+  // notice can state the real numbers rather than a generic sentence.
+  const [quotaVerdict, setQuotaVerdict] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);    // one of VEHICLE_CATEGORIES
   const [selectedSubcategory, setSelectedSubcategory] = useState(null); // one of SPECIAL_SUBCATEGORIES
   const [customSubcategories, setCustomSubcategories] = useState({}); // { categoryLabel: [{label,dbName,usageMetric}] }
@@ -285,6 +297,16 @@ export default function AddVehicle() {
   });
   const { errors, validate, clearError } = useFormValidation();
   const [systemError, setSystemError] = useState(null);
+  // Personal-vehicle-cap block. Shown when the server rejects the insert with
+  // personal_vehicle_cap_reached (dormant while enforcement is gated off).
+  // Which cap refused, so the wall can show the right ceiling and the right
+  // remedy. null while no wall is open.
+  const [capReached, setCapReached] = useState(false);
+  const [capKind, setCapKind] = useState("personal");
+  // Only read for the plan wall ceiling. Null before the phase-1 migration,
+  // which the modal renders as an em-dash rather than a wrong number.
+  const { plan: accountPlan } = useAccountPlan();
+  const capacity = useVehicleCapacity();
 
   // AI scan gate — declared up top alongside the other UI flags, but
   // the effect lives down here because the deps array reads
@@ -772,7 +794,25 @@ export default function AddVehicle() {
     if (!plateQuery.trim()) return;
     setLookupStatus('loading');
     try {
+      // Monetization phase 5c. §3.2 calls THIS the biggest hole in the
+      // plate quota: an explicit lookup that returns the full
+      // specification, reachable by opening /AddVehicle and searching
+      // without ever saving a vehicle. Phase 3 counted it; this refuses it.
+      //
+      // No cache exemption here, unlike VehicleCheck: this path calls
+      // lookupVehicleByPlate directly and never touches the 10-minute
+      // quick-check cache, so every search really is a fresh request.
+      const verdict = await checkPlateQuota(1);
+      if (isPlateQuotaRefusal(verdict)) {
+        setQuotaVerdict(verdict);
+        setLookupStatus('quota');
+        return;
+      }
+
       const result = await lookupVehicleByPlate(plateQuery.trim());
+      // Count, never block.
+      // Counted even on a miss: the request went to data.gov.il either way.
+      countPlateLookup(accountId, 'add_vehicle_search');
       if (!result) { setLookupStatus('not_found'); return; }
 
       // Dual-registry collision (e.g. plate 229080 = 1965 Triumph Herald
@@ -970,6 +1010,18 @@ export default function AddVehicle() {
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     if (isGuest) {
+      // ⚠️ The cap is checked HERE, not left to addGuestVehicle's null return.
+      // That function returns null for a full store and for a genuine save
+      // failure alike, so the caller used to report both as
+      // "שגיאה בשמירה הזמנית" — telling a user something broke when they had
+      // simply reached a limit. Invisible while the cap was 20; the common
+      // path now that it is 5.
+      if (guestVehicles.length >= GUEST_VEHICLE_CAP) {
+        hapticFeedback('heavy');
+        toast(`במצב אורח אפשר לשמור עד ${GUEST_VEHICLE_CAP} כלי תחבורה. הירשם בחינם כדי להוסיף עוד, והרכבים שכבר הוספת יעברו איתך.`);
+        return;
+      }
+
       // Save vehicle locally first, then prompt registration
       const saved = addGuestVehicle(data);
       if (saved) {
@@ -977,6 +1029,7 @@ export default function AddVehicle() {
         setShowGuestSignup(true);
       } else {
         hapticFeedback('heavy');
+        // A real failure now, not a full store: quota is handled above.
         toastError('שגיאה בשמירה הזמנית', { action: 'add_vehicle_draft_save' });
       }
       return;
@@ -1020,7 +1073,7 @@ export default function AddVehicle() {
       // the user got a vehicle without their VIN/spec data AND no warning).
       // The whole-row insert either works or raises the real error, which
       // the catch below translates to a friendly Hebrew message.
-      const savedVehicle = await db.vehicles.create(cleanData);
+      const savedVehicle = await dal.run('vehicle.create', cleanData);
       // Invalidate BOTH cache keys. ['vehicles'] is used by per-page
       // useMyVehicles (Accidents, AddAccident, AiAssistant…) while
       // ['my-vehicles', userId, accountId] is the Dashboard's own
@@ -1037,6 +1090,21 @@ export default function AddVehicle() {
     } catch (err) {
       console.error('Vehicle save error:', err);
       hapticFeedback('heavy');
+      // A vehicle-cap block — the account is full. Show the wall instead of
+      // a generic error. Checked first: it is a deliberate policy stop, not
+      // a failure.
+      if (isVehicleCapError(err)) {
+        capacity.refetch?.();
+        // ⚠️ WHICH cap fired decides what the wall may say. Without this the
+        // plan cap would render the personal wall's ceiling
+        // (accounts.vehicle_cap, default 10) after a refusal at a plan cap
+        // of 5, and offer a business account that a paid plan already
+        // includes. Unknown falls back to 'personal', the pre-existing
+        // behaviour.
+        setCapKind(vehicleCapKind(err) || 'personal');
+        setCapReached(true);
+        return;
+      }
       // Postgres 23505 = unique_violation on vehicles_plate_unique_per_account.
       // Friendlier message than the generic "save failed" so the user knows
       // exactly what went wrong.
@@ -1118,6 +1186,14 @@ export default function AddVehicle() {
         open={showSignUp}
         onClose={() => setShowSignUp(false)}
         reason="הירשם כדי לשמור רכבים לצמיתות ולגשת אליהם מכל מכשיר"
+      />
+
+      <VehicleCapReachedModal
+        open={capReached}
+        kind={capKind}
+        planCap={accountPlan?.maxVehicles ?? null}
+        onClose={() => setCapReached(false)}
+        capacity={capacity}
       />
 
       <VehicleScanWizard
@@ -1606,6 +1682,12 @@ export default function AddVehicle() {
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   אירעה שגיאה בשליפת הנתונים, ניתן להזין ידנית
                 </div>
+              )}
+              {lookupStatus === 'quota' && (
+                <PlateQuotaNotice
+                  verdict={quotaVerdict}
+                  tail="אפשר להמשיך ולמלא את הפרטים ידנית למטה."
+                />
               )}
             </div>
           )}

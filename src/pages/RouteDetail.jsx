@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -295,10 +296,10 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
   const callStopRpc = async (newStatus, completionNote, successMsg) => {
     setBusy(true);
     try {
-      const { error } = await supabase.rpc('update_stop_status', {
-        p_stop_id: stop.id,
-        p_status:  newStatus,
-        p_note:    completionNote || null,
+      const { error } = await dal.run('route.updateStopStatus', {
+        stopId: stop.id,
+        status: newStatus,
+        note:   completionNote || null,
       });
       if (error) throw error;
       toast.success(successMsg || 'סטטוס התחנה עודכן');
@@ -319,10 +320,10 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
     if (!noteText.trim()) return;
     setBusy(true);
     try {
-      const { error } = await supabase.rpc('add_stop_documentation', {
-        p_stop_id: stop.id,
-        p_kind:    'note',
-        p_payload: { text: noteText.trim() },
+      const { error } = await dal.run('route.addStopDocumentation', {
+        stopId:  stop.id,
+        kind:    'note',
+        payload: { text: noteText.trim() },
       });
       if (error) throw error;
       toast.success('ההערה נשמרה');
@@ -342,17 +343,24 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
     if (!issueText.trim()) return;
     setBusy(true);
     try {
-      const { error: statusErr } = await supabase.rpc('update_stop_status', {
-        p_stop_id: stop.id,
-        p_status:  'failed',
-        p_note:    issueText.trim(),
+      const { error: statusErr } = await dal.run('route.updateStopStatus', {
+        stopId: stop.id,
+        status: 'failed',
+        note:   issueText.trim(),
       });
       if (statusErr) throw statusErr;
-      await supabase.rpc('add_stop_documentation', {
-        p_stop_id: stop.id,
-        p_kind:    'issue',
-        p_payload: { text: issueText.trim() },
+      // Check this envelope too. It was the one call in this function that
+      // didn't, so a failed documentation write still produced the success
+      // toast below: the user was told the issue was documented and that the
+      // manager would see it, while nothing had been recorded. The status
+      // update above has already landed at this point, so surfacing the error
+      // leaves an honest partial state rather than a false success.
+      const { error: docErr } = await dal.run('route.addStopDocumentation', {
+        stopId:  stop.id,
+        kind:    'issue',
+        payload: { text: issueText.trim() },
       });
+      if (docErr) throw docErr;
       toast.success('התקלה תועדה. המנהל יראה את הדיווח ביומן הפעילות.');
       setIssueText('');
       setIssueOpen(false);
@@ -395,7 +403,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span
-              className="w-6 h-6 rounded-full text-[11px] font-black flex items-center justify-center text-white tabular-nums"
+              className="w-6 h-6 rounded-full text-[11px] font-extrabold flex items-center justify-center text-white tabular-nums"
               style={{
                 background: colorForStop(stop.status),
                 boxShadow: '0 2px 8px rgba(15,40,28,0.18)',

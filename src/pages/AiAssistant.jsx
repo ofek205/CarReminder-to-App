@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest, VISION_IMAGE_MIME } from '@/lib/aiProxy';
+import { DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual, getVehicleCategory } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
@@ -38,7 +39,8 @@ const MIN_INTERVAL_MS = 1500; // rate limit between sends
 // are the modalities Gemini 2.5 Flash supports under the free tier
 // at the document-token rate.
 const ATTACHMENT_MAX_BYTES = 6 * 1024 * 1024;
-const ATTACHMENT_ACCEPT    = 'image/*,application/pdf';
+// Shared so the Android picker ordering stays correct in one place.
+const ATTACHMENT_ACCEPT    = DOC_OR_IMAGE_ACCEPT;
 
 function formatFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
@@ -756,6 +758,18 @@ ${selectedVehicle ? `הנתונים המלאים של ${itemWord} מופיעים
           userMsg = 'אין חיבור לאינטרנט. בדוק את הרשת ונסה שוב.'; break;
         case 'RATE_LIMIT':
           userMsg = 'יותר מדי בקשות. המתן דקה ונסה שוב.'; break;
+        // ⚠️ NEITHER OF THE NEXT TWO MAY SAY "המתן דקה". One is a paywall
+        // and one resets tomorrow; the rate-limiter copy above is wrong for
+        // both and would promise a wait that changes nothing.
+        case 'AI_REQUIRES_PAID_PLAN':
+          // The proxy already writes plan-appropriate copy. Reusing it keeps
+          // one wording for the paywall instead of two that can drift.
+          // Fallback only if the proxy somehow sent no message. Deliberately
+          // says nothing about plans, since this branch cannot consult the
+          // platform and iOS must never see one named.
+          userMsg = err?.message || 'נוצלה שאלת ההתרשמות ביועץ.'; break;
+        case 'AI_DAILY_CAP_REACHED':
+          userMsg = err?.message || 'הגעת למספר שאלות היועץ להיום. המכסה מתאפסת מחר.'; break;
         case 'UNAUTHORIZED':
         case 'NO_SESSION':
           userMsg = 'ההתחברות פגה. התחבר מחדש ונסה שוב.'; break;

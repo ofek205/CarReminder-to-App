@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -371,9 +372,9 @@ function UpdateMileageDialog({ vehicle, onClose, onDone }) {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('driver_update_mileage', {
-        p_vehicle_id: vehicle.id,
-        p_new_km:     n,
+      const { error } = await dal.run('vehicle.driverUpdateMileage', {
+        vehicleId: vehicle.id,
+        newKm:     n,
       });
       if (error) throw error;
       toast.success('הקילומטראז\' עודכן');
@@ -441,12 +442,12 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('driver_log_vehicle_event', {
-        p_vehicle_id:  vehicle.id,
-        p_kind:        kind,
-        p_title:       title.trim(),
-        p_description: description.trim() || null,
-        p_cost:        cost ? Number(cost) : null,
+      const { error } = await dal.run('vehicle.driverLogEvent', {
+        vehicleId:   vehicle.id,
+        kind,
+        title:       title.trim(),
+        description: description.trim() || null,
+        cost:        cost ? Number(cost) : null,
       });
       if (error) throw error;
       toast.success(isIssue

@@ -19,6 +19,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 
 const K = {
   notifications: ['email-admin', 'notifications'],
@@ -56,10 +57,7 @@ export function useToggleNotification() {
     mutationFn: async ({ key, enabled }) => {
       // Flip the UI flag first. RLS scopes this to admins so a non-admin
       // hitting the mutation just sees an error toast.
-      const { error } = await supabase
-        .from('email_notifications')
-        .update({ enabled })
-        .eq('key', key);
+      const { error } = await dal.run('emailAdmin.setNotificationEnabled', { key, enabled });
       if (error) throw error;
 
       // Coordinate with the dispatcher gate. The reminder cron filters
@@ -69,11 +67,7 @@ export function useToggleNotification() {
       // The RPC is admin-gated server-side so we can safely call it
       // for every notification type; for non-reminder types (invite,
       // welcome, system_alert) it's a no-op-but-harmless upsert.
-      const { error: trigErr } = await supabase
-        .rpc('set_email_trigger_enabled', {
-          p_notification_key: key,
-          p_enabled: enabled,
-        });
+      const { error: trigErr } = await dal.run('emailAdmin.setTriggerEnabled', { key, enabled });
       if (trigErr) {
         // Don't fail the whole toggle — the UI flag already flipped
         // and the admin can see the row is enabled. Surface the
@@ -126,11 +120,7 @@ export function useSaveEmailTemplate() {
         variables:        Array.isArray(template.variables) ? template.variables : [],
       };
       // Upsert on the UNIQUE constraint. works for first save or edits.
-      const { data, error } = await supabase
-        .from('email_templates')
-        .upsert(payload, { onConflict: 'notification_key' })
-        .select()
-        .single();
+      const { data, error } = await dal.run('emailAdmin.upsertTemplate', payload);
       if (error) throw error;
       return data;
     },
@@ -170,9 +160,7 @@ export function useToggleKillSwitch() {
         paused_at: paused ? new Date().toISOString() : null,
         paused_by: paused ? user?.id || null : null,
       };
-      const { error } = await supabase
-        .from('email_settings')
-        .upsert(payload, { onConflict: 'id' });
+      const { error } = await dal.run('emailAdmin.upsertSettings', payload);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: K.settings }),
@@ -210,9 +198,7 @@ export function useSaveTrigger() {
       if (trigger.conditions !== undefined) {
         payload.conditions = trigger.conditions || {};
       }
-      const { error } = await supabase
-        .from('email_triggers')
-        .upsert(payload, { onConflict: 'notification_key' });
+      const { error } = await dal.run('emailAdmin.upsertTrigger', payload);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: K.triggers }),
@@ -326,7 +312,7 @@ export function usePublishTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ templateId, notificationKey }) => {
-      const { error } = await supabase.rpc('email_template_publish', { p_template_id: templateId });
+      const { error } = await dal.run('emailAdmin.publishTemplate', { templateId });
       if (error) throw error;
       return { templateId, notificationKey };
     },
@@ -357,12 +343,7 @@ export function useRevertToVersion() {
         reply_to:    snapshot.reply_to,
         variables:   snapshot.variables,
       };
-      const { data, error } = await supabase
-        .from('email_templates')
-        .update(patch)
-        .eq('id', templateId)
-        .select()
-        .single();
+      const { data, error } = await dal.run('emailAdmin.updateTemplate', { ...patch, id: templateId });
       if (error) throw error;
       return data;
     },
@@ -421,12 +402,9 @@ export function useUpdateMyEmailPreference() {
     mutationFn: async ({ userId, notificationKey, subscribed }) => {
       if (!userId) throw new Error('not signed in');
       if (ALWAYS_EMAIL_KEYS.has(notificationKey)) return;
-      const { error } = await supabase
-        .from('user_notification_preferences')
-        .upsert(
-          { user_id: userId, notification_key: notificationKey, email_enabled: subscribed },
-          { onConflict: 'user_id,notification_key' }
-        );
+      const { error } = await dal.run('emailPrefs.setSubscription', {
+        userId, notificationKey, subscribed,
+      });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: K.myPrefs }),

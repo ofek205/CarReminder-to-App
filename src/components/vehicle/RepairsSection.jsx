@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
 import useAccountRole from '@/hooks/useAccountRole';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
@@ -153,14 +154,21 @@ export default function RepairsSection({ vehicle }) {
       ? repairForm.accident_details
       : null;
 
-    const { error } = await supabase.rpc('save_repair_with_children', {
-      p_repair_log: repairLog,
-      p_attachments: attachments,
-      p_accident: accident,
-    });
-    if (error) {
+    // repair.save resolves to an envelope today, but the seam will start
+    // REJECTING offline-blocked writes (see src/lib/dal/run.js). Both shapes
+    // must land on the same handled path: if a rejection escaped here, `saving`
+    // would stay true, and handleDialogOpenChange below refuses to close while
+    // saving — leaving the user trapped in a dialog they cannot dismiss.
+    let saveError = null;
+    try {
+      const { error } = await dal.run('repair.save', { repairLog, attachments, accident });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+    if (saveError) {
       setSaving(false);
-      toastError('שמירה נכשלה: ' + error.message, { action: 'repair_save', err: error });
+      toastError('שמירה נכשלה: ' + (saveError.message || ''), { action: 'repair_save', err: saveError });
       return;
     }
 
@@ -200,7 +208,7 @@ export default function RepairsSection({ vehicle }) {
     setDeleteTarget(null);
     // FK ON DELETE CASCADE on repair_attachments.repair_log_id and
     // accident_details.repair_log_id takes care of children atomically.
-    await db.repair_logs.delete(logId);
+    await dal.run('repair.delete', { id: logId });
     queryClient.invalidateQueries({ queryKey: ['repair-logs', vehicle.id] });
     toast.success('הפריט נמחק בהצלחה');
   };
@@ -444,7 +452,7 @@ export default function RepairsSection({ vehicle }) {
               <Label>קבצים מצורפים</Label>
               <div className="mt-2">
                 <FileOrCameraUpload
-                  accept="image/*,.pdf"
+                  accept={DOC_OR_IMAGE_ACCEPT}
                   multiple
                   onChange={handleFileUpload}
                   label="העלה קבצים (תמונות, חשבוניות)"

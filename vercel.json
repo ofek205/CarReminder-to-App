@@ -1,33 +1,257 @@
 {
   "rewrites": [
-    { "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)", "destination": "/index.html" }
+    {
+      "source": "/website",
+      "destination": "/website/index.html"
+    },
+    {
+      "source": "/website/",
+      "destination": "/website/index.html"
+    },
+    {
+      "source": "/website/business",
+      "destination": "/website/business/index.html"
+    },
+    {
+      "source": "/website/business/",
+      "destination": "/website/business/index.html"
+    },
+    {
+      "source": "/website/vehicle-check",
+      "destination": "/website/vehicle-check/index.html"
+    },
+    {
+      "source": "/website/vehicle-check/",
+      "destination": "/website/vehicle-check/index.html"
+    },
+    {
+      "source": "/website/offroad",
+      "destination": "/website/offroad/index.html"
+    },
+    {
+      "source": "/website/offroad/",
+      "destination": "/website/offroad/index.html"
+    },
+    {
+      "source": "/website/trucks",
+      "destination": "/website/trucks/index.html"
+    },
+    {
+      "source": "/website/trucks/",
+      "destination": "/website/trucks/index.html"
+    },
+    {
+      "source": "/website/heavy-equipment",
+      "destination": "/website/heavy-equipment/index.html"
+    },
+    {
+      "source": "/website/heavy-equipment/",
+      "destination": "/website/heavy-equipment/index.html"
+    },
+    {
+      "source": "/website/classic-cars",
+      "destination": "/website/classic-cars/index.html"
+    },
+    {
+      "source": "/website/classic-cars/",
+      "destination": "/website/classic-cars/index.html"
+    },
+    {
+      "source": "/website/inactive-vehicles",
+      "destination": "/website/inactive-vehicles/index.html"
+    },
+    {
+      "source": "/website/inactive-vehicles/",
+      "destination": "/website/inactive-vehicles/index.html"
+    },
+    {
+      "source": "/website/reminders",
+      "destination": "/website/reminders/index.html"
+    },
+    {
+      "source": "/website/reminders/",
+      "destination": "/website/reminders/index.html"
+    },
+    {
+      "source": "/website/documents",
+      "destination": "/website/documents/index.html"
+    },
+    {
+      "source": "/website/documents/",
+      "destination": "/website/documents/index.html"
+    },
+    {
+      "source": "/website/vessels",
+      "destination": "/website/vessels/index.html"
+    },
+    {
+      "source": "/website/vessels/",
+      "destination": "/website/vessels/index.html"
+    },
+    {
+      "source": "/website/guides/engine-hours",
+      "destination": "/website/guides/engine-hours/index.html"
+    },
+    {
+      "source": "/website/guides/engine-hours/",
+      "destination": "/website/guides/engine-hours/index.html"
+    },
+    {
+      "source": "/website/guides/equipment-documents",
+      "destination": "/website/guides/equipment-documents/index.html"
+    },
+    {
+      "source": "/website/guides/equipment-documents/",
+      "destination": "/website/guides/equipment-documents/index.html"
+    },
+    {
+      "source": "/website/guides/collector-status",
+      "destination": "/website/guides/collector-status/index.html"
+    },
+    {
+      "source": "/website/guides/collector-status/",
+      "destination": "/website/guides/collector-status/index.html"
+    },
+    {
+      "source": "/website/guides/test-reminder",
+      "destination": "/website/guides/test-reminder/index.html"
+    },
+    {
+      "source": "/website/guides/test-reminder/",
+      "destination": "/website/guides/test-reminder/index.html"
+    },
+    {
+      "source": "/website/guides/vehicle-documents",
+      "destination": "/website/guides/vehicle-documents/index.html"
+    },
+    {
+      "source": "/website/guides/vehicle-documents/",
+      "destination": "/website/guides/vehicle-documents/index.html"
+    },
+    {
+      "source": "/website/guides/maintenance-log",
+      "destination": "/website/guides/maintenance-log/index.html"
+    },
+    {
+      "source": "/website/guides/maintenance-log/",
+      "destination": "/website/guides/maintenance-log/index.html"
+    },
+    {
+      "source": "/website/guides/plate-check",
+      "destination": "/website/guides/plate-check/index.html"
+    },
+    {
+      "source": "/website/guides/plate-check/",
+      "destination": "/website/guides/plate-check/index.html"
+    },
+    {
+      "source": "/website/guides/vessel-records",
+      "destination": "/website/guides/vessel-records/index.html"
+    },
+    {
+      "source": "/website/guides/vessel-records/",
+      "destination": "/website/guides/vessel-records/index.html"
+    },
+    {
+      "source": "/website/accessibility",
+      "destination": "/website/accessibility/index.html"
+    },
+    {
+      "source": "/website/accessibility/",
+      "destination": "/website/accessibility/index.html"
+    },
+    {
+      "source": "/website/child-in-car-reminder",
+      "destination": "/website/child-in-car-reminder/index.html"
+    },
+    {
+      "source": "/website/child-in-car-reminder/",
+      "destination": "/website/child-in-car-reminder/index.html"
+    },
+    {
+      "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:xml|js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://data.gov.il https://api.anthropic.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://api.resend.com; font-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" },
-        { "key": "Permissions-Policy", "value": "camera=(self), geolocation=(self), microphone=()" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://data.gov.il https://api.anthropic.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://api.resend.com; font-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), geolocation=(self), microphone=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    },
+    {
+      "source": "/demo",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://data.gov.il https://api.anthropic.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://api.resend.com; font-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
       ]
     },
     {
       "source": "/.well-known/assetlinks.json",
       "headers": [
-        { "key": "Content-Type", "value": "application/json" },
-        { "key": "Cache-Control", "value": "public, max-age=3600" }
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
       ]
     },
     {
       "source": "/sw.js",
       "headers": [
-        { "key": "Content-Type", "value": "application/javascript" },
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "Service-Worker-Allowed", "value": "/" }
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
       ]
     }
   ]

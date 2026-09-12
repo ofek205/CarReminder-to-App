@@ -37,6 +37,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
+import { deliverFile } from '@/services/vehicleHistory/deliverFile';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
@@ -522,15 +523,18 @@ export default function Reports() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`יצוא הצליח (${rows.length} שורות)`);
+      // The raw <a download> this replaced does nothing inside the Capacitor
+      // WebView, so this export has silently produced no file at all in the
+      // installed app. deliverFile also hands native users the share sheet:
+      // a spreadsheet saved where you cannot find it is not an export.
+      const how = await deliverFile({
+        blob,
+        fileName: filename,
+        dialogTitle: 'שליחת דוח ההוצאות',
+      });
+      toast.success(how === 'saved'
+        ? 'הקובץ נשמר במכשיר, בתיקיית המסמכים'
+        : 'יצוא הצליח (' + rows.length + ' שורות)');
     } catch (err) {
       toast.error('יצוא נכשל. נסה שוב.');
        

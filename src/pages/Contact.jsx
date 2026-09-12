@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { MessageSquare, Send, Loader2, CheckCircle2, User, Mail, FileText, Clock, HelpCircle, Shield, ExternalLink, Bug } from 'lucide-react';
 import { openReportBugDialog } from '@/components/shared/ReportBugDialog';
-import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { Link, useSearchParams } from 'react-router-dom';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
@@ -22,10 +22,28 @@ const FAQ_ITEMS = [
 
 export default function Contact() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+
+  /*
+   * The marketing site's business CTAs link here with ?topic=business.
+   *
+   * A business enquiry and a bug report land in the same contact_messages
+   * table with a free-text subject, so without this they arrive
+   * indistinguishable and a lead reads as support. Presetting the subject is
+   * the whole value: no schema change, no new surface, and the sender can
+   * still edit it.
+   *
+   * Deliberately NOT creating anything. Opening a business account is
+   * "כפוף להגשת בקשה ואישור" per the marketing copy, and no request record
+   * exists in the product yet, so this stays an enquiry.
+   */
+  const businessEnquiry = searchParams.get('topic') === 'business';
+  const initialSubject = businessEnquiry ? 'חשבון עסקי' : '';
+
   const [form, setForm] = useState({
     name: user?.full_name || '',
     email: user?.email || '',
-    subject: '',
+    subject: initialSubject,
     message: '',
   });
   const [saving, setSaving] = useState(false);
@@ -51,7 +69,7 @@ export default function Contact() {
       // the response object. We must inspect `error` explicitly; a
       // try/catch alone would let a missing-table / RLS-denied insert
       // silently masquerade as success and trigger a false "sent" toast.
-      const { error: insertErr } = await supabase.from('contact_messages').insert({
+      const { error: insertErr } = await dal.run('contactMessage.create', {
         user_id: user?.id || null,
         name: form.name.trim(),
         email: form.email.trim(),
@@ -74,7 +92,7 @@ export default function Contact() {
       setSent(true);
       toast.success('ההודעה נשלחה בהצלחה');
       setTimeout(() => {
-        setForm({ name: user?.full_name || '', email: user?.email || '', subject: '', message: '' });
+        setForm({ name: user?.full_name || '', email: user?.email || '', subject: initialSubject, message: '' });
         setSent(false);
       }, 3000);
     } catch (outerErr) {
@@ -247,6 +265,11 @@ export default function Contact() {
         </div>
         <div>
           <Label className="mb-1.5 block">הודעה *</Label>
+          {businessEnquiry && (
+            <p className="text-xs mb-1.5" style={{ color: C.muted }}>
+              כדי שנחזור אליכם מהר, ספרו לנו את שם החברה, כמה כלים וכמה נהגים.
+            </p>
+          )}
           <Textarea rows={6} value={form.message}
             onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
             onBlur={() => setTouched(t => ({ ...t, message: true }))}

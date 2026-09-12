@@ -13,7 +13,9 @@
  */
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { toast } from 'sonner';
+import { isVehicleCapError } from '@/lib/vehicleCapError';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
 
@@ -25,6 +27,22 @@ const ACCIDENTS_KEY        = 'fleet_guest_accidents';
 const VESSEL_ISSUES_KEY    = 'fleet_guest_vessel_issues';
 const CORK_NOTES_KEY       = 'fleet_guest_cork_notes';
 const DEMO_DISMISSED_KEY   = 'fleet_guest_demo_dismissed';
+
+/**
+ * How many vehicles a guest may hold on the device.
+ *
+ * Lowered from 20 to 5 on 2026-09-11 (open question 6). It is NOT a plan
+ * limit and does not belong in plan_limits: a guest has no account and
+ * therefore no plan, and the number exists to make signing up worthwhile,
+ * not to price anything.
+ *
+ * ⚠️ IT GUARDS ADDING ONLY. An existing guest already holding more than this
+ * keeps every vehicle and simply cannot add another, and migration on signup
+ * still carries all of them across (the migration asks for headroom equal to
+ * what it is actually moving). Lowering the number can therefore never
+ * destroy data someone already has on their device.
+ */
+export const GUEST_VEHICLE_CAP = 5;
 
 const DEFAULT_REMINDER_SETTINGS = {
   remind_test_days_before:       14,
@@ -131,7 +149,7 @@ export function GuestDataProvider({ children }) {
 
   // ── Vehicles ───────────────────────────────────────────────
   const addGuestVehicle = useCallback((vehicleData) => {
-    if (guestVehicles.length >= 20) return null;
+    if (guestVehicles.length >= GUEST_VEHICLE_CAP) return null;
     const cleanData = Object.fromEntries(
       Object.entries(vehicleData).filter(([k]) => !k.startsWith('_'))
     );
@@ -379,7 +397,17 @@ export function GuestDataProvider({ children }) {
         'ownership_hand','ownership_history',
         'is_personal_import','personal_import_type'];
 
+      // Raise the personal cap so the whole guest batch lands even when
+      // enforcement is on (P0-1); sync below freezes it to greatest(count,10).
+      try { await dal.run('cap.bumpPersonal', { accountId, headroom: toMigrate.length }); } catch { /* cap sync best-effort */ }
+
       let migrated = 0;
+      // The guest vehicles that did NOT land, kept so localStorage can hold
+      // exactly them instead of being wiped wholesale. capBlocked counts the
+      // subset refused by the plan cap, which needs different words: nothing
+      // failed there, the account is simply full.
+      const failedVehicles = [];
+      let capBlocked = 0;
       const idMap = {}; // guest vehicle id → new server id (C4: remap dependent data)
       for (const guestVehicle of toMigrate) {
         const cleanData = { account_id: accountId };
@@ -399,22 +427,63 @@ export function GuestDataProvider({ children }) {
         }
 
         try {
-          const createdVehicle = await db.vehicles.create(cleanData);
+          const createdVehicle = await dal.run('vehicle.create', cleanData);
           if (createdVehicle?.id) idMap[guestVehicle.id] = createdVehicle.id;
           migrated++;
         } catch (err) {
+          // ⚠️ KEEP WHAT DID NOT LAND. The clearing below used to assume that
+          // one success meant all of them succeeded, so a guest holding more
+          // vehicles than the plan cap allows would see "5 כלי רכב הועברו
+          // בהצלחה" while the rest were erased from localStorage. Silent data
+          // loss under a success message. Recording the failures is what lets
+          // storage keep exactly them.
+          failedVehicles.push(guestVehicle);
+          if (isVehicleCapError(err)) capBlocked++;
           console.warn('Guest vehicle migration failed for one vehicle:', err?.message);
         }
       }
 
+      // Freeze the personal cap to the real vehicle count (greatest(count,10)).
+      try { await dal.run('cap.syncToCount', { accountId }); } catch { /* cap sync best-effort */ }
+
       if (migrated > 0) {
-        localStorage.removeItem(STORAGE_KEY);
-        setGuestVehicles([]);
+        // Clear PRECISELY what landed. Anything that failed stays on the
+        // device, so a retry can still pick it up and nothing is destroyed by
+        // a migration that only partly worked.
+        if (failedVehicles.length === 0) {
+          localStorage.removeItem(STORAGE_KEY);
+          setGuestVehicles([]);
+        } else {
+          safeSetItem(STORAGE_KEY, JSON.stringify(failedVehicles));
+          setGuestVehicles(failedVehicles);
+        }
+
         toast.success(
           migrated === 1
             ? 'הרכב שהוספת הועבר בהצלחה לחשבון שלך!'
             : `${migrated} כלי רכב הועברו בהצלחה לחשבון שלך!`
         );
+
+        // ⚠️ A SEPARATE, NON-SUCCESS MESSAGE FOR WHAT DID NOT FIT. A success
+        // toast alone was the whole bug: the user was told the migration
+        // worked while vehicles were quietly dropped. The cap case is named
+        // as a limit rather than a failure, because nothing is broken and the
+        // vehicles are still on the device.
+        if (capBlocked > 0) {
+          toast.error(
+            capBlocked === 1
+              ? 'כלי רכב אחד לא הועבר כי החשבון הגיע לתקרת המסלול. הוא נשמר במכשיר, ויעבור כשיתפנה מקום.'
+              : `${capBlocked} כלי רכב לא הועברו כי החשבון הגיע לתקרת המסלול. הם נשמרו במכשיר, ויעברו כשיתפנה מקום.`,
+            { duration: 8000 },
+          );
+        }
+        const otherFailed = failedVehicles.length - capBlocked;
+        if (otherFailed > 0) {
+          toast.error(
+            `${otherFailed} כלי רכב לא הועברו. הם נשמרו במכשיר, נסה שוב מאוחר יותר.`,
+            { duration: 8000 },
+          );
+        }
       }
 
       // C4: migrate the guest's DEPENDENT data too (documents, accidents,
@@ -430,9 +499,16 @@ export function GuestDataProvider({ children }) {
         try { items = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return; }
         if (!Array.isArray(items) || items.length === 0) return;
         let n = 0;
+        // ⚠️ THE SECOND HALF OF THE SAME DATA LOSS. Skipping an orphan was
+        // already correct, but the key was then cleared whenever ANY row
+        // migrated, which erased the very rows that had just been skipped. A
+        // guest whose 6th vehicle hit the plan cap lost that vehicle's
+        // documents too, on top of the vehicle. Keeping the untouched rows is
+        // what makes the skip meaningful.
+        const kept = [];
         for (const item of items) {
           const mappedVehicleId = item.vehicle_id ? idMap[item.vehicle_id] : null;
-          if (item.vehicle_id && !mappedVehicleId) continue; // orphan: its vehicle wasn't migrated
+          if (item.vehicle_id && !mappedVehicleId) { kept.push(item); continue; } // orphan: its vehicle wasn't migrated
           const clean = { account_id: accountId };
           for (const [k, v] of Object.entries(item)) {
             if (['id', 'vehicle_id', 'account_id', 'created_date', 'created_at'].includes(k) || k.startsWith('_')) continue;
@@ -440,9 +516,17 @@ export function GuestDataProvider({ children }) {
           }
           if (mappedVehicleId) clean.vehicle_id = mappedVehicleId;
           try { await db[entity].create(clean); n++; }
-          catch (e) { console.warn(`Guest ${entity} migration failed for one row:`, e?.message); }
+          catch (e) { kept.push(item); console.warn(`Guest ${entity} migration failed for one row:`, e?.message); }
         }
-        if (n > 0) { try { localStorage.removeItem(storageKey); } catch {} setter([]); }
+        if (n > 0) {
+          if (kept.length === 0) {
+            try { localStorage.removeItem(storageKey); } catch {}
+            setter([]);
+          } else {
+            safeSetItem(storageKey, JSON.stringify(kept));
+            setter(kept);
+          }
+        }
       };
       await migrateDependent(DOCS_KEY, 'documents', setGuestDocuments);
       await migrateDependent(ACCIDENTS_KEY, 'accidents', setGuestAccidents);

@@ -66,10 +66,10 @@ export default function PageShell({
             </div>
           )}
           <h1
-            className="font-black leading-none tracking-tight truncate"
+            className="font-extrabold leading-none tracking-tight truncate"
             style={{
               color: C.primaryDark,
-              fontWeight: 900,
+              fontWeight: 700,
               fontSize: 'clamp(1.5rem, 3.5vw, 2.25rem)',
               letterSpacing: '-0.025em',
             }}

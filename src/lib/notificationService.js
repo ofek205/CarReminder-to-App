@@ -15,7 +15,7 @@ import { calcReminders } from '@/components/shared/ReminderEngine';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import {
   scheduleLocalNotification,
-  cancelAllLocalNotifications,
+  cancelLocalNotifications,
   requestNotificationPermission,
   createNotificationChannel,
   checkNotificationPermission,
@@ -127,6 +127,33 @@ const FINAL_REMINDER_DAYS = 3;
 // without blocking legitimately fresh nudges in the same day.
 const APP_OPEN_TS_KEY = 'cr_app_last_opened_ts';
 const APP_OPEN_SUPPRESS_MS = 6 * 60 * 60 * 1000;
+
+// Ids of the notifications THIS engine planted on its last pass. The
+// cancel→recalculate→reschedule cycle cancels exactly these and nothing else.
+//
+// It used to call cancelAllLocalNotifications(), which wiped every pending
+// notification on the device — including the "next service" reminder the user
+// sets from MaintenanceSection, which is scheduled outside this engine. That
+// reminder was silently deleted on the next Dashboard mount, so a user who
+// asked to be reminded about their next service simply never heard back.
+//
+// Tracking our own ids makes the engine incapable of destroying another
+// feature's notification. Degradation is benign: if storage is unavailable the
+// list comes back empty, so we cancel nothing and merely re-plant. Engine ids
+// are deterministic (hash of reminder.id), so a re-scheduled reminder replaces
+// its own previous alarm rather than duplicating it.
+const OWNED_IDS_KEY = 'cr_engine_notif_ids';
+
+function readOwnedIds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OWNED_IDS_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch { return []; }
+}
+
+function writeOwnedIds(ids) {
+  try { localStorage.setItem(OWNED_IDS_KEY, JSON.stringify(ids)); } catch { /* best-effort */ }
+}
 
 function getMarker(prefix, reminderId) {
   try {
@@ -374,12 +401,15 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
   }
 
   await createNotificationChannel();
-  await cancelAllLocalNotifications();
+  // Cancel ONLY what this engine planted last pass — never a blanket wipe,
+  // which would take the user's maintenance next-service reminder with it.
+  await cancelLocalNotifications(readOwnedIds());
 
   // Engine = single source of truth for what to notify about.
   const reminders = calcReminders({ vehicles, documents, settings });
 
   let scheduled = 0;
+  const ownedIds = [];
   for (const reminder of reminders) {
     if (reminder.daysLeft === null || reminder.daysLeft === undefined) continue;
     if (isTypeMuted(reminder.type, settings)) continue;
@@ -444,7 +474,9 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
         scheduleAt: times[i],
         extra,
       });
-      if (res !== null && res !== undefined) { anyScheduled = true; scheduled++; }
+      // res is the numeric OS id — record it so the next pass can cancel
+      // exactly this alarm and nothing else.
+      if (res !== null && res !== undefined) { anyScheduled = true; scheduled++; ownedIds.push(res); }
     }
     // H2: commit milestone/overdue markers ONLY after a confirmed schedule.
     // A silent OS schedule failure must not mark a milestone "done" (that
@@ -456,6 +488,11 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
       for (const pm of pendingMarkers) setMarker(pm.prefix, pm.key, pm.value);
     }
   }
+
+  // Persist this pass's ids so the NEXT pass cancels exactly these. Written
+  // after the loop so a mid-loop throw leaves the previous list intact rather
+  // than orphaning alarms we'd no longer know how to cancel.
+  writeOwnedIds(ownedIds);
 
   // Record this scheduling pass as the user's most recent "app open"
   // event AFTER the loop completes. This timestamp is read by the

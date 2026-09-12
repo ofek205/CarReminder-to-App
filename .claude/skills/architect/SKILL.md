@@ -17,6 +17,28 @@ You design robust, scalable, maintainable architecture. Your job is to make the 
 
 **Design for the team you have.** Architecture that requires a 50-person platform team to maintain is wrong for a solo developer with AI assistance. Match complexity to capability.
 
+## Project-Specific Context
+
+*Verified 2026-09-01. Every number here was measured, not estimated.*
+
+**The shape:** Hebrew RTL PWA. React 18.3 + Vite 6.4 + **JavaScript** (289 `.jsx`, 130 `.js`, one `.ts` — `jsconfig.json`, no `tsconfig.json`) + Tailwind 3.4 + shadcn/ui. Supabase for Postgres, RLS, Storage, and 17 Deno edge functions. Vercel for web; Capacitor 8.3 bundles the same build into Android and iOS. ~423 source files, ~107k lines.
+
+**Where the mass and the risk actually sit — these are the real structural facts:**
+
+- **30 files hold 34% of the code.** 23 of them are pages, in a flat `src/pages/` directory of 69 files with no sub-foldering. Largest: `AdminDashboard.jsx` 2,406 lines, `AddVehicle.jsx` 2,389.
+- **Three data-access layers coexist, all live**: raw `supabase.from/rpc` (187 sites), `db.<entity>.*` (170), `dal.run()` (18). The DAL was built to replace the others and has 10% of their adoption. Any proposal that adds a fourth path needs a very good reason.
+- **Business logic lives in Postgres**, not the client — 118 `rpc()` calls against 69 `from()`. The database is the application tier as much as `src/` is.
+- **Writes largely bypass React Query**: 12 `useMutation` against 187 raw calls, which is why cache invalidation is manual and a workspace switch resorts to nuking the entire cache.
+- **Providers are split across two files at different depths.** `App.jsx` holds the error boundary, query client, and router; `Layout.jsx` holds `GuestProvider` and `WorkspaceProvider` — *below* the router, so auth and workspace context are unavailable to route-level guards and re-mount on layout changes. This is the highest-leverage structural flaw in the front end.
+- **Routing is registry-driven, not path-driven.** `pages.config.js` maps PascalCase names to components and `App.jsx` generates 69 routes from it; `createPageUrl()` is used at 175 sites. This is inherited Base44 scaffolding and it constrains any routing change.
+
+**Constraints you cannot design around:**
+
+- staging and prod **share one Supabase database**. There is no rehearsal environment for schema work.
+- There is **no migration runner** — 199 hand-applied SQL files, no ledger. A design that implies frequent schema change is more expensive here than it looks.
+- The mobile apps ship a **copy** of the web build, so any architecture decision that assumes clients update together is wrong.
+- Claude never pushes, deploys, or builds native (rule 0 in CLAUDE.md). Designs that depend on automation across those boundaries will stall on a manual step.
+
 ## What You Examine
 
 For every architectural decision, evaluate these dimensions:

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -111,10 +112,10 @@ export default function AdminVersionTab() {
 
     setSending(s => ({ ...s, [platform]: true }));
     try {
-      const { data, error } = await supabase.rpc('broadcast_app_update', {
-        p_platform: platform,
-        p_version: version,
-        p_clear: false,
+      const { data, error } = await dal.run('admin.broadcastAppUpdate', {
+        platform,
+        version,
+        clear: false,
       });
       if (error) throw error;
 
@@ -137,10 +138,10 @@ export default function AdminVersionTab() {
   const handleClear = async (platform) => {
     setClearing(s => ({ ...s, [platform]: true }));
     try {
-      const { data, error } = await supabase.rpc('broadcast_app_update', {
-        p_platform: platform,
-        p_version: '',
-        p_clear: true,
+      const { data, error } = await dal.run('admin.broadcastAppUpdate', {
+        platform,
+        version: '',
+        clear: true,
       });
       if (error) throw error;
       toast.success(`התראת עדכון ל-${platform === 'ios' ? 'iOS' : 'Android'} הופסקה`);
@@ -166,11 +167,11 @@ export default function AdminVersionTab() {
     }
     setAnnBusy(true);
     try {
-      const { error } = await supabase.rpc('publish_release_announcement', {
-        p_title: announcement.title?.trim() || '',
-        p_body: body,
-        p_clear: false,
-        p_keep_id: keepId,
+      const { error } = await dal.run('admin.publishReleaseAnnouncement', {
+        title: announcement.title?.trim() || '',
+        body,
+        clear: false,
+        keepId,
       });
       if (error) throw error;
       toast.success(keepId
@@ -188,8 +189,8 @@ export default function AdminVersionTab() {
   const handleClearAnnouncement = async () => {
     setAnnBusy(true);
     try {
-      const { error } = await supabase.rpc('publish_release_announcement', {
-        p_title: '', p_body: '', p_clear: true,
+      const { error } = await dal.run('admin.publishReleaseAnnouncement', {
+        title: '', body: '', clear: true,
       });
       if (error) throw error;
       toast.success('ההודעה הופסקה — לא תוצג יותר');

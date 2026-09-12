@@ -45,6 +45,21 @@ function loadEnvValidator(envFixture) {
     throw new Error('Could not extract REQUIRED_VARS / CUSTOM_CHECKS from envValidator.js');
   }
 
+  // The checks in CUSTOM_CHECKS close over module-scope helpers, and lifting
+  // the array without them is a silent trap: `trimmedValue` was added to
+  // envValidator.js, both shape checks started calling it, and this clone
+  // began reporting "env-check threw: trimmedValue is not defined" for a
+  // PERFECTLY VALID fixture. The suite went red while the app was fine,
+  // which is the least useful way for a test to fail.
+  //
+  // Matching `^function` with the m flag picks up exactly the module-scope
+  // helpers: the checks inside CUSTOM_CHECKS are indented, and the real
+  // entry points are `export function`, so neither can match at column 0.
+  // Anything added next to trimmedValue is therefore carried along without
+  // anyone having to remember to edit this file, which is the same reason
+  // REQUIRED_VARS is read from source instead of duplicated here.
+  const helpers = (src.match(/^function [\s\S]*?\n\}/gm) || []).join('\n');
+
   // Build a CommonJS-friendly clone of the validator using the SAME
   // REQUIRED_VARS / CUSTOM_CHECKS arrays from the source. We re-implement
   // the validation loop here (same logic as the ESM source) so the test
@@ -52,7 +67,8 @@ function loadEnvValidator(envFixture) {
   // CommonJS context. Any drift between this clone and the source is
   // caught by the static-source checks at the bottom.
   const fn = new Function('envFixture',
-    `${reqMatch[0]}
+    `${helpers}
+     ${reqMatch[0]}
      ${customMatch[0]};
      const env = envFixture;
      const errors = [];

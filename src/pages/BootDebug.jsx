@@ -90,7 +90,7 @@ function BootLogSection({ title, log, isCurrent }) {
   return (
     <section style={{ marginBottom: 24 }}>
       <header style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: 0 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>
           {title} {isCurrent && '(הריצה הנוכחית)'}
         </h2>
         <div style={{ fontSize: 11, color: C.gray500, fontFamily: 'ui-monospace,Menlo,monospace' }}>
@@ -271,7 +271,7 @@ export default function BootDebug() {
       }}
     >
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px' }}>
           יומן אבחון פתיחה
         </h1>
         <p style={{ fontSize: 13, color: C.gray500, margin: '0 0 20px', lineHeight: 1.6 }}>
