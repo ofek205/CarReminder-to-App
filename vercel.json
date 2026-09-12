@@ -169,6 +169,30 @@
       "destination": "/website/child-in-car-reminder/index.html"
     },
     {
+      "source": "/website/vehicle-lookup",
+      "destination": "/website/vehicle-lookup/index.html"
+    },
+    {
+      "source": "/website/vehicle-lookup/",
+      "destination": "/website/vehicle-lookup/index.html"
+    },
+    {
+      "source": "/website/test-insurance-reminders",
+      "destination": "/website/test-insurance-reminders/index.html"
+    },
+    {
+      "source": "/website/test-insurance-reminders/",
+      "destination": "/website/test-insurance-reminders/index.html"
+    },
+    {
+      "source": "/website/fleet",
+      "destination": "/website/fleet/index.html"
+    },
+    {
+      "source": "/website/fleet/",
+      "destination": "/website/fleet/index.html"
+    },
+    {
       "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:xml|js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)",
       "destination": "/index.html"
     }

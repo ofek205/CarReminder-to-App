@@ -430,6 +430,24 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 .cm-business-copy h1,.cm-business-copy h2{font-size:clamp(34px,3.2vw,46px);line-height:1.16;font-weight:600;letter-spacing:-.7px;max-width:520px}
 @media(max-width:620px){.cm-business-copy h1,.cm-business-copy h2{font-size:34px;line-height:1.2;letter-spacing:-.4px}}
 
+/* MarketingSeoLandingPage (vehicle-lookup, test-insurance-reminders, fleet):
+   a hero with an above-the-fold CTA row, a run of full-width H2 sections
+   (bordered like .cm-article section, not the homepage's tinted bands,
+   since this is one topic read straight down rather than several distinct
+   ones), and the existing .cm-faq block reused as-is. */
+.cm-site .cm-landing h1{font-size:var(--cm-title);line-height:1.2;letter-spacing:-1px;margin-top:14px}
+.cm-landing-hero{background:#f5f5ed}
+.cm-landing-hero-wrap{max-width:720px}
+.cm-landing-hero-wrap>.cm-kicker{margin-top:22px}
+.cm-landing-section{border-top:1px solid #dce4d4}
+.cm-landing-section .cm-wrap{max-width:720px}
+.cm-landing-section p{margin-top:16px;max-width:68ch}
+.cm-landing-ctas{margin-top:30px}
+.cm-site .cm-landing-store{direction:ltr;display:flex;align-items:center;gap:13px;min-height:50px;background:#193e2d;color:#fff;padding:14px 22px;border-radius:5px;font-size:14px;font-weight:500}
+.cm-site .cm-landing-store img{filter:invert(1);width:20px;height:23px;object-fit:contain}
+.cm-site .cm-landing-store:hover{background:#214328}
+@media(max-width:620px){.cm-landing-ctas .cm-landing-store{width:100%;justify-content:center}}
+
 /* Accessibility statement. A legal document, so it gets the plain article
    column and nothing that competes with the text. */
 .cm-a11y-list{margin:14px 0 0;padding-inline-start:22px;list-style:disc}

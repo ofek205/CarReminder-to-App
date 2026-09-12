@@ -4,6 +4,7 @@ import { ArrowLeft, BellRing, BriefcaseBusiness, Car, Database, FileText, Loader
 import { guides, productPages } from '@/lib/marketingContent';
 import { businessFeatures, specialtyPages } from '@/lib/marketingSpecialties';
 import MarketingProductPage from '@/components/MarketingProductPage';
+import MarketingSeoLandingPage from '@/components/MarketingSeoLandingPage';
 import MarketingHeroBackground from '@/components/MarketingHeroBackground';
 import MarketingPhone from '@/components/MarketingPhone';
 import MarketingReviewsPhone from '@/components/MarketingReviewsPhone';
@@ -167,6 +168,7 @@ export default function Marketing() {
   const product = productPages.find(item => pathname === `/website/${item.slug}`);
   const childReminderPage = product?.slug === 'child-in-car-reminder';
   const accessibilityPage = product?.slug === 'accessibility';
+  const landingPage = !!product?.landingPage;
   const home = !checkPage && !businessPage && !article && !product;
 
   useEffect(() => {
@@ -201,6 +203,11 @@ export default function Marketing() {
         <section id="child-reminder" className="cm-section cm-child-reminder"><div className="cm-wrap cm-child-home-grid"><div className="cm-child-home-copy"><span className="cm-kicker">פיצ׳ר חינמי ב-Car Reminder</span><h2>בסוף הנסיעה,{' '}<br /><em>תזכורת לבדוק מאחור.</em></h2><p>בוחרים את חיבור ה־Bluetooth של הרכב. כשהטלפון מתנתק בסיום הנסיעה, Car Reminder שולחת תזכורת לבדוק שכל הילדים יצאו.</p><Link className="cm-button cm-gold" to="/website/child-in-car-reminder">איך מפעילים את התזכורת <ArrowLeft size={18} /></Link><p className="cm-child-note"><ShieldCheck size={17} /> התזכורת אינה מזהה ילד ברכב ואינה מחליפה בדיקה ידנית.</p></div><Link to="/website/child-in-car-reminder" className="cm-child-home-photo" aria-label="למידע על תזכורת לבדוק ילדים ברכב"><img src="/marketing/child-seat-reminder.webp" alt="כיסא בטיחות ריק המותקן במושב האחורי של רכב" width="1536" height="1024" loading="lazy" /><span><BellRing size={19} /><strong>תזכורת בסיום הנסיעה</strong><small>זמין ב-iPhone וב-Android</small></span></Link></div></section>
         <section className="cm-section cm-specialties"><div className="cm-wrap"><span className="cm-kicker">לכל כלי יש דרך עבודה משלו</span><h2>ניהול אופנועים, משאיות וכלי צמ״ה{' '}<br />לא רק רכב פרטי.</h2><p className="cm-specialties-list">רכב פרטי ומסחרי, אופנועים וקטנועים, אנדורו ומוטוקרוס, טרקטורונים ורכבי שטח, משאיות ורכבי עבודה, אוטובוסים ומיניבוסים, טרקטורים וכלי צמ״ה, מחפרים, שופלים, מלגזות, מכבשים ומנופים, רכבי אספנות, נגררים וקראוונים, וכלי שיט: אופנועי ים, סירות מנוע, סירות גומי ומפרשיות.</p><div className="cm-specialties-grid">{categoryCards.map(card => <Link key={card.slug} to={card.href}><div className="cm-category-art"><img src={card.image} alt="" loading="lazy" width="1672" height="941" /></div><h3>{card.title}</h3><p>{card.text}</p><span>לפרטים <ArrowLeft size={17} /></span></Link>)}</div></div></section>
         {business}
+        <section className="cm-section"><div className="cm-wrap"><span className="cm-kicker">עוד דרכים להכיר את Car Reminder</span><h2>בדיקת רכב, תזכורות{' '}<br /><em>וניהול צי לעסקים.</em></h2><div className="cm-guides">
+          <Link to="/website/vehicle-lookup"><FileText size={26} /><h3>בדיקת רכב לפי מספר רישוי</h3><p>פרטי זיהוי, שנת ייצור ומפרט, עם הורדת דוח PDF.</p><span>לבדיקת רכב <ArrowLeft size={17} /></span></Link>
+          <Link to="/website/test-insurance-reminders"><BellRing size={26} /><h3>תזכורות לטסט, ביטוח וטיפול</h3><p>כל המועדים במקום אחד, לרכב, לאופנוע ולכלי שיט.</p><span>לתזכורות <ArrowLeft size={17} /></span></Link>
+          <Link to="/website/fleet"><BriefcaseBusiness size={26} /><h3>ניהול צי רכב לעסקים</h3><p>ייבוא מאקסל, הרשאות לפי תפקיד, מסמכים והוצאות.</p><span>לניהול צי <ArrowLeft size={17} /></span></Link>
+        </div></div></section>
         <section id="guides" className="cm-section"><div className="cm-wrap"><span className="cm-kicker">ידע שימושי, גם בין נסיעות</span><h2>מדריכים לניהול רכב{' '}<br /><em>וכלי שיט.</em></h2><div className="cm-guides">{guides.filter(item => featuredGuideSlugs.includes(item.slug)).map(item => <Link to={`/website/guides/${item.slug}`} key={item.slug}><FileText size={26} /><h3>{item.heading || item.title}</h3><p>{item.text}</p><span>למדריך <ArrowLeft size={17} /></span></Link>)}</div><details className="cm-more-guides"><summary>לכל המדריכים</summary><div className="cm-guide-index">{guides.filter(item => !featuredGuideSlugs.includes(item.slug)).map(item => <Link key={item.slug} to={`/website/guides/${item.slug}`}>{item.heading || item.title}<ArrowLeft size={17} /></Link>)}</div></details></div></section>
         <section className="cm-section cm-faq"><div className="cm-wrap cm-faq-grid"><div><span className="cm-kicker">לפני שמתחילים</span><h2>שאלות נפוצות</h2><p>משהו נוסף שחשוב לכם לדעת?</p><Link to="/Contact" className="cm-text-link">אנחנו כאן <ArrowLeft size={17} /></Link></div><div>{faqs.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></div></section>
       </>}
@@ -209,7 +216,8 @@ export default function Marketing() {
       {article && <article className="cm-section cm-article cm-wrap"><Link className="cm-text-link" to="/website#guides">כל המדריכים <ArrowLeft size={17} /></Link><span className="cm-kicker">מדריך לשימוש מסודר</span><h1>{article.heading || article.title}</h1><p className="cm-article-lead">{article.text}</p>{article.sections.map(([heading, paragraph]) => <section key={heading}><h2>{heading}</h2><p>{paragraph}</p></section>)}{article.sources && <aside className="cm-article-sources"><h2>מקורות והמשך קריאה</h2>{article.sources.map(item => <a href={item.url} key={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>)}</aside>}<p className="cm-article-related"><Link to={`/website/${article.related}`}>איך משתמשים בזה ב־Car Reminder?</Link></p><Link className="cm-button" to="/website#check">מתחילים מבדיקת הרכב <ArrowLeft size={17} /></Link></article>}
       {accessibilityPage && <MarketingAccessibilityPage />}
       {childReminderPage && <MarketingChildReminderPage />}
-      {product && !childReminderPage && !accessibilityPage && <MarketingProductPage product={product} />}
+      {landingPage && <MarketingSeoLandingPage product={product} />}
+      {product && !childReminderPage && !accessibilityPage && !landingPage && <MarketingProductPage product={product} />}
       {!checkPage && !childReminderPage && <section id="download" className="cm-download"><div className="cm-wrap cm-download-simple"><span className="cm-kicker">הצעד הבא שלכם</span><p className="cm-download-lead">מורידים את Car Reminder, מוסיפים כלי ומרכזים את המועד הבא במקום אחד.</p><StoreLinks /><Link className="cm-text-link" to="/Auth">מעדיפים דפדפן? לכניסה באתר <ArrowLeft size={17} /></Link></div></section>}
     </main>
     <footer className="cm-footer"><div className="cm-wrap"><Link className="cm-brand" to="/website"><img src={logo} width="35" height="35" alt="" />Car Reminder</Link><nav aria-label="מידע וקשר"><Link to="/Contact">יצירת קשר</Link><Link to="/PrivacyPolicy">מדיניות פרטיות</Link><Link to="/TermsOfService">תנאי שימוש</Link><Link to="/website/accessibility">הצהרת נגישות</Link><Link to="/Auth">כניסה לחשבון</Link></nav><span>תזכורות, מסמכים ותחזוקה לכל כלי תחבורה.</span></div></footer>
