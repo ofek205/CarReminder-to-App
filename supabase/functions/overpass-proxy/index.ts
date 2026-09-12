@@ -69,16 +69,35 @@ import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
 // Verified from the Supabase Edge runtime (2026-05-27):
 //   • overpass-api.de    → 200 with a UA; intermittently 504 under load
 //                          (transient — the retry below recovers it).
-//   • kumi.systems       → often hangs from the edge IP (→ timeout abort),
-//                          but kept as redundancy for when .de is 504ing.
-//   • private.coffee     → same profile as kumi.
 // Dropped (never contribute, only added latency + noise to the race):
 //   • maps.mail.ru       → HTTP 403 (blocks our IP range).
 //   • overpass.osm.jp    → invalid TLS cert (NotValidForName) — broken.
+//   • kumi.systems       → dropped 2026-09-12, see below.
+//   • private.coffee     → dropped 2026-09-12, see below.
+//
+// ⚠️ 2026-09-12 — why the pool is down to one, and why that is an
+// improvement rather than a loss of redundancy.
+//
+// These two were kept "as redundancy for when .de is 504ing", on the
+// belief that they merely hung from the edge IP. Measured directly from a
+// laptop on a plain residential line that day, with the same query that
+// overpass-api.de answered in 0.6s:
+//
+//   overpass-api.de           200, 0.6s, 9 elements
+//   overpass.kumi.systems     no response at all, aborted at 30s
+//   overpass.private.coffee   no response at all, aborted at 30s
+//
+// So they are not slow from our IP, they are not answering anyone. They
+// never win the race (it takes the first NON-EMPTY payload), so they never
+// helped — but when .de also fails they are what makes the whole call sit
+// for the full 27s MIRROR_TIMEOUT_MS before admitting defeat. The user
+// watched a spinner for half a minute and concluded the app found no
+// garages, which is how this was reported.
+//
+// Adding a mirror back is fine, but VERIFY IT FIRST with the curl above.
+// An entry that cannot answer is not a spare tyre, it is 27 seconds.
 const MIRRORS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
 ];
 
 // Per-mirror hard timeout. Overpass's own [timeout:N] is 25s server-side;
