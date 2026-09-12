@@ -334,8 +334,25 @@ function FunnelWeakestStep({ funnel }) {
 // to unmask it. Detecting and labelling these addresses helps the admin
 // understand that a "weird-looking" email isn't a typo or a fake
 // signup; it's a legitimate user who exercised Apple's privacy option.
-// Emails sent to this address will reach the user, just routed via
-// Apple's mail servers.
+//
+// ⚠️ THIS COMMENT USED TO SAY mail "will reach the user, just routed via
+// Apple's mail servers". That is FALSE, and the tooltip repeated it to
+// admins, so the screen actively reassured whoever looked at it. Apple
+// relays mail ONLY from source domains registered in the developer
+// portal, and ours is not registered: everything we send to these
+// addresses BOUNCES. reauthMode.js had it right all along, which means
+// the repo contradicted itself and the wrong half was the one on screen.
+//
+// So a relay user today receives nothing at all — no welcome, no test or
+// insurance reminders. Two SQL senders already skip them
+// (supabase-welcome-backfill, supabase-no-vehicle-nudge) to avoid the
+// bounce, which prevents noise but guarantees silence.
+//
+// Fixing it is two external actions, not one, because auth mail leaves
+// from Supabase's own domain which we cannot register. See
+// docs/runbook-apple-private-email-relay.md. Once BOTH are done, revisit
+// this label and drop those two SQL exclusions — otherwise delivery gets
+// fixed and we still do not send.
 function isAppleRelayEmail(email) {
   return typeof email === 'string'
     && email.toLowerCase().endsWith('@privaterelay.appleid.com');
@@ -349,8 +366,8 @@ function AppleRelayChip() {
   return (
     <span
       className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
-      style={{ background: C.gray100, color: C.gray700 }}
-      title="המשתמש בחר ב-Hide My Email של אפל. אפל לא חושפת את הכתובת האמיתית, אבל כל מייל שתשלח לכאן יועבר אוטומטית למשתמש דרך השרתים של אפל."
+      style={{ background: C.warnBg, color: C.warnDark }}
+      title="המשתמש בחר ב-Hide My Email של אפל, ואפל לא חושפת את הכתובת האמיתית. כרגע הוא לא מקבל מאיתנו שום מייל: אפל מעבירה רק מדומיינים שרשומים אצלה, והדומיין שלנו לא רשום, ולכן כל שליחה אליו חוזרת. הפתרון מתועד ב-runbook-apple-private-email-relay."
     >
       Apple Relay
     </span>
