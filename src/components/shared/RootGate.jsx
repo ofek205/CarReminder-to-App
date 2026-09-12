@@ -86,7 +86,7 @@ function resolveBootDestination() {
     try {
       const raw = localStorage.getItem('fleet_guest_vehicles');
       hasGuestData = !!raw && JSON.parse(raw)?.length > 0;
-    } catch { hasGuestData = false; }
+    } catch { hasGuestData = true; }
     if (!isNative && !hasGuestData) return { kind: 'go', to: '/website' };
     return { kind: 'auth' };
   }
