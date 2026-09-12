@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import AuthPage from '@/pages/AuthPage';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import { isNative } from '@/lib/capacitor';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 /**
@@ -63,7 +64,32 @@ function resolveBootDestination() {
     // localStorage denied (private mode). Treat as no token → AuthPage.
     return { kind: 'auth' };
   }
-  if (!hasToken) return { kind: 'auth' };
+  if (!hasToken) {
+    // No account. On the WEB that is usually a stranger who typed the brand
+    // domain, and the marketing site is what they came for: car-reminder.app
+    // used to answer them with a login form, so every visitor Google sent to
+    // the bare domain met a wall instead of the twenty pages built for them.
+    //
+    // Two groups must NOT be sent there, and both are invisible in `hasToken`:
+    //
+    //   • Native. The app shell boots this same route from local files
+    //     (capacitor.config webDir 'dist', no server.url), so a redirect here
+    //     would open the marketing site INSIDE the app.
+    //   • Guests. Guest mode keeps real vehicles in localStorage and never
+    //     issues a token, so a returning guest is indistinguishable from a
+    //     stranger by token alone. Bouncing them to marketing would read as
+    //     "my vehicles are gone".
+    //
+    // Everyone else keeps a way in: the marketing header carries
+    // "כניסה לחשבון", and /Auth stays directly reachable.
+    let hasGuestData = false;
+    try {
+      const raw = localStorage.getItem('fleet_guest_vehicles');
+      hasGuestData = !!raw && JSON.parse(raw)?.length > 0;
+    } catch { hasGuestData = false; }
+    if (!isNative && !hasGuestData) return { kind: 'go', to: '/website' };
+    return { kind: 'auth' };
+  }
 
   // Last-route hint stamped by Layout (pathname only, allow-listed).
   let last = null;
