@@ -160,6 +160,29 @@ jobs:
           path: ${{ steps.locate_aab.outputs.aab_path }}
           retention-days: 90
 
+      - name: Locate R8 mapping file
+        # Produced because minifyEnabled is now true (2026-09-12). Uploading
+        # this to Play alongside the AAB is what lets Play Console show real
+        # file:line in crash/ANR reports instead of obfuscated names — an
+        # unminified build never needed one.
+        id: locate_mapping
+        run: |
+          MAPPING_PATH="android/app/build/outputs/mapping/release/mapping.txt"
+          if [ -f "$MAPPING_PATH" ]; then
+            echo "Found $MAPPING_PATH"
+            echo "mapping_path=$MAPPING_PATH" >> "$GITHUB_OUTPUT"
+          else
+            echo "No mapping.txt produced (unexpected now that minifyEnabled is true) — continuing without it."
+          fi
+
+      - name: Upload mapping.txt as artifact (backup)
+        if: ${{ steps.locate_mapping.outputs.mapping_path }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-mapping
+          path: ${{ steps.locate_mapping.outputs.mapping_path }}
+          retention-days: 90
+
       - name: Upload to Google Play
         if: ${{ github.event.inputs.publish == 'upload_to_play' }}
         uses: r0adkll/upload-google-play@v1
@@ -167,5 +190,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.carreminder.app
           releaseFiles: ${{ steps.locate_aab.outputs.aab_path }}
+          mappingFile: ${{ steps.locate_mapping.outputs.mapping_path }}
           track: ${{ github.event.inputs.track }}
           status: ${{ github.event.inputs.status }}
