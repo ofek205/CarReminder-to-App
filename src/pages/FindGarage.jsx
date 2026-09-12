@@ -173,6 +173,26 @@ function pickDisplayName(tags) {
   return null;
 }
 
+// Direct Overpass endpoint, used ONLY as a fallback when our proxy cannot
+// answer. Diagnosed 2026-09-12: the deployed overpass-proxy returned
+// 502 all_mirrors_unavailable after 27s, twice in a row, for the same
+// query that answered from a laptop in 0.6s. Overpass allows two
+// concurrent slots PER IP, and a Supabase Edge Function egresses from an
+// address shared with every other tenant in the region, so those two slots
+// are rarely ours. A device has its own IP and its own two slots.
+//
+// Only overpass-api.de is listed: the other two mirrors the proxy races
+// (kumi.systems, private.coffee) were measured the same day hanging past
+// 30s with no response at all, so they are not redundancy, they are delay.
+const OVERPASS_DIRECT_URL = 'https://overpass-api.de/api/interpreter';
+
+// How long the proxy gets alone before the device also tries directly.
+// Not a timeout: the proxy keeps running and still wins if it answers
+// first, which preserves the shared cache's value on a hit (sub-second).
+// 6s is past the measured warm-cache and fast-miss range, and far short
+// of the 27s the proxy takes to admit failure.
+const HEDGE_AFTER_MS = 6000;
+
 const RADIUS_MIN = 1000;
 const RADIUS_MAX = 25000;
 const RADIUS_STEP = 1000;
@@ -644,10 +664,81 @@ export default function FindGarage() {
         return null;
       };
 
+      // One direct call to Overpass from the device. Same query, same
+      // shape of answer, no proxy and therefore no shared cache.
+      //
+      // Note there is no User-Agent header here and that is deliberate:
+      // it is a forbidden header in fetch, and the browser/WebView already
+      // sends a descriptive one. Overpass answers 406 without one, which
+      // is exactly what a bare script hits and a real client does not.
+      const callDirectOnce = async (q) => {
+        const ctrl = new AbortController();
+        const onOuterAbort = () => ctrl.abort();
+        if (signal.aborted) return null;
+        signal.addEventListener('abort', onOuterAbort, { once: true });
+        const timer = setTimeout(() => ctrl.abort(), 25_000);
+        try {
+          const res = await fetch(OVERPASS_DIRECT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `data=${encodeURIComponent(q)}`,
+            signal: ctrl.signal,
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          // Overpass answers 200 + a remark for a server-side timeout, with
+          // zero elements. Treating that as an answer would render "no
+          // garages" over a failure, which is the bug this whole page has
+          // already been burned by once.
+          if (data && typeof data.remark === 'string' && /timed out|runtime error/i.test(data.remark)) return null;
+          return data;
+        } catch {
+          return null;
+        } finally {
+          clearTimeout(timer);
+          signal.removeEventListener('abort', onOuterAbort);
+        }
+      };
+
+      // Resolve with the first truthy result, or null once every input has
+      // resolved falsy. Promise.race cannot express this: a null would win
+      // the race and discard a slower real answer.
+      const firstAnswer = (promises) => new Promise((resolve) => {
+        let outstanding = promises.length;
+        let done = false;
+        for (const p of promises) {
+          p.then((v) => {
+            if (done) return;
+            if (v) { done = true; resolve(v); return; }
+            if (--outstanding === 0) resolve(null);
+          }).catch(() => {
+            if (done) return;
+            if (--outstanding === 0) resolve(null);
+          });
+        }
+      });
+
+      // Hedged fetch: the proxy starts alone and keeps its head start, so a
+      // cache hit still wins and the shared cache keeps earning its keep.
+      // Only if it has not answered within HEDGE_AFTER_MS does the device
+      // also ask Overpass itself, and the first real answer wins.
+      //
+      // This is not a retry. Both requests run to completion; the loser is
+      // simply ignored. The cost is one extra upstream call on a slow path,
+      // against a page that currently returns nothing at all after 27s.
+      const fetchHedged = (q) => {
+        const viaProxy = fetchFromServers(q);
+        const viaDevice = new Promise((resolve) => {
+          const t = setTimeout(() => resolve(callDirectOnce(q)), HEDGE_AFTER_MS);
+          signal.addEventListener('abort', () => { clearTimeout(t); resolve(null); }, { once: true });
+        });
+        return firstAnswer([viaProxy, viaDevice]);
+      };
+
       // Fetch car + marine in parallel
       const [carData, marineData] = await Promise.all([
-        fetchFromServers(carQuery),
-        marineQuery ? fetchFromServers(marineQuery) : Promise.resolve(null),
+        fetchHedged(carQuery),
+        marineQuery ? fetchHedged(marineQuery) : Promise.resolve(null),
       ]);
 
       // If the request was aborted (user changed location/radius), bail
