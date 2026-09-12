@@ -84,4 +84,26 @@ for (const route of marketingRoutes) {
   seenDescriptions.set(description, route);
 }
 
+/*
+ * Every prerendered route needs a Vercel rewrite, or the crawler never sees it.
+ *
+ * vercel.json ends with a catch-all that sends anything unmatched to
+ * /index.html, the APP shell. A marketing route missing its rewrite therefore
+ * still WORKS for a human — the SPA boots and React Router draws the page — so
+ * nothing looks broken. Googlebot gets the app shell instead: no prerendered
+ * copy, no canonical, no description. The page is invisible to search while
+ * appearing fine to everyone who checks it in a browser.
+ *
+ * That is exactly what happened to /website/accessibility and
+ * /website/child-in-car-reminder, and it is a silent failure, so it needs a
+ * gate rather than a habit.
+ */
+const vercel = JSON.parse(await fs.readFile('vercel.json', 'utf8'));
+const rewritten = new Set(vercel.rewrites.map(rule => rule.source.replace(/\/$/, '')));
+for (const route of marketingRoutes) {
+  assert.ok(rewritten.has(route), `${route}: no vercel.json rewrite, so the crawler would get the app shell instead of the prerendered page`);
+}
+const catchAll = vercel.rewrites[vercel.rewrites.length - 1];
+assert.ok(catchAll.source.startsWith('/((?!'), 'the catch-all rewrite must stay last, or the routes above never match');
+
 console.log(`Marketing checks passed: ${pages.size} pages, crawlable copy, headings, links, assets, report privacy, punctuation, ${multiLineHeadings} spaced line breaks, title/description budgets.`);

@@ -153,6 +153,22 @@
       "destination": "/website/guides/vessel-records/index.html"
     },
     {
+      "source": "/website/accessibility",
+      "destination": "/website/accessibility/index.html"
+    },
+    {
+      "source": "/website/accessibility/",
+      "destination": "/website/accessibility/index.html"
+    },
+    {
+      "source": "/website/child-in-car-reminder",
+      "destination": "/website/child-in-car-reminder/index.html"
+    },
+    {
+      "source": "/website/child-in-car-reminder/",
+      "destination": "/website/child-in-car-reminder/index.html"
+    },
+    {
       "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:xml|js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)",
       "destination": "/index.html"
     }
