@@ -1,0 +1,303 @@
+name: iOS Appetize QA
+
+# Builds a Debug iOS Simulator .app (no code signing) and uploads the
+# zip to Appetize.io so Ofek can QA the Capacitor iPhone app in a
+# browser. This is NOT the App Store / TestFlight path.
+#
+# Contrast:
+#   ios-release.yml  — signed Release archive → App Store Connect
+#   this workflow    — unsigned Simulator Debug → Appetize browser QA
+#
+# Verified native layout (do not "fix" these paths without inspecting
+# the repo again):
+#   workspace : ios/App/App.xcworkspace  (App.xcodeproj + Pods)
+#   scheme    : App
+#   product   : App.app  (PRODUCT_NAME = $(TARGET_NAME), target App)
+#   pods      : ios/App/Podfile — CocoaPods is the real iOS integration.
+#               CapApp-SPM exists but is not what CI archives (see
+#               ios-release.yml).
+#
+# Trigger:
+#   - workflow_dispatch (manual, the intended path)
+#   - pull_request, only when ios/ / capacitor.config / this file change.
+#     src/** is intentionally excluded so everyday web PRs do not burn
+#     macOS minutes.
+#
+# Secrets:
+#   APPETIZE_API_TOKEN     — required. Organization → API Tokens.
+#   APPETIZE_PUBLIC_KEY    — optional. After the first upload, paste the
+#                            printed publicKey here so later runs update
+#                            the same Appetize app and the URL stays
+#                            stable.
+#   VITE_SUPABASE_URL      — already used by ios-release / android-build.
+#   VITE_SUPABASE_ANON_KEY — same. Without these the simulator bundle
+#                            boots a stub client (green spinner forever).
+#
+# Auth against Appetize (current v1 docs, 2026-09): X-API-KEY header.
+# Legacy Basic-auth (token as username) is no longer what the docs show.
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Optional note stored on the Appetize app (dashboard only)'
+        required: false
+        type: string
+        default: ''
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/ios-appetize-qa.yml'
+
+concurrency:
+  group: ios-appetize-qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios-appetize-qa:
+    name: Simulator build → Appetize
+    # Simulator QA does not need the iOS 26 SDK pin from ios-release.yml.
+    # macos-latest is Apple Silicon on current GitHub images — Appetize
+    # prefers ARM simulator builds.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    outputs:
+      appetize_url: ${{ steps.appetize.outputs.appetize_url }}
+      public_key: ${{ steps.appetize.outputs.public_key }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        # Vite inlines import.meta.env.VITE_* at build time. Same failure
+        # mode as ios-release.yml if these are missing: stub Supabase
+        # client, splash never dismisses.
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Sync Capacitor → iOS
+        run: npx cap sync ios
+
+      - name: Verify web bundle was synced
+        run: |
+          test -f ios/App/App/public/index.html \
+            || { echo "ERROR: ios/App/App/public/index.html missing — cap sync did not copy the web bundle."; exit 1; }
+          echo "Web bundle present: $(ls -la ios/App/App/public/index.html)"
+
+      - name: Install CocoaPods dependencies
+        # Compiles Capacitor + plugins from local source via CocoaPods.
+        # SPM cannot handle this stack's mixed Swift+ObjC target; see
+        # ios-release.yml. Pods/ is gitignored.
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      - name: Verify build state (safe diagnostics, no secrets)
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          chmod +x ./scripts/ios-verify-build.sh
+          ./scripts/ios-verify-build.sh
+
+      - name: Build Debug for iOS Simulator (unsigned)
+        working-directory: ios/App
+        # Workspace (not the bare xcodeproj) so the Pods target links.
+        # generic/platform=iOS Simulator avoids pinning a device name
+        # that changes between runner images. Signing flags match
+        # scripts/ios-release-simulator.sh — sim builds do not need a cert.
+        run: |
+          set -euo pipefail
+          echo "DEVELOPER_DIR=${DEVELOPER_DIR:-<unset>}"
+          echo "xcodebuild=$(xcrun -f xcodebuild)"
+          echo "iphonesimulator SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ios-sim" \
+            build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Zip Debug-iphonesimulator App.app
+        id: zip_app
+        run: |
+          set -euo pipefail
+          PRODUCTS="$RUNNER_TEMP/ios-sim/Build/Products/Debug-iphonesimulator"
+          APP_PATH="$PRODUCTS/App.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: expected $APP_PATH"
+            echo "Products tree:"
+            find "$RUNNER_TEMP/ios-sim/Build/Products" -maxdepth 3 -print || true
+            exit 1
+          fi
+          if [ ! -f "$APP_PATH/public/index.html" ]; then
+            echo "ERROR: public/index.html missing from App.app — Capacitor sync did not land in the binary."
+            exit 1
+          fi
+          ZIP_PATH="$RUNNER_TEMP/App-iphonesimulator.zip"
+          # Appetize wants the .app at the zip root, not nested under
+          # Debug-iphonesimulator/.
+          ( cd "$PRODUCTS" && zip -r "$ZIP_PATH" App.app )
+          ls -lh "$ZIP_PATH"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+          echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload simulator zip as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: App-iphonesimulator
+          path: ${{ steps.zip_app.outputs.zip_path }}
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload to Appetize.io
+        id: appetize
+        env:
+          APPETIZE_API_TOKEN:  ${{ secrets.APPETIZE_API_TOKEN }}
+          APPETIZE_PUBLIC_KEY: ${{ secrets.APPETIZE_PUBLIC_KEY }}
+          ZIP_PATH:            ${{ steps.zip_app.outputs.zip_path }}
+          NOTE_INPUT:          ${{ github.event.inputs.note }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APPETIZE_API_TOKEN:-}" ]; then
+            # Manual runs must fail loudly — the operator asked for a URL.
+            # pull_request runs skip upload so this workflow can land before
+            # the secret exists, without burning a red check (the .app zip
+            # is still an artifact).
+            MSG="APPETIZE_API_TOKEN is not set. Add it under Settings → Secrets and variables → Actions. See docs/ios-appetize-qa.md."
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              echo "::error::$MSG"
+              exit 1
+            fi
+            echo "::warning::$MSG Skipping Appetize upload."
+            echo "appetize_url=" >> "$GITHUB_OUTPUT"
+            echo "public_key=" >> "$GITHUB_OUTPUT"
+            echo "mode=skipped-no-token" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -f "$ZIP_PATH" ]; then
+            echo "ERROR: zip missing at $ZIP_PATH"
+            exit 1
+          fi
+
+          NOTE="${NOTE_INPUT:-}"
+          if [ -z "$NOTE" ]; then
+            NOTE="CarReminder iOS simulator QA ${GITHUB_SHA} (${GITHUB_REF_NAME})"
+          fi
+
+          if [ -n "${APPETIZE_PUBLIC_KEY:-}" ]; then
+            echo "Updating existing Appetize app (publicKey is set; URL stays stable)."
+            UPLOAD_URL="https://api.appetize.io/v1/apps/${APPETIZE_PUBLIC_KEY}"
+            MODE=update
+          else
+            echo "Creating a new Appetize app (APPETIZE_PUBLIC_KEY is empty)."
+            echo "After this run, copy the publicKey from the summary into the APPETIZE_PUBLIC_KEY secret."
+            UPLOAD_URL="https://api.appetize.io/v1/apps"
+            MODE=create
+          fi
+
+          RESP_FILE="$RUNNER_TEMP/appetize-response.json"
+          # Current Appetize v1 auth is the X-API-KEY header (not Bearer /
+          # Basic). Token is never echoed. GitHub also masks secret values.
+          HTTP_CODE=$(curl -sS -o "$RESP_FILE" -w "%{http_code}" \
+            -X POST "$UPLOAD_URL" \
+            -H "X-API-KEY: ${APPETIZE_API_TOKEN}" \
+            -F "file=@${ZIP_PATH}" \
+            -F "platform=ios" \
+            -F "fileType=zip" \
+            --form-string "note=${NOTE}" \
+            -F "appPermissions.run=public")
+
+          echo "Appetize HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Appetize upload failed with HTTP $HTTP_CODE"
+            echo "Response body (token is not in this file):"
+            cat "$RESP_FILE" || true
+            exit 1
+          fi
+
+          PUBLIC_KEY=$(python3 -c '
+          import json, sys
+          data = json.load(open(sys.argv[1], encoding="utf-8"))
+          key = data.get("publicKey") or data.get("buildId") or ""
+          if not key:
+              sys.stderr.write("Appetize JSON had no publicKey/buildId:\\n")
+              sys.stderr.write(json.dumps(data, indent=2)[:2000] + "\\n")
+              sys.exit(1)
+          print(key)
+          ' "$RESP_FILE")
+
+          APPETIZE_URL="https://appetize.io/app/${PUBLIC_KEY}"
+          echo "appetize_url=$APPETIZE_URL" >> "$GITHUB_OUTPUT"
+          echo "public_key=$PUBLIC_KEY" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+          echo "::notice title=Appetize QA URL::$APPETIZE_URL"
+          echo "Appetize URL: $APPETIZE_URL"
+          echo "publicKey:    $PUBLIC_KEY"
+          echo "mode:         $MODE"
+
+      - name: Write job summary
+        if: always() && steps.appetize.outcome == 'success'
+        env:
+          APPETIZE_URL: ${{ steps.appetize.outputs.appetize_url }}
+          PUBLIC_KEY:   ${{ steps.appetize.outputs.public_key }}
+          MODE:         ${{ steps.appetize.outputs.mode }}
+        run: |
+          {
+            echo "## iOS Appetize QA"
+            echo
+            if [ "${MODE}" = "skipped-no-token" ]; then
+              echo "Simulator zip is attached as \`App-iphonesimulator\`."
+              echo
+              echo "Appetize upload was **skipped** because \`APPETIZE_API_TOKEN\` is not set."
+              echo "Add the secret, then run **Actions → iOS Appetize QA → Run workflow**."
+              echo "Instructions: \`docs/ios-appetize-qa.md\`."
+            else
+              echo "**Open this URL in a browser (iPhone simulator):**"
+              echo
+              echo "[${APPETIZE_URL}](${APPETIZE_URL})"
+              echo
+              echo "| | |"
+              echo "|---|---|"
+              echo "| publicKey | \`${PUBLIC_KEY}\` |"
+              echo "| upload mode | \`${MODE}\` |"
+              echo "| scheme / workspace | \`App\` / \`ios/App/App.xcworkspace\` |"
+              echo "| configuration | Debug-iphonesimulator, unsigned |"
+              echo
+              if [ "${MODE}" = "create" ]; then
+                echo "### Keep this URL stable"
+                echo
+                echo "This run **created** a new Appetize app. To update the same app next time:"
+                echo
+                echo "1. Repo → **Settings** → **Secrets and variables** → **Actions**"
+                echo "2. New repository secret \`APPETIZE_PUBLIC_KEY\` = \`${PUBLIC_KEY}\`"
+                echo
+              fi
+              echo "Simulator zip is also attached as the \`App-iphonesimulator\` artifact."
+            fi
+            echo
+            echo "This build is for **pre-store browser QA only**. It is not signed for TestFlight or the App Store. Use \`ios-release.yml\` for that."
+          } >> "$GITHUB_STEP_SUMMARY"
