@@ -9,6 +9,23 @@ import { marketingRoutes, marketingMetadata } from '../src/lib/marketingContent.
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 
+/**
+ * GA4, on every /website/* page. Deliberately NOT gated behind `origin`
+ * the way canonical/schema/robots are: those must stay production-only
+ * because indexing a staging copy is a real SEO cost, but a few staging
+ * test hits in a brand-new GA4 property are not the same kind of harm,
+ * and gating this the same way would make it impossible to verify via
+ * DebugView/Realtime before this ever reaches production.
+ *
+ * No existing cookie-consent banner runs on this site today (checked
+ * before adding this), so there is nothing here for this script to
+ * violate. The one honest caveat: marketingEvents.js's own comment says
+ * "a future collector should subscribe only after its consent
+ * requirements have been met" — this is that future collector, and it
+ * does not wait for anything. Flagged, not silently decided.
+ */
+const GA4_SNIPPET = `<script async src="https://www.googletagmanager.com/gtag/js?id=G-6Q6XS6C8B0"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-6Q6XS6C8B0');</script>`;
+
 export function marketingPrerender() {
   let config;
   return {
@@ -45,7 +62,7 @@ export function marketingPrerender() {
             .replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
           const canonical = origin ? `<link rel="canonical" href="${escape(origin + route)}" />` : '';
           const schema = origin && route !== '/website/vehicle-check' ? `<script id="cm-seo-schema" type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebPage', name: meta.title, description: meta.description, url: origin + route, inLanguage: 'he' }).replaceAll('<', '\\u003c')}</script>` : '';
-          html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="${origin && route !== '/website/vehicle-check' ? 'index,follow' : 'noindex,follow'}" /><meta property="og:title" content="${escape(meta.title)}" /><meta property="og:description" content="${escape(meta.description)}" />${canonical}${schema}</head>`);
+          html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="${origin && route !== '/website/vehicle-check' ? 'index,follow' : 'noindex,follow'}" /><meta property="og:title" content="${escape(meta.title)}" /><meta property="og:description" content="${escape(meta.description)}" />${canonical}${schema}${GA4_SNIPPET}</head>`);
           const destination = path.join(output, route.slice(1), 'index.html');
           await fs.mkdir(path.dirname(destination), { recursive: true });
           await fs.writeFile(destination, html);

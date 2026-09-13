@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { marketingEvent } from '@/lib/marketingEvents';
+import { marketingEvent, trackStoreClickGA4 } from '@/lib/marketingEvents';
 
 /**
  * Generic template for a conversion-focused SEO landing page under
@@ -31,7 +31,7 @@ function LandingCtas({ ctas, slug }) {
           ? 'https://apps.apple.com/app/carreminder/id6764073107'
           : 'https://play.google.com/store/apps/details?id=com.carreminder.app';
         return <a key={index} className="cm-landing-store" href={href} target="_blank" rel="noopener noreferrer"
-          onClick={() => marketingEvent('store_click', `${slug}_${cta.store}`)}>
+          onClick={() => { marketingEvent('store_click', `${slug}_${cta.store}`); trackStoreClickGA4(cta.store, href); }}>
           <img src={`/marketing/${cta.store === 'apple' ? 'apple' : 'google-play'}.svg`} width="20" height="23" alt="" />
           <span>{cta.label}</span>
         </a>;
