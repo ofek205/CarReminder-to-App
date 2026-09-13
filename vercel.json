@@ -65,14 +65,6 @@
       "destination": "/website/inactive-vehicles/index.html"
     },
     {
-      "source": "/website/reminders",
-      "destination": "/website/reminders/index.html"
-    },
-    {
-      "source": "/website/reminders/",
-      "destination": "/website/reminders/index.html"
-    },
-    {
       "source": "/website/documents",
       "destination": "/website/documents/index.html"
     },
@@ -185,16 +177,30 @@
       "destination": "/website/test-insurance-reminders/index.html"
     },
     {
+      "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:xml|js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/website/reminders",
+      "destination": "/website/test-insurance-reminders",
+      "permanent": true
+    },
+    {
+      "source": "/website/reminders/",
+      "destination": "/website/test-insurance-reminders",
+      "permanent": true
+    },
+    {
       "source": "/website/fleet",
-      "destination": "/website/fleet/index.html"
+      "destination": "/website/business",
+      "permanent": true
     },
     {
       "source": "/website/fleet/",
-      "destination": "/website/fleet/index.html"
-    },
-    {
-      "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:xml|js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)",
-      "destination": "/index.html"
+      "destination": "/website/business",
+      "permanent": true
     }
   ],
   "headers": [

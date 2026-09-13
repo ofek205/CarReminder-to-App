@@ -215,7 +215,7 @@ export default function MarketingChildReminderPage() {
     </section>
 
     <section className="cm-child-resources">
-      <div className="cm-wrap"><span className="cm-kicker">מקורות והמשך קריאה</span><h2>הרגלי בטיחות שכדאי לאמץ</h2><div><a href="https://me.health.gov.il/parenting/raising-children/safe-environment/outdoor-safety/child-unattended-car/" target="_blank" rel="noopener noreferrer">משרד הבריאות: מניעת שכחת ילדים ברכב <ExternalLink /></a><a href="https://www.nhtsa.gov/campaign/heatstroke" target="_blank" rel="noopener noreferrer">NHTSA: מניעת פגיעת חום בילדים ברכב <ExternalLink /></a><Link to="/website/reminders">תזכורות נוספות ב-Car Reminder <ArrowLeft /></Link></div></div>
+      <div className="cm-wrap"><span className="cm-kicker">מקורות והמשך קריאה</span><h2>הרגלי בטיחות שכדאי לאמץ</h2><div><a href="https://me.health.gov.il/parenting/raising-children/safe-environment/outdoor-safety/child-unattended-car/" target="_blank" rel="noopener noreferrer">משרד הבריאות: מניעת שכחת ילדים ברכב <ExternalLink /></a><a href="https://www.nhtsa.gov/campaign/heatstroke" target="_blank" rel="noopener noreferrer">NHTSA: מניעת פגיעת חום בילדים ברכב <ExternalLink /></a><Link to="/website/test-insurance-reminders">תזכורות נוספות ב-Car Reminder <ArrowLeft /></Link></div></div>
     </section>
 
     <section className="cm-child-final"><div className="cm-wrap"><Smartphone /><span className="cm-kicker">זמין ב-iPhone וב-Android</span><h2>מוסיפים עוד רגע של בדיקה{' '}<br />לסוף כל נסיעה.</h2><p>הפיצ׳ר כלול בחינם ב-Car Reminder.</p><PlatformLinks /><small>זמינות ההתראה תלויה בחיבור ובהרשאות המכשיר. תמיד בדקו את הרכב בעצמכם.</small></div></section>
