@@ -15,7 +15,7 @@ import MarketingAccessibilityPage from '@/components/MarketingAccessibilityPage'
 const logo = '/marketing/logo.webp';
 import './Marketing.css';
 import { applyMarketingSeo } from '@/lib/marketingSeo';
-import { marketingEvent } from '@/lib/marketingEvents';
+import { marketingEvent, trackStoreClickGA4 } from '@/lib/marketingEvents';
 import { DEMO_HOME_ID } from '@/lib/demoScreens';
 import { onDemoMessage, DEMO_MSG_SCREEN } from '@/lib/demoBridge';
 import MarketingDemoEmbed from '@/components/MarketingDemoEmbed';
@@ -77,8 +77,20 @@ const businessFaqs = [
   ['אפשר לנהל גם כלי צמ״ה או כלי שיט בצי?', 'כן. אפשר לרכז בצי גם טרקטורים וכלי צמ״ה, וגם כלי שיט, לצד הרכבים והמשאיות, כל אחד עם המועדים והמסמכים שלו.'],
 ];
 
+// Module scope, not component state: pages.config.js maps every /website/*
+// path to its OWN <Route path="..." element={<Marketing/>}>, so React
+// Router remounts this component (fresh refs, fresh state) on every
+// navigation between two of them, exactly the moment a client-side
+// pageview needs to be caught. A useRef reset by that same remount can
+// never see it; this flag survives across remounts for the life of the
+// document, which is what "was gtag's own default page_view for the very
+// first page already consumed" needs.
+let gaAutoPageviewConsumed = false;
+
 function StoreLinks() {
-  return <div className="cm-stores" onClick={() => marketingEvent('store_click', 'download')}><a href="https://apps.apple.com/app/carreminder/id6764073107" target="_blank" rel="noopener noreferrer"><img src="/marketing/apple.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>App Store</strong></span></a><a href="https://play.google.com/store/apps/details?id=com.carreminder.app" target="_blank" rel="noopener noreferrer"><img src="/marketing/google-play.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>Google Play</strong></span></a></div>;
+  const appleHref = 'https://apps.apple.com/app/carreminder/id6764073107';
+  const googleHref = 'https://play.google.com/store/apps/details?id=com.carreminder.app';
+  return <div className="cm-stores" onClick={() => marketingEvent('store_click', 'download')}><a href={appleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('apple', appleHref)}><img src="/marketing/apple.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>App Store</strong></span></a><a href={googleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('google', googleHref)}><img src="/marketing/google-play.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>Google Play</strong></span></a></div>;
 }
 
 export default function Marketing() {
@@ -87,6 +99,10 @@ export default function Marketing() {
   const [menu, setMenu] = useState(false);
   const dialog = useRef(null);
   const selectRef = useRef(null);
+  // null until this mount's effect has run once; see the effect body and
+  // gaAutoPageviewConsumed above for why a remount can't be told apart
+  // from a same-route hash change without both of these together.
+  const lastTrackedPath = useRef(null);
 
   /**
    * Selector state. Three pieces, because the mark means exactly one thing:
@@ -183,6 +199,23 @@ export default function Marketing() {
       if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
       else window.scrollTo(0, 0);
     });
+    const dispatchPageView = () => {
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'page_view', { page_path: pathname, page_location: window.location.href, page_title: document.title });
+      }
+    };
+    if (lastTrackedPath.current === null) {
+      // First effect run of this mount. Could be the very first page of
+      // the whole session (skip: gtag's own config-call already sent a
+      // page_view for it), or a remount from navigating to a different
+      // /website/* route (fire: that IS the navigation signal here).
+      lastTrackedPath.current = pathname;
+      if (gaAutoPageviewConsumed) dispatchPageView();
+      gaAutoPageviewConsumed = true;
+    } else if (lastTrackedPath.current !== pathname) {
+      lastTrackedPath.current = pathname;
+      dispatchPageView();
+    }
     return () => {
       cancelAnimationFrame(scrollFrame);
       restoreSeo();
