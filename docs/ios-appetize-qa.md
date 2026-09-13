@@ -73,9 +73,8 @@ If you click **Run workflow** and `APPETIZE_API_TOKEN` is missing, the upload st
 
 - `ios/**`
 - `capacitor.config.ts`
-- `.github/workflows/ios-appetize-qa.yml`
 
-Everyday web PRs that only touch `src/` do **not** start a macOS runner. That is deliberate — hosted macOS minutes are the expensive ones.
+Everyday web PRs that only touch `src/` do **not** start a macOS runner, and edits to this workflow file alone do not either (run it by hand). That is deliberate — hosted macOS minutes are the expensive ones.
 
 ---
 

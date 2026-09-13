@@ -19,9 +19,9 @@ name: iOS Appetize QA
 #
 # Trigger:
 #   - workflow_dispatch (manual, the intended path)
-#   - pull_request, only when ios/ / capacitor.config / this file change.
-#     src/** is intentionally excluded so everyday web PRs do not burn
-#     macOS minutes.
+#   - pull_request, only when ios/** or capacitor.config.ts change.
+#     src/** and this workflow file are excluded so everyday web PRs
+#     (and this docs/CI PR) do not burn macOS minutes.
 #
 # Secrets:
 #   APPETIZE_API_TOKEN     — required. Organization → API Tokens.
@@ -48,7 +48,6 @@ on:
     paths:
       - 'ios/**'
       - 'capacitor.config.ts'
-      - '.github/workflows/ios-appetize-qa.yml'
 
 concurrency:
   group: ios-appetize-qa-${{ github.workflow }}-${{ github.ref }}
