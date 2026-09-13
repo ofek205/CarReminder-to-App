@@ -448,6 +448,13 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 .cm-site .cm-landing-store:hover{background:#214328}
 @media(max-width:620px){.cm-landing-ctas .cm-landing-store{width:100%;justify-content:center}}
 
+/* Homepage's 2-card link block (vehicle-lookup, test-insurance-reminders) —
+   .cm-guides defaults to 3 columns; with 2 children that leaves an
+   asymmetric empty slot, so cap it at 2 on desktop. Mobile already
+   collapses to 1 column via the existing .cm-guides breakpoint rule. */
+.cm-guides-2{grid-template-columns:repeat(2,1fr);max-width:820px}
+@media(min-width:621px) and (max-width:1050px){.cm-guides-2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 /* Accessibility statement. A legal document, so it gets the plain article
    column and nothing that competes with the text. */
 .cm-a11y-list{margin:14px 0 0;padding-inline-start:22px;list-style:disc}
