@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Switch } from '@/components/ui/switch';
-import useIsAdmin from '@/hooks/useIsAdmin';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isNative } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
@@ -71,15 +70,9 @@ function formatTripTime(ms) {
 
 export default function SafetyReminder() {
   const supported = isTripGuardSupported();
-  // TEMP launch gate: until the native plugin ships + passes the device
-  // matrix, the web build is a MOCK with no real detection. Restrict the
-  // whole page to admins (dogfooding) — not just the nav link — so a user
-  // who reaches /SafetyReminder by URL can't be lulled by a fake "active".
-  // Remove this gate at GA (and make isTripGuardSupported require native on web).
-  const isAdmin = useIsAdmin() === true;
   // Private/parent feature only — not for business workspaces. The nav link
-  // is already personalOnly; this page-level gate also blocks direct URL
-  // access from a business workspace (consistent with the admin gate).
+  // is already personalOnly; this page-level gate blocks direct URL access
+  // from a business workspace too.
   const { isBusiness } = useWorkspaceRole();
   const [accepted, setAccepted] = useState(() => localStorage.getItem(DISCLAIMER_KEY) === '1');
   const [ackChecked, setAckChecked] = useState(false);
@@ -197,23 +190,6 @@ export default function SafetyReminder() {
   useEffect(() => () => {
     if (simTimerRef.current) clearTimeout(simTimerRef.current);
   }, []);
-
-  // ── Launch gate: non-admins see "coming soon" (the mock must never
-  // mislead a real user into trusting protection that isn't there yet) ──
-  if (!isAdmin) {
-    return (
-      <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
-        <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
-          <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
-          <p className="font-bold text-base" style={{ color: C.text }}>בקרוב</p>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>
-            אנחנו עושים את הצעדים האחרונים כדי שההגנה הזו תעבוד בצורה אמינה. נעדכן ברגע שתהיה מוכנה.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   // ── Personal/parent feature only — not for business workspaces ──
   if (isBusiness) {
