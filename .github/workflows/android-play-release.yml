@@ -144,19 +144,27 @@ jobs:
 
       - name: Locate AAB
         id: locate_aab
+        # Renamed in place to app-release-v<version>.aab (not just left as the
+        # generic app-release.aab every build produces), so a file downloaded
+        # from an old run can never be mistaken for, or silently re-uploaded
+        # as, a newer one (this is what caused the versionCode 60502 mixup).
         run: |
           AAB_PATH=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
           if [ -z "$AAB_PATH" ]; then
             echo "ERROR: no AAB produced under android/app/build/outputs/bundle/release/"
             exit 1
           fi
-          echo "Found $AAB_PATH"
-          echo "aab_path=$AAB_PATH" >> "$GITHUB_OUTPUT"
+          VERSION=$(node -p "require('./package.json').version")
+          VERSIONED_PATH="$(dirname "$AAB_PATH")/app-release-v${VERSION}.aab"
+          mv "$AAB_PATH" "$VERSIONED_PATH"
+          echo "Found $AAB_PATH -> renamed to $VERSIONED_PATH"
+          echo "aab_path=$VERSIONED_PATH" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upload AAB as artifact (backup)
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-aab
+          name: app-release-aab-v${{ steps.locate_aab.outputs.version }}
           path: ${{ steps.locate_aab.outputs.aab_path }}
           retention-days: 90
 
