@@ -86,13 +86,6 @@ public final class TripGuardStore {
         return prefs(ctx).getLong(KEY_TRIP_START_ELAPSED, 0L);
     }
 
-    public static void clearTripStart(Context ctx) {
-        prefs(ctx).edit()
-            .remove(KEY_TRIP_START_WALL)
-            .remove(KEY_TRIP_START_ELAPSED)
-            .apply();
-    }
-
     public static void setLastDisconnectElapsed(Context ctx, long elapsedMs) {
         prefs(ctx).edit().putLong(KEY_LAST_DISCONNECT_ELAPSED, elapsedMs).apply();
     }
