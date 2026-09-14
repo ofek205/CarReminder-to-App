@@ -2,15 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldCheck, ShieldAlert, Wrench, Car, Headphones,
   CalendarDays, Clock, Timer, AlertTriangle, Check, Play, Loader2, BatteryWarning, History,
-  Smartphone, Bell,
+  Smartphone, Bell, Bluetooth, MapPin, Info,
 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Switch } from '@/components/ui/switch';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import { isNative } from '@/lib/capacitor';
+import { isNative, isIOS } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import {
-  isTripGuardSupported,
   getTripGuardConfig,
   saveTripGuardConfig,
   listCarDevices,
@@ -28,6 +27,36 @@ const DISCLAIMER_KEY = 'tripGuard.disclaimerAccepted';
 const DAY_LABELS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // 0=Sunday
 const WHITE = '#FFFFFF'; // hoisted so it's a token reference, not an inline-hex literal (lint)
 
+// iOS-only: how to detect "the drive ended". Android has no such choice: the
+// manifest Bluetooth receiver survives a force-quit on its own, so this whole
+// concept doesn't exist there. See TripGuardBluetoothMonitor.swift and
+// TripGuardLocationMonitor.swift for exactly what each option can and can't
+// do; the `limitation` copy below must stay honest with what those files say,
+// not with what would be nicest to promise.
+const IOS_MODES = [
+  {
+    id: 'bluetooth',
+    icon: Bluetooth,
+    label: 'Bluetooth של הרכב',
+    hint: 'מזהה חיבור/ניתוק בזמן אמת, בלי הרשאה נוספת',
+    limitation: 'לא יעבוד אם תסגרו את האפליקציה לגמרי (swipe). כל עוד היא פתוחה או ברקע, כן.',
+  },
+  {
+    id: 'location',
+    icon: MapPin,
+    label: 'מיקום',
+    hint: 'ממשיך לעבוד גם אחרי סגירה מלאה של האפליקציה',
+    limitation: 'דורש הרשאת מיקום "תמיד", ויכול לפעמים להגיב כמה דקות אחרי שחניתם בפועל.',
+  },
+  {
+    id: 'both',
+    icon: ShieldCheck,
+    label: 'שניהם (מומלץ)',
+    hint: 'הזיהוי המהיר של Bluetooth, וגם רשת ביטחון של מיקום',
+    limitation: 'דורש את שתי ההרשאות. אם אחת מהן חסרה, ההגנה עדיין פעילה עם השנייה בלבד.',
+  },
+];
+
 // Reason metadata for the status indicator. `fixable` reasons get a one-tap
 // "תקן" button (web mock: grants the permission). Others are instructional.
 const REASON_META = {
@@ -37,6 +66,7 @@ const REASON_META = {
   [TRIP_GUARD_REASONS.BT_PERM]: { label: 'חסרה הרשאת Bluetooth', fixable: true },
   [TRIP_GUARD_REASONS.NOTIF_PERM]: { label: 'חסרה הרשאת התראות', fixable: true },
   [TRIP_GUARD_REASONS.BATTERY]: { label: 'חיסכון הסוללה עלול לחסום פעולה ברקע', fixable: false },
+  [TRIP_GUARD_REASONS.LOCATION_PERM]: { label: 'חסרה הרשאת מיקום "תמיד"', fixable: true },
 };
 
 // Which blocker to surface when several apply at once. This is DELIBERATELY not
@@ -49,6 +79,7 @@ const REASON_PRIORITY = [
   TRIP_GUARD_REASONS.DISABLED,
   TRIP_GUARD_REASONS.BT_PERM,
   TRIP_GUARD_REASONS.BT_OFF,
+  TRIP_GUARD_REASONS.LOCATION_PERM,
   TRIP_GUARD_REASONS.NOTIF_PERM,
   TRIP_GUARD_REASONS.NO_DEVICE,
   TRIP_GUARD_REASONS.BATTERY,
@@ -69,7 +100,6 @@ function formatTripTime(ms) {
 }
 
 export default function SafetyReminder() {
-  const supported = isTripGuardSupported();
   // Private/parent feature only — not for business workspaces. The nav link
   // is already personalOnly; this page-level gate blocks direct URL access
   // from a business workspace too.
@@ -91,7 +121,6 @@ export default function SafetyReminder() {
   }, []);
 
   useEffect(() => {
-    if (!supported) { setLoading(false); return; }
     let handle;
     let cancelled = false;
     // Re-check status whenever the user returns to the app — they may have
@@ -134,7 +163,7 @@ export default function SafetyReminder() {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [supported, refreshStatus]);
+  }, [refreshStatus]);
 
   const updateConfig = useCallback(async (patch) => {
     const next = { ...configRef.current, ...patch };
@@ -219,22 +248,6 @@ export default function SafetyReminder() {
           <p className="font-bold text-base" style={{ color: C.text }}>זמין רק באפליקציית המובייל</p>
           <p className="text-sm mt-1" style={{ color: C.muted }}>
             ההגנה פועלת ברקע בטלפון, ולכן אינה זמינה במחשב. פתח את אפליקציית CarReminder בטלפון כדי להפעיל אותה.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── iOS: not supported yet (spike pending) ──
-  if (!supported) {
-    return (
-      <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
-        <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
-          <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
-          <p className="font-bold text-base" style={{ color: C.text }}>בקרוב גם ב-iPhone</p>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>
-            אנחנו עובדים על להביא את ההגנה הזו ל-iOS. בינתיים היא זמינה ב-Android.
           </p>
         </div>
       </div>
@@ -334,6 +347,12 @@ export default function SafetyReminder() {
   // must not be reported as "you never paired anything".
   const btPermMissing = reasons.includes(TRIP_GUARD_REASONS.BT_PERM);
 
+  const iosMode = config.iosDetectionMode || 'both';
+  // No Bluetooth device concept at all when iOS is location-only, showing
+  // the picker anyway would dangle a setting that does nothing.
+  const showDevicePicker = !isIOS || iosMode !== 'location';
+  const activeIosModeMeta = IOS_MODES.find((m) => m.id === iosMode) || IOS_MODES[2];
+
   return (
     <div className="max-w-xl mx-auto p-4 pb-24" dir="rtl">
       <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
@@ -408,44 +427,89 @@ export default function SafetyReminder() {
         <Switch checked={!!config.enabled} onCheckedChange={(v) => updateConfig({ enabled: v })} />
       </Row>
 
-      {/* ── Device picker ── */}
-      <Section title="הרכבים שלי" icon={Car}>
-        <p className="text-xs mb-3" style={{ color: C.muted }}>
-          סמן את מערכת השמע של הרכב מתוך המכשירים שחיברת ל-Bluetooth.
-        </p>
-        {devices.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: btPermMissing ? C.warnMid : C.muted }}>
-            {btPermMissing
-              ? 'אין לנו הרשאת Bluetooth, ולכן אנחנו לא רואים את המכשירים המזווגים שלך. אשר/י את ההרשאה בכפתור "תקן עכשיו" למעלה, והרכבים יופיעו כאן.'
-              : 'עדיין לא חיברת מכשירי Bluetooth. התחבר לרכב פעם אחת וחזור לכאן.'}
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {devices.map((d) => {
-              const on = config.carDeviceIds.includes(d.id);
-              const earbuds = looksLikeEarbuds(d.name);
+      {/* ── iOS-only: how to detect a trip ended. Doesn't exist on Android:
+          the Bluetooth receiver there just always works, force-quit or not. ── */}
+      {isIOS && (
+        <Section title="איך לזהות סיום נסיעה" icon={ShieldCheck}>
+          <div className="space-y-2 mb-3">
+            {IOS_MODES.map((m) => {
+              const Icon = m.icon;
+              const selected = iosMode === m.id;
               return (
-                <div
-                  key={d.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl p-3 border"
-                  style={{ background: on ? C.light : C.gray50, borderColor: on ? C.borderAlt : C.border }}
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => updateConfig({ iosDetectionMode: m.id })}
+                  className="w-full text-right rounded-2xl p-3 border transition-colors"
+                  style={{ background: selected ? C.light : C.gray50, borderColor: selected ? C.borderAlt : C.border }}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {earbuds
-                      ? <Headphones className="h-5 w-5 shrink-0" style={{ color: C.muted }} />
-                      : <Car className="h-5 w-5 shrink-0" style={{ color: C.primary }} />}
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{d.name}</p>
-                      {earbuds && <p className="text-[11px]" style={{ color: C.warn }}>נשמע כמו אוזניות, לא רכב</p>}
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: selected ? C.primary : C.card }}>
+                      <Icon className="h-4.5 w-4.5" style={{ color: selected ? WHITE : C.muted }} />
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold" style={{ color: C.text }}>{m.label}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: C.muted }}>{m.hint}</p>
+                    </div>
+                    {selected && <Check className="h-4 w-4 shrink-0" style={{ color: C.primary }} />}
                   </div>
-                  <Switch checked={on} onCheckedChange={() => toggleDevice(d.id)} />
-                </div>
+                </button>
               );
             })}
           </div>
-        )}
-      </Section>
+          {/* Honest, always-visible limitation for whichever mode is selected:
+              this is exactly the fact a forgetful parent must not miss, so it
+              doesn't hide behind a one-time onboarding step. */}
+          <div className="rounded-2xl p-3 border flex items-start gap-2" style={{ background: C.infoSubtle, borderColor: C.border }}>
+            <Info className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.info }} />
+            <p className="text-xs leading-relaxed" style={{ color: C.textAlt }}>{activeIosModeMeta.limitation}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* ── Device picker, hidden on iOS when the mode has no Bluetooth in it ── */}
+      {showDevicePicker && (
+        <Section title="הרכבים שלי" icon={Car}>
+          <p className="text-xs mb-3" style={{ color: C.muted }}>
+            סמן את מערכת השמע של הרכב מתוך המכשירים שחיברת ל-Bluetooth.
+          </p>
+          {devices.length === 0 ? (
+            <p className="text-sm py-2" style={{ color: btPermMissing ? C.warnMid : C.muted }}>
+              {btPermMissing
+                ? 'אין לנו הרשאת Bluetooth, ולכן אנחנו לא רואים את המכשירים המזווגים שלך. אשר/י את ההרשאה בכפתור "תקן עכשיו" למעלה, והרכבים יופיעו כאן.'
+                : isIOS
+                  ? 'כל חיבור Bluetooth של הרכב מזוהה אוטומטית, אין צורך לבחור מכשיר.'
+                  : 'עדיין לא חיברת מכשירי Bluetooth. התחבר לרכב פעם אחת וחזור לכאן.'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {devices.map((d) => {
+                const on = config.carDeviceIds.includes(d.id);
+                const earbuds = looksLikeEarbuds(d.name);
+                return (
+                  <div
+                    key={d.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl p-3 border"
+                    style={{ background: on ? C.light : C.gray50, borderColor: on ? C.borderAlt : C.border }}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {earbuds
+                        ? <Headphones className="h-5 w-5 shrink-0" style={{ color: C.muted }} />
+                        : <Car className="h-5 w-5 shrink-0" style={{ color: C.primary }} />}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{d.name}</p>
+                        {earbuds && <p className="text-[11px]" style={{ color: C.warn }}>נשמע כמו אוזניות, לא רכב</p>}
+                      </div>
+                    </div>
+                    <Switch checked={on} onCheckedChange={() => toggleDevice(d.id)} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ── Smart settings ── */}
       <Section title="מתי ההגנה פעילה" icon={CalendarDays}>

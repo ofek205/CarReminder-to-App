@@ -56,12 +56,16 @@ export class TripGuardWeb extends WebPlugin {
   async getStatus() {
     const config = this._readConfig();
     const cond = this._readConditions();
+    const wantsLocation = config.iosDetectionMode === 'location' || config.iosDetectionMode === 'both';
     const reasons = [];
     if (!config.enabled) reasons.push(TRIP_GUARD_REASONS.DISABLED);
     if (!config.carDeviceIds || config.carDeviceIds.length === 0) reasons.push(TRIP_GUARD_REASONS.NO_DEVICE);
     if (cond.btOff) reasons.push(TRIP_GUARD_REASONS.BT_OFF);
     if (cond.btDenied) reasons.push(TRIP_GUARD_REASONS.BT_PERM);
     if (cond.notifDenied) reasons.push(TRIP_GUARD_REASONS.NOTIF_PERM);
+    if (wantsLocation && cond.locationStatus && cond.locationStatus !== 'granted') {
+      reasons.push(TRIP_GUARD_REASONS.LOCATION_PERM);
+    }
     // batteryOptimized is advisory, NOT a blocker (see TripGuardPlugin.java):
     // the manifest ACL receiver is exempt from Doze, so the guard still works.
     return {
@@ -70,6 +74,7 @@ export class TripGuardWeb extends WebPlugin {
       btAdapterOn: !cond.btOff,
       btPermission: cond.btDenied ? 'denied' : 'granted',
       notifPermission: cond.notifDenied ? 'denied' : 'granted',
+      locationPermission: cond.locationStatus || 'granted',
       batteryOptimized: !!cond.batteryOptimized,
     };
   }
@@ -79,6 +84,7 @@ export class TripGuardWeb extends WebPlugin {
     return {
       bluetooth: cond.btDenied ? 'denied' : 'granted',
       notifications: cond.notifDenied ? 'denied' : 'granted',
+      location: cond.locationStatus || 'granted',
     };
   }
 
@@ -87,9 +93,17 @@ export class TripGuardWeb extends WebPlugin {
     const cond = this._readConditions();
     delete cond.btDenied;
     delete cond.notifDenied;
+    cond.locationStatus = 'granted';
     localStorage.setItem(LS_CONDITIONS, JSON.stringify(cond));
     this.notifyListeners('statusChanged', await this.getStatus());
     return this.checkPermissions();
+  }
+
+  async cancelEscalation() {
+    // Mock: nothing scheduled in the browser; just acknowledge the call so
+    // the shared JS listener (tripGuard/index.js) never has to special-case
+    // dev/web.
+    return undefined;
   }
 
   async getTripLog() {
