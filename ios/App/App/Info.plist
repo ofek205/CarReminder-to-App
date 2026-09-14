@@ -19,6 +19,13 @@
 	<string>האפליקציה שומרת לאלבום שלך תמונות של מסמכים סרוקים וקבלות, כדי שיהיו זמינות גם מחוץ לאפליקציה.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>האפליקציה מציגה מוסכים, חנויות חלקים ותחנות בקרבת מיקומך הנוכחי. המיקום אינו נשמר בשרת.</string>
+	<!-- "Always" location — ONLY requested if the user turns on location-based
+	     detection in "בטיחות ילדים" (TripGuard). Without this key, calling
+	     CLLocationManager.requestAlwaysAuthorization() crashes immediately;
+	     Apple requires the description even though most users never trigger
+	     the prompt at all (the feature defaults to Bluetooth-only entry). -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>אם תבחר לזהות סיום נסיעה גם לפי מיקום (לא רק Bluetooth) בתזכורת "בטיחות ילדים", האפליקציה תזהה שהרכב נעצר גם כשהיא סגורה לגמרי. המיקום נשאר במכשיר ואינו נשמר בשרת.</string>
 	<key>CFBundleDisplayName</key>
         <string>CarReminders</string>
 	<key>CFBundleExecutable</key>

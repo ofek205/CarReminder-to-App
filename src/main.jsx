@@ -16,6 +16,7 @@ import { reportError } from '@/lib/crashReporter';
 import { initBootLog, recordBootStage, markBootSucceeded, flushPreviousFailedBoot } from '@/lib/bootDiagnostics';
 import { validateEnv } from '@/lib/envValidator';
 import { captureAttribution } from '@/lib/signupAttribution';
+import { initTripGuardActionListener } from '@/lib/tripGuard';
 import { C } from '@/lib/designTokens';
 
 // Boot log is the FIRST thing we initialize — even before plugin init,
@@ -80,6 +81,9 @@ if (isNative) {
 initStatusBar();
 initKeyboard();
 initBackButton();
+// Must run at boot, not from SafetyReminder.jsx: a TripGuard alert's action
+// button can cold-launch the app before that screen is ever mounted.
+initTripGuardActionListener();
 
 // Refresh Supabase session whenever the app/tab returns to foreground, so
 // users don't get silently logged out after leaving the app for a while.

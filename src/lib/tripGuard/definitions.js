@@ -16,13 +16,14 @@
 /**
  * @typedef {Object} TripGuardConfig
  * @property {boolean} enabled                 Master on/off.
- * @property {string[]} carDeviceIds           Device ids the user marked as "my car".
+ * @property {string[]} carDeviceIds           Device ids the user marked as "my car". Android only, iOS has no device-list concept (see iosDetectionMode).
  * @property {number[]} activeDays             Weekdays the guard is active. 0=Sun … 6=Sat.
  * @property {{start:string,end:string}|null} activeHours  "HH:mm" range; null = all day.
  * @property {{startMonth:number,endMonth:number}|null} activeSeason  Months 1-12; null = all year.
  * @property {number} minTripMinutes           Min trip length before an alert can fire.
  * @property {number} alertDelaySeconds        Delay between disconnect and the alert.
  * @property {number} escalateAfterSeconds     Re-buzz if not acknowledged; 0 = off.
+ * @property {'bluetooth'|'location'|'both'} iosDetectionMode  iOS ONLY, ignored on Android (which is always Bluetooth via the manifest receiver). 'bluetooth' = AVAudioSession route-change, realistically foreground-only, no extra permission. 'location' = CLLocationManager significant-change + a speed heuristic, the only one that survives a force-quit, needs "Always" location. 'both' runs them together (deduped).
  */
 
 /**
@@ -32,12 +33,17 @@
  * @property {boolean} btAdapterOn
  * @property {string} btPermission             'granted' | 'denied' | 'prompt'
  * @property {string} notifPermission          'granted' | 'denied' | 'prompt'
+ * @property {string} [locationPermission]     'granted' | 'whenInUseOnly' | 'denied' | 'prompt' (iOS only, present when iosDetectionMode wants location).
  * @property {boolean} batteryOptimized
  */
 
 /**
  * Reason codes for why the guard cannot currently run — drives the FR5
  * "active / can't run" indicator, the most safety-critical piece of UI.
+ * BT_OFF/BT_PERM/NO_DEVICE are Android-only in practice (iOS has no adapter
+ * state, per-device permission, or device list to report on). LOCATION_PERM
+ * is iOS-only (Android's manifest receiver needs no location permission at
+ * all).
  */
 export const TRIP_GUARD_REASONS = Object.freeze({
   DISABLED: 'DISABLED',
@@ -46,6 +52,7 @@ export const TRIP_GUARD_REASONS = Object.freeze({
   BT_PERM: 'BT_PERM',
   NOTIF_PERM: 'NOTIF_PERM',
   BATTERY: 'BATTERY',
+  LOCATION_PERM: 'LOCATION_PERM',
 });
 
 /**
@@ -63,4 +70,8 @@ export const DEFAULT_CONFIG = Object.freeze({
   minTripMinutes: 2,
   alertDelaySeconds: 0,
   escalateAfterSeconds: 30,
+  // 'both' by default on iOS: a forgetful parent is better served by the
+  // strongest available protection than by the smallest permission ask.
+  // No effect on Android.
+  iosDetectionMode: 'both',
 });
