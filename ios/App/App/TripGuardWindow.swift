@@ -25,7 +25,8 @@ enum TripGuardWindow {
         guard endActive || startActive else { return false }
 
         let minMinutes = intValue(config["minTripMinutes"]) ?? 0
-        return meetsMinDuration(startUptime: tripStartUptime, nowUptime: nowUptime, minMinutes: minMinutes)
+        return meetsMinDuration(startUptime: tripStartUptime, nowUptime: nowUptime,
+                                startWall: tripStartWall, nowWall: now, minMinutes: minMinutes)
     }
 
     static func isWithinActiveWindow(config: [String: Any], date: Date) -> Bool {
@@ -70,11 +71,40 @@ enum TripGuardWindow {
         return month >= start || month <= end // wraparound (e.g. Nov-Feb)
     }
 
-    static func meetsMinDuration(startUptime: Double?, nowUptime: Double, minMinutes: Int) -> Bool {
-        guard let startUptime = startUptime, startUptime > 0 else { return true } // unknown start -> alert (safety)
-        let elapsed = nowUptime - startUptime
-        if elapsed < 0 { return true } // clock anomaly -> fail open, matches the Android/JS twins
+    /// Takes the LONGER of the monotonic and wall-clock elapsed times, which
+    /// is a deliberate iOS-only divergence from the Android twin.
+    ///
+    /// Android measures duration with `SystemClock.elapsedRealtime()`, which
+    /// keeps counting while the device sleeps. iOS's closest equivalent,
+    /// `ProcessInfo.systemUptime`, is "time the system has been AWAKE", so a
+    /// drive spent with the phone idle in a pocket (very much the normal case
+    /// for the location detector, which only wakes the app every few hundred
+    /// metres) can measure far shorter than the trip really was, fall under
+    /// `minTripMinutes`, and silently skip the alert.
+    ///
+    /// Wall clock doesn't have that problem but can jump (NTP, manual change),
+    /// which is exactly why the monotonic clock is the primary measure. Taking
+    /// the max keeps the monotonic reading as the floor while letting wall
+    /// clock rescue an under-count, and every way it can be wrong errs toward
+    /// alerting. That is the direction this feature has always chosen: a
+    /// missed reminder is worse than an extra one.
+    static func meetsMinDuration(startUptime: Double?, nowUptime: Double,
+                                 startWall: Date?, nowWall: Date, minMinutes: Int) -> Bool {
         let minSeconds = Double(max(0, minMinutes)) * 60.0
+        if minSeconds <= 0 { return true }
+
+        var elapsed: Double?
+        if let startUptime = startUptime, startUptime > 0 {
+            let monotonic = nowUptime - startUptime
+            if monotonic < 0 { return true } // clock anomaly -> fail open
+            elapsed = monotonic
+        }
+        if let startWall = startWall {
+            let wall = nowWall.timeIntervalSince(startWall)
+            if wall >= 0 { elapsed = max(elapsed ?? 0, wall) }
+        }
+
+        guard let elapsed = elapsed else { return true } // unknown start -> alert (safety)
         return elapsed >= minSeconds
     }
 
