@@ -24,7 +24,7 @@ enum TripGuardWindow {
         let startActive = tripStartWall.map { isWithinActiveWindow(config: config, date: $0) } ?? false
         guard endActive || startActive else { return false }
 
-        let minMinutes = (config["minTripMinutes"] as? Int) ?? (config["minTripMinutes"] as? Double).map { Int($0) } ?? 0
+        let minMinutes = intValue(config["minTripMinutes"]) ?? 0
         return meetsMinDuration(startUptime: tripStartUptime, nowUptime: nowUptime, minMinutes: minMinutes)
     }
 
@@ -39,7 +39,15 @@ enum TripGuardWindow {
         if days.isEmpty { return false } // explicit empty -> none
         // Calendar's weekday is 1=Sunday...7=Saturday; JS/Android use 0=Sun...6=Sat.
         let dow = Calendar(identifier: .gregorian).component(.weekday, from: date) - 1
-        return days.contains { ($0 as? Int) == dow || ($0 as? Double).map { Int($0) } == dow }
+        // Written long-hand rather than as a one-line `contains { ... }`: JSON
+        // numbers arrive as NSNumber and can cast to either Int or Double, and
+        // nesting a second `$0` closure inside the predicate to handle that is
+        // exactly the shape Swift's type-checker gets ambiguous about.
+        return days.contains { element in
+            if let i = element as? Int { return i == dow }
+            if let d = element as? Double { return Int(d) == dow }
+            return false
+        }
     }
 
     static func isActiveHour(config: [String: Any], date: Date) -> Bool {

@@ -42,7 +42,13 @@ enum TripGuardNotifier {
         )
         let center = UNUserNotificationCenter.current()
         center.getNotificationCategories { existing in
-            var all = existing.filter { $0.identifier != categoryId }
+            // Explicit Set type: Swift has both a Sequence.filter (returns an
+            // Array) and a Set.filter (returns a Set) in scope here, and the
+            // Array one would make the insert() below fail to compile. Also
+            // note this preserves every OTHER app category rather than
+            // replacing the whole list, so @capacitor/local-notifications'
+            // own action types survive.
+            var all: Set<UNNotificationCategory> = existing.filter { $0.identifier != categoryId }
             all.insert(category)
             center.setNotificationCategories(all)
         }

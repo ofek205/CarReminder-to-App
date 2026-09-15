@@ -1,5 +1,5 @@
 import Foundation
-import AVFAudio
+import AVFoundation
 
 /// TripGuard's Bluetooth-based trip detector for iOS.
 ///
