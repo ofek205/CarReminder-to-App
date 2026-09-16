@@ -1,5 +1,5 @@
 import Foundation
-import AVFAudio
+import AVFoundation
 
 /// TripGuard's Bluetooth-based trip detector for iOS.
 ///
@@ -91,8 +91,8 @@ final class TripGuardBluetoothMonitor {
                 config: config, tripStartWall: startWall, now: nowWall,
                 tripStartUptime: startUptime, nowUptime: nowUptime
             )
-            TripGuardStore.appendTripLog(at: nowWall, alerted: willAlert)
-            if willAlert { TripGuardAlertCoordinator.fire() }
+            let didAlert = willAlert && TripGuardAlertCoordinator.fire()
+            TripGuardStore.appendTripLog(at: nowWall, alerted: didAlert)
         }
     }
 

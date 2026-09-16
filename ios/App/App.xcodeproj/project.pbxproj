@@ -22,6 +22,7 @@
 		A1B2C3D4E5F60006ABCDEF02 /* TripGuardLocationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60006ABCDEF01 /* TripGuardLocationMonitor.swift */; };
 		A1B2C3D4E5F60007ABCDEF02 /* TripGuardAlertCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60007ABCDEF01 /* TripGuardAlertCoordinator.swift */; };
 		A1B2C3D4E5F60008ABCDEF02 /* TripGuardPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60008ABCDEF01 /* TripGuardPlugin.swift */; };
+		A1B2C3D4E5F60009ABCDEF02 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60009ABCDEF01 /* MainViewController.swift */; };
 		E26CE275E3CF1E81C71A51A7 /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F9C43AF9E575238D8C9B7E24 /* Pods_App.framework */; };
 /* End PBXBuildFile section */
 
@@ -45,6 +46,7 @@
 		A1B2C3D4E5F60006ABCDEF01 /* TripGuardLocationMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripGuardLocationMonitor.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60007ABCDEF01 /* TripGuardAlertCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripGuardAlertCoordinator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60008ABCDEF01 /* TripGuardPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripGuardPlugin.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60009ABCDEF01 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		CF59937C8B7AF93F802C5E00 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		F9C43AF9E575238D8C9B7E24 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -97,6 +99,7 @@
 				A1B2C3D4E5F60006ABCDEF01 /* TripGuardLocationMonitor.swift */,
 				A1B2C3D4E5F60007ABCDEF01 /* TripGuardAlertCoordinator.swift */,
 				A1B2C3D4E5F60008ABCDEF01 /* TripGuardPlugin.swift */,
+				A1B2C3D4E5F60009ABCDEF01 /* MainViewController.swift */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
@@ -247,6 +250,7 @@
 				A1B2C3D4E5F60006ABCDEF02 /* TripGuardLocationMonitor.swift in Sources */,
 				A1B2C3D4E5F60007ABCDEF02 /* TripGuardAlertCoordinator.swift in Sources */,
 				A1B2C3D4E5F60008ABCDEF02 /* TripGuardPlugin.swift in Sources */,
+				A1B2C3D4E5F60009ABCDEF02 /* MainViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

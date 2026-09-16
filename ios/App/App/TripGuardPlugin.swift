@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Capacitor
 import UserNotifications
 import CoreLocation
@@ -141,16 +142,54 @@ public class TripGuardPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    /// The "תקן עכשיו" button lands here. iOS only ever shows each permission
+    /// prompt once: after a denial (and after the one-shot Always upgrade
+    /// prompt), every further request call returns silently without showing
+    /// anything. Asking again would leave the user tapping a button that
+    /// visibly does nothing, forever, on a safety feature they just tried to
+    /// turn on. So: look at the state BEFORE asking, and when no prompt can
+    /// possibly appear, send them to the one place that can still fix it.
     @objc func requestPermissions(_ call: CAPPluginCall) {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
-            let wantsLocation = TripGuardStore.wantsLocation()
-            guard wantsLocation else {
+        let wantsLocation = TripGuardStore.wantsLocation()
+
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let notifBlocked = settings.authorizationStatus == .denied
+            let locationStatus = TripGuardLocationMonitor.shared.authorizationSummary()
+            // "whenInUseOnly" counts as blocked only in the sense that the
+            // in-app upgrade prompt is a one-shot; requestAlwaysAuthorization
+            // below still tries it, and Settings is the fallback if it was
+            // already spent.
+            let locationBlocked = wantsLocation && (locationStatus == "denied")
+
+            if notifBlocked || locationBlocked {
+                self.openAppSettings()
                 DispatchQueue.main.async { self.checkPermissions(call) }
                 return
             }
-            TripGuardLocationMonitor.shared.requestAlwaysAuthorization { _ in
-                DispatchQueue.main.async { self.checkPermissions(call) }
+
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+                guard wantsLocation else {
+                    DispatchQueue.main.async { self.checkPermissions(call) }
+                    return
+                }
+                let wasWhenInUse = locationStatus == "whenInUseOnly"
+                TripGuardLocationMonitor.shared.requestAlwaysAuthorization { finalStatus in
+                    // Already on "when in use" and the upgrade prompt didn't
+                    // move us: that prompt is spent, Settings is the only path.
+                    if wasWhenInUse && finalStatus != .authorizedAlways {
+                        self.openAppSettings()
+                    }
+                    DispatchQueue.main.async { self.checkPermissions(call) }
+                }
             }
+        }
+    }
+
+    private func openAppSettings() {
+        DispatchQueue.main.async {
+            guard let url = URL(string: UIApplication.openSettingsURLString),
+                  UIApplication.shared.canOpenURL(url) else { return }
+            UIApplication.shared.open(url)
         }
     }
 

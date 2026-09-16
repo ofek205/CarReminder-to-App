@@ -14,7 +14,6 @@ import Foundation
 /// be enabled together ("both" mode); conflating them would let one
 /// mechanism's timestamp corrupt the other's window/duration calculation.
 enum TripGuardStore {
-    private static let suiteKey = "tripguard" // segregated like Android's own "tripguard" SharedPreferences file
     private static var defaults: UserDefaults { UserDefaults.standard }
 
     private static let kConfig = "tripguard.config"
