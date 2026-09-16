@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { compressImage } from '@/lib/imageCompress';
+import { DOC_OR_IMAGE_ACCEPT, isPdfFileRef } from '@/lib/securityUtils';
 import { PRINT_PAINT_DELAY_MS } from '@/lib/timingConstants';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -783,7 +784,18 @@ export default function AddAccident() {
             <div className="flex items-center gap-3">
               {form.other_driver_insurance_photo ? (
                 <div className="relative w-24 h-16 rounded-xl overflow-hidden border" style={{ borderColor: C.border }}>
-                  <img src={form.other_driver_insurance_photo} alt="תעודת ביטוח" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                  {/* A PDF cannot go in an <img>; it would render as a
+                      broken image with no way to tell it attached. Same
+                      box, same remove button, only the contents differ. */}
+                  {isPdfFileRef(form.other_driver_insurance_photo) ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-0.5"
+                      style={{ background: C.gray50 }}>
+                      <FileText className="w-5 h-5" style={{ color: C.muted }} />
+                      <span className="text-[9px] font-bold" style={{ color: C.muted }}>מסמך צורף</span>
+                    </div>
+                  ) : (
+                    <img src={form.other_driver_insurance_photo} alt="תעודת ביטוח" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                  )}
                   <button type="button" onClick={() => handleChange('other_driver_insurance_photo', '')}
                     className="absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.6)' }}>
@@ -808,7 +820,10 @@ export default function AddAccident() {
                     style={{ borderColor: C.border, color: C.muted }}>
                     <Upload className="w-4 h-4" />
                     <span className="text-xs font-medium">העלה</span>
-                    <input type="file" accept="image/*" onChange={handleInsurancePhoto} className="hidden" />
+                    {/* An insurance certificate is very often forwarded as
+                        a PDF, so the upload path takes documents too. The
+                        camera input above stays image-only. */}
+                    <input type="file" accept={DOC_OR_IMAGE_ACCEPT} onChange={handleInsurancePhoto} className="hidden" />
                   </label>
                 </>
               )}

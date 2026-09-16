@@ -77,12 +77,23 @@ function findDuplicateStatements(text) {
 }
 
 /** Every .sql file in the repo, excluding vendored and worktree copies. */
+// Skip by path SEGMENT, measured RELATIVE to the root — never by substring
+// of the absolute path.
+//
+// The previous form tested the absolute path against /worktrees/. An agent
+// worktree lives at .claude/worktrees/<name>, so every path inside one
+// contained the word and the walk returned ZERO files. Two things followed,
+// both silent: `npm test` failed in every worktree (blocking pushes from
+// there), and the pre-push gate itself passed vacuously, reporting no
+// duplicates because it had looked at nothing.
+const SKIP_SEGMENTS = /(^|[\\/])(node_modules|\.git|worktrees|dist|build)([\\/]|$)/;
+
 function sqlFiles(root = path.resolve(__dirname, '..')) {
   const out = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, entry.name);
-      if (/node_modules|[\\/]\.git|worktrees|[\\/]dist|[\\/]build/.test(p)) continue;
+      if (SKIP_SEGMENTS.test(path.relative(root, p))) continue;
       if (entry.isDirectory()) walk(p);
       else if (entry.name.endsWith('.sql')) out.push(p);
     }

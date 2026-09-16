@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { compressImage } from '@/lib/imageCompress';
+import { DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 
 // Israeli marinas
 const ISRAEL_MARINAS = [
@@ -288,7 +289,16 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                 <span className="text-xs font-bold text-red-700">{error}</span>
               </div>
             )}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            {/* A vehicle licence or insurance certificate arrives as a PDF
+                far more often than as a photo — it is emailed, not
+                snapped. This input was image-only, so the button labelled
+                "העלה קובץ" opened the gallery and there was no way to pick
+                the document at all. handleFile below already passes
+                non-images through compressImage untouched and stores the
+                real mimeType, so only the accept list was in the way.
+                The camera input beside it stays image-only: a capture is
+                always a photo. */}
+            <input ref={fileRef} type="file" accept={DOC_OR_IMAGE_ACCEPT} className="hidden" onChange={handleFile} />
             <div className="flex gap-2">
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
