@@ -1358,7 +1358,7 @@ function AuthDocuments({ vehicleIdParam }) {
       // Tabs on Android), which is the only way to open external URLs
       // from WKWebView. Plain `window.open()` returns null silently on
       // iOS and surfaced as the "כתובת לא מאובטחת" toast.
-      const opened = await openFileUrlSafely(url, tab);
+      const opened = await openFileUrlSafely(url, tab, doc.title);
       if (!opened) toastError('לא ניתן לפתוח את הקובץ', { action: 'doc_open_failed' });
     } finally {
       // Never leave a blank reserved tab behind (no URL, or a throw above).
@@ -1388,6 +1388,16 @@ function AuthDocuments({ vehicleIdParam }) {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
+        // A legacy document is a base64 data: URI, and Browser.open cannot
+        // open one — SafariViewController and Custom Tabs both take a URL the
+        // OS can fetch, which a data: URI is not. Route those through the same
+        // file-delivery path the open button now uses; only http(s) URLs go to
+        // the browser plugin.
+        if (typeof url === 'string' && url.startsWith('data:')) {
+          const { openFileUrlSafely } = await import('@/lib/securityUtils');
+          await openFileUrlSafely(url, null, doc.title);
+          return;
+        }
         const { Browser } = await import('@capacitor/browser');
         await Browser.open({ url, windowName: '_blank' });
         return;
