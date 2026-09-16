@@ -162,12 +162,12 @@ describe('unavailableCopy', () => {
 describe('rowOrder', () => {
   it('keeps the business row last for a personal account', () => {
     expect(rowOrder(false)[0]).toBe('vehicles');
-    expect(rowOrder(false)[4]).toBe('business');
+    expect(rowOrder(false)[5]).toBe('business');
   });
 
   it('lifts the business row to the top for a business account', () => {
     // For a business account sitting on free, "ממשק עסקי: לא כלול" is the
-    // single most consequential line on the screen. As row five it is the
+    // single most consequential line on the screen. As the last row it is the
     // last thing read.
     expect(rowOrder(true)[0]).toBe('business');
   });
@@ -177,19 +177,31 @@ describe('rowOrder', () => {
     // branch would silently delete a whole dimension from the card for one
     // class of account, and nothing else would catch it.
     expect([...rowOrder(true)].sort()).toEqual([...rowOrder(false)].sort());
-    expect(rowOrder(false)).toHaveLength(5);
-    expect(new Set(rowOrder(true)).size).toBe(5);
+    expect(rowOrder(false)).toHaveLength(6);
+    expect(new Set(rowOrder(true)).size).toBe(6);
+  });
+});
+
+describe('rowOrder, documents', () => {
+  it('puts documents directly after vehicles in both orders', () => {
+    // They answer the same question, "how much may I keep", so reading one
+    // straight after the other is what makes the card scannable.
+    const personal = rowOrder(false);
+    const business = rowOrder(true);
+    expect(personal[personal.indexOf('vehicles') + 1]).toBe('documents');
+    expect(business[business.indexOf('vehicles') + 1]).toBe('documents');
   });
 });
 
 describe('rowValue', () => {
   const plan = {
-    maxVehicles: 15, aiLifetimeTeaser: null, plateChecksPerMonth: null,
+    maxVehicles: 15, maxDocuments: 16, aiLifetimeTeaser: null, plateChecksPerMonth: null,
     maxShares: null, businessUi: true,
   };
 
   it('routes each dimension through its own helper', () => {
     expect(rowValue('vehicles', plan)).toBe('עד 15');
+    expect(rowValue('documents', plan)).toBe('עד 16');
     expect(rowValue('ai', plan)).toBe('פתוח');
     expect(rowValue('plate', plan)).toBe('ללא הגבלה');
     expect(rowValue('shares', plan)).toBe('ללא הגבלה');
