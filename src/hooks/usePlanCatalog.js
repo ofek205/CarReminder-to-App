@@ -39,6 +39,7 @@ function normalize(row) {
     labelHe:             row.label_he,
     priceIlsMonth:       Number(row.price_ils_month),
     maxVehicles:         row.max_vehicles ?? null,
+    maxDocuments:        row.max_documents ?? null,
     aiDailyCap:          row.ai_daily_cap ?? null,
     aiLifetimeTeaser:    row.ai_lifetime_teaser ?? null,
     plateChecksPerMonth: row.plate_checks_per_month ?? null,
@@ -55,7 +56,7 @@ export default function usePlanCatalog() {
       const { data, error } = await withTimeout(
         supabase
           .from('plan_limits')
-          .select('plan, label_he, price_ils_month, max_vehicles, ai_daily_cap, ai_lifetime_teaser, plate_checks_per_month, max_shares, business_ui, sort_order')
+          .select('plan, label_he, price_ils_month, max_vehicles, max_documents, ai_daily_cap, ai_lifetime_teaser, plate_checks_per_month, max_shares, business_ui, sort_order')
           .eq('is_public', true)
           .order('sort_order', { ascending: true }),
         'plan_catalog',

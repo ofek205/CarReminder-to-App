@@ -97,6 +97,7 @@ export default function useAccountPlan() {
       // normalised to Infinity or -1 so a caller that forgets to handle it
       // renders nothing, instead of rendering a wrong number.
       maxVehicles:     p.max_vehicles ?? null,
+      maxDocuments:    p.max_documents ?? null,
       aiDailyCap:      p.ai_daily_cap ?? null,
       aiLifetimeTeaser: p.ai_lifetime_teaser ?? null,
       plateChecksPerMonth: p.plate_checks_per_month ?? null,
