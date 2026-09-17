@@ -19,6 +19,7 @@ import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase, Sparkles, C
 import { createPageUrl } from '@/utils';
 import { PageShell, Card } from '@/components/business/system';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import { useFeatureFlag } from '@/lib/featureFlags';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
@@ -28,9 +29,23 @@ export default function Settings() {
   const { activeWorkspace } = useWorkspace();
 
   const businessName = activeWorkspace?.account_name || 'העסק';
-  // "בטיחות ילדים" (TripGuard) — personal/parent feature. Hidden in a
-  // business workspace (matches the page's own gate).
-  const showSafetyEntry = !isBusiness;
+  // "בטיחות ילדים" (TripGuard) — personal/parent feature, and admin-gated
+  // AGAIN as of 2026-09-16, decided during the release gates.
+  //
+  // ⚠️ A HOLD, NOT A REVERT OF THE FEATURE. GA was reversed for one reason:
+  // this is life-safety code that has never run on real hardware. The
+  // Android device matrix was skipped and the iOS Swift has never been
+  // compiled at all (no Mac; ios-release.yml compiles and uploads in one
+  // shot). Its failure mode runs in the dangerous direction: if
+  // TripGuardPlugin does not register, the JS falls back to tripGuard/web.js,
+  // a mock returning FAKE paired devices and a healthy status. A parent
+  // would read a green "protected" screen while nothing is running.
+  //
+  // Lift this together with the gate in SafetyReminder.jsx, once it has been
+  // exercised on a real device. Hiding the row alone does nothing:
+  // /SafetyReminder is reachable by URL.
+  const isAdmin = useIsAdmin() === true;
+  const showSafetyEntry = !isBusiness && isAdmin;
 
   // "המסלול והחיוב" (monetization phase 2). Flag-gated because the screen
   // reads plan_limits and account_subscriptions, which do not exist until

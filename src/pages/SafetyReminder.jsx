@@ -7,6 +7,7 @@ import {
 import PageHeader from '@/components/shared/PageHeader';
 import { Switch } from '@/components/ui/switch';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import { isNative, isIOS } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import {
@@ -104,6 +105,10 @@ export default function SafetyReminder() {
   // is already personalOnly; this page-level gate blocks direct URL access
   // from a business workspace too.
   const { isBusiness } = useWorkspaceRole();
+  // See the note in Settings.jsx: an admin-only hold while this has never
+  // run on real hardware. A hidden nav link is not a guard, so the page
+  // checks as well.
+  const isAdmin = useIsAdmin();
   const [accepted, setAccepted] = useState(() => localStorage.getItem(DISCLAIMER_KEY) === '1');
   const [ackChecked, setAckChecked] = useState(false);
 
@@ -230,6 +235,24 @@ export default function SafetyReminder() {
           <p className="font-bold text-base" style={{ color: C.text }}>תכונה אישית</p>
           <p className="text-sm mt-1" style={{ color: C.muted }}>
             תזכורת הבטיחות זמינה בחשבון האישי. עברו לחשבון האישי כדי להפעיל אותה.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ⚠️ `isAdmin !== true`, NOT `!isAdmin`. The probe resolves to null while
+  // in flight, and treating an unresolved answer as "allowed" is how a gate
+  // leaks for precisely the users it exists to exclude.
+  if (isAdmin !== true) {
+    return (
+      <div className="max-w-xl mx-auto p-4" dir="rtl">
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
+        <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
+          <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
+          <p className="font-bold text-base" style={{ color: C.text }}>עדיין בבדיקות</p>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>
+            תזכורת הבטיחות נבדקת על מכשירים אמיתיים לפני שהיא נפתחת. היא אינה זמינה כרגע.
           </p>
         </div>
       </div>
