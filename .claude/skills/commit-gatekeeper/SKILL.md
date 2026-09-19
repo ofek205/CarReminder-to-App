@@ -183,6 +183,14 @@ The gate consumes the token on the next `git commit`/`git push` and accepts it o
 - Never write the token on a BLOCKED verdict.
 - Never write the token preemptively. Only after the full 10-stage review concludes APPROVED.
 
+### The token belongs to YOUR session
+
+Since 2026-09-08 the token path is derived from `CLAUDE_CODE_SESSION_ID`, so a review done in one Claude session cannot authorize a commit in another. Before that it was a single machine-wide file, and with several sessions open on this repo at once — normal here — any of them could spend a token any other had earned, and could silently eat it on the way past, blocking the session that had actually done the review.
+
+Two consequences when you are blocked:
+- Another session approving will not help you. Review and approve in the session that is committing.
+- If `approve.cjs` exits 1, it wrote nothing and says why. Do not work around it; the gate blocks in the same situation on purpose.
+
 ### Why it is Node and not a shell one-liner
 
 Until 2026-09-01 this hook was inline POSIX `sh` using `cat`/`sed`/`grep`/`date` with a `/tmp/cardocs-gatekeeper-approved` token. On Windows none of those resolve, and the failure mode was the dangerous one:
