@@ -250,7 +250,12 @@ export const APP_NOTIF_CONFIG = {
     // paperclip" has to land the user on the screen with the paperclip.
     icon: Paperclip,
     bg: C.warnBg,
-    iconColor: C.warn,
+    // warnDark, not warn: the Notifications page renders the title and body
+    // in iconColor on top of bg, and C.warn (#D97706) on C.warnBg (#FEF3C7)
+    // is about 2.9:1 — under AA for body text. The design system ships
+    // warnDark with the literal comment "text on warning bg". The icon
+    // itself is white on iconBg and is unaffected.
+    iconColor: C.warnDark,
     iconBg: C.warn,
     buildHref: () => '/Documents',
   },

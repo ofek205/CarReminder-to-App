@@ -16,6 +16,7 @@ import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import { toast } from 'sonner';
 import useFileUpload from '@/hooks/useFileUpload';
 import useAccountPlan from '@/hooks/useAccountPlan';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
@@ -110,7 +111,14 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         storage_path: storagePath,
       });
     } catch (docErr) {
+      // Say it out loud. Both callers navigate to the vehicle immediately
+      // after this, so a console.warn meant the user landed on their new
+      // vehicle believing the scanned licence had been filed with it. That
+      // is strictly worse than the base64 code this replaced, which could
+      // not fail on the network at all. The vehicle itself is already
+      // saved, so this is a warning and not an error.
       console.warn('Scan document save skipped:', docErr?.message);
+      toast.warning('הרכב נשמר, אבל המסמך הסרוק לא נשמר. אפשר לצרף אותו ממסך המסמכים.');
     }
   };
   // completion fields (not from license)
