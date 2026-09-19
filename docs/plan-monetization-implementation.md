@@ -463,10 +463,22 @@ if (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מ
 ### 3.45.1 מקור אמת אחד
 
 ```
-Apple IAP ──┐
-Web PSP ────┼──→ account_subscriptions (שורה אחת פר-חשבון)
-Admin grant ┘         source = 'apple_iap' | 'web_checkout' | 'admin_grant'
+Apple IAP ───┐
+Google Play ─┤
+Web PSP ─────┼──→ account_subscriptions (שורה אחת פר-חשבון)
+Admin grant ─┘   source = 'iap_apple' | 'iap_google' | 'checkout' | 'admin_grant'
 ```
+
+> ⚠️ **תוקן 2026-09-19: השמות כאן היו שגויים.** הסעיף אמר `apple_iap` ו-
+> `web_checkout`, ו**שניהם אינם קיימים**. ה-CHECK החי ב-
+> `supabase-monetization-phase1-plans-2026-09-08.sql` הוא
+> `check (source in ('checkout', 'iap_apple', 'iap_google', 'admin_grant', 'grandfather', 'default'))`.
+> קוד שנכתב לפי הנוסח הישן היה נכשל על `account_subscriptions_source_chk`
+> ברכישה האמיתית הראשונה, כלומר ברגע הגרוע ביותר האפשרי.
+>
+> **ומקור רביעי נוסף:** Ofek הכריע 2026-09-19 למכור גם דרך Google Play.
+> `iap_google` כבר מותר ב-CHECK (phase 1 רשם אותו מראש), ולכן **אין מיגרציה**.
+> האפיון: [spec-monetization-play-billing.md](spec-monetization-play-billing.md).
 
 **ההרשאה חיה אצלנו, לא אצל אפל.** זו לא בחירה ארכיטקטונית אלא **הדרישה של 3.1.3(b)**: מי שקנה ב-iOS חייב לקבל גישה גם בדפדפן ובאנדרואיד. אם ההרשאה תישמר רק ב-StoreKit, הגישה החוצה-פלטפורמית לא תעבוד וגם החריג לא יסופק.
 
@@ -488,13 +500,13 @@ Admin grant ┘         source = 'apple_iap' | 'web_checkout' | 'admin_grant'
 
 ### 3.45.4 מה מסתעף לפי `source`
 
-| | `web_checkout` | `apple_iap` | `admin_grant` |
-|---|---|---|---|
-| ביטול חיוב | אנחנו, 3 ימי עסקים | **אפל בלבד** | אין |
-| החזר | אנחנו, פרו-רטה | אפל | |
-| חשבונית מס | **אנחנו מפיקים** | **אפל היא merchant of record** | |
-| dunning | אנחנו | אפל | |
-| מסך `/MyPlan` | "בטל מנוי" | "נהל באפל" + הסבר | "מוענק ע"י מנהל" |
+| | `checkout` | `iap_apple` | `iap_google` | `admin_grant` |
+|---|---|---|---|---|
+| ביטול חיוב | אנחנו, 3 ימי עסקים | **אפל בלבד** | **גוגל בלבד** | אין |
+| החזר | אנחנו, פרו-רטה | אפל | גוגל | |
+| חשבונית מס | **אנחנו מפיקים** | **אפל היא merchant of record** | **גוגל היא merchant of record** | |
+| dunning | אנחנו | אפל | גוגל | |
+| מסך `/MyPlan` | "בטל מנוי" | "נהל באפל" + הסבר | "נהל ב-Google Play" + הסבר | "מוענק ע"י מנהל" |
 
 > ⚠️ **החשבוניות מסתעפות.** ב-IAP אפל היא ה-merchant of record ומטפלת במע"מ, **אנחנו לא מפיקים חשבונית מס על מנוי IAP**, ואם נפיק ניצור כפל דיווח. 🔴 לאמת מול רואה החשבון: איך רושמים הכנסה מ-IAP בספרים הישראליים.
 
@@ -657,6 +669,13 @@ alter table public.account_subscriptions
 | **5, אכיפת מכסות** | AI + בדיקת רכב + שיתופים, עם 4 הפופ-אפים × 2 פלטפורמות (`billingGate.js`). | כן, חוסם | גבוה |
 | **6, סליקה באתר** | דף מסלולים, checkout, webhook, חשבונית מס, dunning, שדרוג/הורדה/ביטול ([spec §5.5](spec-monetization-plans-v2.md)). **+ קישור ביטול בדף הבית** (חובת 14ט) **+ מוניטור "חויב אחרי ביטול"**. | כן | גבוה |
 | **7, Apple IAP** | StoreKit 2 דרך Capacitor, מוצרים ב-App Store Connect, אימות קבלות, webhook V2 עם JWS, `appAccountToken`, **בנייה נייטיבית של iOS**. | כן (iOS) | **גבוה מאוד** |
+| **8, Google Play Billing** | ספריית Billing, מוצרים ב-Play Console, אימות מול Play Developer API, RTDN דרך Pub/Sub, `obfuscatedAccountId`. ⚠️ **הופך את האנדרואיד מ-consumption-only**, ולכן המשפט על תשלום חיצוני נמחק באותה גרסה. [אפיון מלא](spec-monetization-play-billing.md). | כן (Android) | **גבוה מאוד** |
+
+> 💡 **שלבים 7 ו-8 עשויים להתמזג לאחד.** שתי החנויות דורשות אותם ארבעה רכיבים
+> עם ארבע תשתיות שונות לגמרי (JWS מול Pub/Sub, App Store Server API מול Play
+> Developer API). שכבה שמאחדת אותן, כמו RevenueCat, הופכת את זה לאינטגרציה
+> אחת. ההכרעה תלויה בתנאי התמחור הנוכחיים שלה, ראה
+> [spec-monetization-play-billing.md](spec-monetization-play-billing.md) §4.
 
 ### למה זה הסדר הנכון
 
