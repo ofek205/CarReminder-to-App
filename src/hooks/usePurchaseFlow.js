@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getBillingBackend } from '@/lib/billing';
+import { reportError } from '@/lib/crashReporter';
 import {
   PurchaseState, afterSheet, afterVerification, afterCatalogue, mayOfferPurchase,
 } from '@/lib/billing/purchaseMachine';
@@ -26,6 +27,25 @@ export { PurchaseState };
  * afterVerification('timeout').
  */
 const VERIFY_TIMEOUT_MS = 20000;
+
+/**
+ * ⚠️ SHORTER THAN THE VERIFICATION CEILING, AND DELIBERATELY SO.
+ *
+ * Nobody has paid anything yet at this point, so the cost of giving up early
+ * is a screen that says the catalogue is unavailable, which is recoverable by
+ * reopening it. The verification ceiling is long because the money has
+ * already moved and patience there is worth more than a fast answer.
+ */
+const CATALOGUE_TIMEOUT_MS = 12000;
+
+/** Rejects rather than resolving, so the caller's catch owns the failure. */
+function withCatalogueTimeout(fn) {
+  return Promise.race([
+    fn(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('play_catalogue_timeout')), CATALOGUE_TIMEOUT_MS)),
+  ]);
+}
 
 /**
  * @param {object}  opts
@@ -96,13 +116,33 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase }) {
     setState(PurchaseState.LOADING_PRODUCTS);
     (async () => {
       try {
-        const connected = await backend.connect();
-        const list = connected ? await backend.listProducts() : [];
+        // ⚠️ A CEILING, BECAUSE WITHOUT ONE THIS HUNG FOREVER ON A REAL
+        // DEVICE. connect() and getProducts() talk to the Play billing
+        // client, which can fail to call back at all rather than rejecting:
+        // newly created products take time to reach the device, and the
+        // client's own connection is not guaranteed to resolve. The first
+        // version awaited them bare, so the screen sat on a spinning
+        // "בחר מסלול" with nothing to press and no way out.
+        //
+        // CLAUDE.md states the rule outright: never a permanent spinner. The
+        // verification path already had a ceiling; this one did not, and the
+        // omission only showed up on hardware.
+        const list = await withCatalogueTimeout(async () => {
+          const connected = await backend.connect();
+          return connected ? await backend.listProducts() : null;
+        });
         if (cancelled) return;
-        setProducts(list);
-        safeSet(afterCatalogue({ connected, products: list }));
-      } catch {
-        if (!cancelled) safeSet(afterCatalogue({ connected: false, threw: true }));
+        setProducts(list || []);
+        safeSet(afterCatalogue({ connected: list !== null, products: list }));
+      } catch (err) {
+        if (cancelled) return;
+        // Reported rather than swallowed: a catalogue that never answers is
+        // indistinguishable on screen from one that answers empty, and the
+        // difference is what tells us whether Play is reachable at all.
+        try {
+          reportError('billing_catalogue', err, { where: 'usePurchaseFlow.catalogue' });
+        } catch { /* reporting must never be the thing that breaks the screen */ }
+        safeSet(afterCatalogue({ connected: false, threw: true }));
       }
     })();
     return () => { cancelled = true; };
