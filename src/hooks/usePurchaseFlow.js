@@ -123,15 +123,20 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase }) {
     timer = setTimeout(() => finish('timeout'), VERIFY_TIMEOUT_MS);
     timersRef.current.add(timer);
     try {
+      // ⚠️ accountId TRAVELS WITH THE TOKEN. The server refuses a
+      // verification whose caller is not a member of the account being
+      // credited, which is what stops a signed-in user posting somebody
+      // else's account id alongside their own purchase.
       const ok = await verifyPurchase({
         purchaseToken: result.purchaseToken,
         productId: result.productId,
+        accountId,
       });
       finish(ok ? 'ok' : 'rejected');
     } catch {
       finish('threw');
     }
-  }, [verifyPurchase, safeSet]);
+  }, [verifyPurchase, accountId, safeSet]);
 
   const buy = useCallback(async (productId) => {
     if (!backend) return;

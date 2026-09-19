@@ -38,6 +38,7 @@ import { Car, FileText, Sparkles, ScanLine, Share2, Briefcase, CornerDownLeft } 
 import PageShell from '@/components/business/system/PageShell';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { createPageUrl } from '@/utils';
+import { supabase } from '@/lib/supabase';
 import { C } from '@/lib/designTokens';
 import usePlanCatalog from '@/hooks/usePlanCatalog';
 import useAccountPlan from '@/hooks/useAccountPlan';
@@ -361,18 +362,26 @@ function SkeletonScreen() {
 }
 
 /**
- * ⚠️ NOT WIRED TO A SERVER YET, AND IT SAYS SO BY RETURNING false.
+ * Hand the purchase token to the server, which asks Google about it.
  *
- * The edge function that checks a purchase token against the Play Developer
- * API does not exist: the service account credential has not been created.
- * `false` resolves the flow to PENDING, whose copy is "the payment arrived,
- * activation is running late", which is exactly and literally true.
+ * ⚠️ IT RETURNS `data.granted`, NOT "the call succeeded". The function
+ * answers HTTP 200 with `granted:false` for every rejection, deliberately, so
+ * a declined or expired subscription is a normal answer rather than a
+ * transport error. Treating a 200 as success would grant a plan on the
+ * strength of having reached the server.
  *
- * Returning `true` here would be the dangerous stub: it would mark an
- * unverified token as a granted entitlement.
+ * ⚠️ AND ANY FAILURE HERE RESOLVES TO PENDING, NOT FAILED. By the time this
+ * runs the card is charged. Telling that user their payment failed is the one
+ * message this whole flow is built to avoid, so the machine treats a throw,
+ * a rejection and a timeout identically: the money arrived, activation is
+ * late. See lib/billing/purchaseMachine.afterVerification.
  */
-async function verifyPurchase() {
-  return false;
+async function verifyPurchase({ purchaseToken, productId, accountId }) {
+  const { data, error } = await supabase.functions.invoke('verify-play-purchase', {
+    body: { purchaseToken, productId, accountId },
+  });
+  if (error) return false;
+  return data?.granted === true;
 }
 
 export default function Plans() {
