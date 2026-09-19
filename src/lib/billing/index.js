@@ -34,10 +34,25 @@ function playBackend() {
  * @returns {import('./types').BillingBackend|null}
  */
 export function getBillingBackend() {
+  // Native selection stays PLATFORM-based and never looks at DEV, because a
+  // dev native build must still get the real plugin. Handing it the mock
+  // there would fake a working integration on a device.
   if (isNative && isAndroid) return playBackend();
-  // Browser, including the preview. The mock is what makes the ten states
-  // designable without a build.
-  if (!isNative) return mockBackend;
+
+  // ⚠️ THE BROWSER BRANCH IS DEV-ONLY, AND THE FIRST VERSION GOT THIS WRONG.
+  //
+  // It returned the mock for every browser, and the commit message called a
+  // mock in a production web build "harmless but wrong". It is neither.
+  // useFeatureFlag resolves `enabled` as `isAdmin === true || flagValue ===
+  // true`, so an admin bypasses the flag, and a mock backend made
+  // mayOfferPurchase() true for them. Every admin opening /Plans on the live
+  // site would have seen "בחר מסלול" buttons priced ₪9.00 by a fake store.
+  //
+  // Nothing could be granted (verification returns false), so no data was at
+  // risk. It was simply a lying screen, shown to the people most likely to
+  // trust it.
+  if (!isNative) return import.meta.env.DEV ? mockBackend : null;
+
   return null;
 }
 

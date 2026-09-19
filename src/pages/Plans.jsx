@@ -395,7 +395,7 @@ export default function Plans() {
   // has none until the Play plugin is installed.
   const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
   const offering = mayOfferPurchase(billingFlag, getBillingBackend() !== null);
-  const { state: purchaseState, products, activeProductId, buy, restore } = usePurchaseFlow({
+  const { state: purchaseState, products, activeProductId, online, buy, restore } = usePurchaseFlow({
     enabled: offering,
     accountId,
     verifyPurchase,
@@ -476,7 +476,7 @@ export default function Plans() {
       <PurchaseAction
         state={stateForCard}
         priceFormatted={product?.priceFormatted}
-        offline={typeof navigator !== 'undefined' && navigator.onLine === false}
+        offline={!online}
         onBuy={() => product && buy(product.productId)}
         onRestore={restore}
       />
