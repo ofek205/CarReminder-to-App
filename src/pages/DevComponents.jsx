@@ -18,6 +18,9 @@ import {
   StatusBar, EmptyState, LoadingState, SkeletonBar,
 } from '@/design/primitives';
 import { DateInput } from '@/components/ui/date-input';
+import PurchaseAction from '@/components/plans/PurchaseAction';
+import VerifyingBanner from '@/components/plans/VerifyingBanner';
+import { PurchaseState } from '@/lib/billing/purchaseMachine';
 
 // Section wrapper used throughout this page. Centralized so future
 // changes (e.g. adding "copy code" affordances) happen once.
@@ -459,6 +462,32 @@ export default function DevComponents() {
         <Hero tone="neutral" size="sm">
           <p className="text-cr-sm">tone neutral, size sm — לעדכונים מינוריים.</p>
         </Hero>
+      </Section>
+
+      <Section
+        id="p-purchase"
+        title="PurchaseAction + VerifyingBanner"
+        description="עשרת מצבי הרכישה של Google Play. ראה docs/ux-play-billing-purchase.md §5."
+      >
+        <VerifyingBanner />
+        <VerifyingBanner pending />
+        {[
+          ['1 טעינת מוצרים', PurchaseState.LOADING_PRODUCTS, null, false],
+          ['2 מוצרים לא זמינים', PurchaseState.UNAVAILABLE, null, false],
+          ['3 אופליין', PurchaseState.UNAVAILABLE, null, true],
+          ['4 רגיל', PurchaseState.IDLE, '₪9.00', false],
+          ['5 גיליון פתוח', PurchaseState.SHEET_OPEN, '₪9.00', false],
+          ['6 אימות בשרת', PurchaseState.VERIFYING, '₪9.00', false],
+          ['7 הצלחה', PurchaseState.SUCCESS, '₪9.00', false],
+          ['9 כשל תשלום', PurchaseState.FAILED, '₪9.00', false],
+          ['10 כבר בבעלותך', PurchaseState.OWNED, '₪9.00', false],
+          ['פעולה איטית', PurchaseState.PENDING, '₪9.00', false],
+        ].map(([label, st, price, offline]) => (
+          <div key={label} className="rounded-3xl bg-white shadow-sm p-5">
+            <p className="text-cr-xs text-cr-text-muted mb-1">{label}</p>
+            <PurchaseAction state={st} priceFormatted={price} offline={offline} />
+          </div>
+        ))}
       </Section>
 
       {/*  Footer note  */}

@@ -220,6 +220,14 @@ html.ios-app body.keyboard-visible {
 }
 
 /* CR design-system skeleton shimmer — used by <LoadingState variant="skeleton"> */
+/* The indeterminate hairline on VerifyingBanner. Deliberately a travelling
+   segment rather than a fill: a bar that fills implies a known duration,
+   and server verification has none. */
+@keyframes cr-verify-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
 @keyframes cr-skeleton-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
