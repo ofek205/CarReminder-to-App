@@ -4,7 +4,7 @@ import { compressImage } from '@/lib/imageCompress';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
-import { openFileUrlSafely, reserveFileTab, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
+import { openFileUrlSafely, reserveFileTab, DOC_OR_IMAGE_ACCEPT, validateUploadFile } from '@/lib/securityUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
 import { documentsListKey } from '@/lib/queryKeys';
 import { canEdit } from '@/lib/permissions';
+import { isDemoMode } from '@/lib/demoMode';
 import { C } from '@/lib/designTokens';
 
 //  Document category definitions 
@@ -747,7 +748,14 @@ function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId, onAtta
     // ignores the `download` attribute and neither platform will navigate
     // to a data: URL, which is exactly what a guest's file_url is. Hand it
     // to the OS instead, the same way the authenticated path does.
-    if (doc.file_url.startsWith('data:')) {
+    // Read the platform SYNCHRONOUSLY from the global the Capacitor runtime
+    // installs, the way reserveFileTab already does. Awaiting a dynamic
+    // import here spent the click's transient activation before building
+    // the anchor, and Safari is strict about programmatic downloads after
+    // an await — on the web path nothing needed the await at all.
+    const nativeGuess = typeof window !== 'undefined'
+      && window.Capacitor?.isNativePlatform?.() === true;
+    if (nativeGuess && doc.file_url.startsWith('data:')) {
       try {
         const { Capacitor } = await import('@capacitor/core');
         if (Capacitor.isNativePlatform()) {
@@ -851,6 +859,13 @@ function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId, onAtta
               className="gap-1.5 text-gray-600 border-gray-200 hover:bg-gray-50 h-8 px-2"
               onClick={() => onAttach(doc)}
               disabled={attachingId === doc.id}
+              // Below 640px the label is removed from the DOM entirely, so
+              // on the primary platform this is a bare paperclip sitting
+              // next to a trash can, with no accessible name at all. The
+              // eye and download glyphs share the pattern and get away with
+              // it because they are near-universal; a paperclip does not,
+              // and this card already shows a decorative one in its chip.
+              aria-label="צרף קובץ"
             >
               {attachingId === doc.id
                 ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -1056,7 +1071,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingI
 
 //  Guest Documents 
 function GuestDocuments({ vehicleIdParam }) {
-  const { guestDocuments, guestVehicles, addGuestDocument, removeGuestDocument, updateGuestDocument } = useAuth();
+  const { guestDocuments, guestVehicles, addGuestDocument, removeGuestDocument, updateGuestDocument, getStoredGuestDocuments } = useAuth();
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1070,7 +1085,17 @@ function GuestDocuments({ vehicleIdParam }) {
   // the base64 into file_url — the shape every other guest document has.
   // No upload, and therefore no failure mode beyond the storage quota,
   // which GuestDataContext already reports through safeSetItem.
+  // The public marketing preview mounts MarketingDemoProvider, whose
+  // updateGuestDocument is a no-op that opens the sign-up gate, and all six
+  // demo documents have no file — so every card there would show a paperclip
+  // that opens an OS file picker on a marketing page and saves nothing.
+  const attachAllowed = !isDemoMode();
+
   const handleAttachClick = (doc) => {
+    // One hidden input and one target ref serve the whole list, so a second
+    // attach started before the first finishes would retarget the ref and
+    // land the file on the wrong card. Refuse rather than race.
+    if (attachingId) return;
     attachTargetRef.current = doc;
     attachInputRef.current?.click();
   };
@@ -1080,6 +1105,16 @@ function GuestDocuments({ vehicleIdParam }) {
     const doc = attachTargetRef.current;
     e.target.value = '';
     if (!file || !doc) return;
+
+    // This was the ONLY file input in the app that skipped validation. QA
+    // reproduced both consequences: a GIF saved with a success toast and
+    // was then permanently unopenable, because isSafeFileUrl rejects
+    // image/gif on the way out; and with no size cap two PDFs pushed guest
+    // localStorage to 19.5MB against a ~5MB quota. The authenticated path
+    // got this for free inside useFileUpload.
+    const v = validateUploadFile(file, 'doc', 10);
+    if (!v.ok) { toastError(v.error, { action: 'guest_doc_attach_rejected' }); return; }
+
     setAttachingId(doc.id);
     try {
       const compressed = await compressImage(file);
@@ -1087,10 +1122,24 @@ function GuestDocuments({ vehicleIdParam }) {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
+        // eslint-disable-next-line no-restricted-syntax -- a guest has no
+        // Storage account; base64 in localStorage is the only place their
+        // file can live. The rule targets base64 reaching the DATABASE.
         reader.readAsDataURL(compressed);
       });
       updateGuestDocument(doc.id, { file_url: base64 });
-      toast.success('הקובץ צורף');
+
+      // Read the write back before claiming it worked. updateGuestDocument
+      // returns undefined in all three of its implementations, and the two
+      // ways it can fail are both silent from here: safeSetItem swallows a
+      // QuotaExceededError and returns false, and the marketing demo
+      // provider replaces the whole function with a no-op that opens the
+      // sign-up gate. Without this check the card flips to view/download,
+      // the user is told "הקובץ צורף", and the file is gone on reload.
+      const persisted = (getStoredGuestDocuments?.() || [])
+        .find(d => d.id === doc.id)?.file_url;
+      if (persisted) toast.success('הקובץ צורף');
+      else toastError('הקובץ לא נשמר במכשיר. ייתכן שנגמר המקום.', { action: 'guest_doc_attach_not_persisted' });
     } catch (err) {
       toastError('לא הצלחנו לצרף את הקובץ', { action: 'guest_doc_attach_failed', err });
     } finally {
@@ -1115,14 +1164,19 @@ function GuestDocuments({ vehicleIdParam }) {
     // Reserve the tab while the click's user activation is still valid,
     // exactly as the authenticated handler does.
     const tab = reserveFileTab();
-    let handedOff = false;
     setOpeningId(doc.id);
     try {
-      handedOff = true;
       const opened = await openFileUrlSafely(doc.file_url, tab, doc.title);
       if (!opened) toastError('לא ניתן לפתוח את הקובץ', { action: 'guest_doc_open_failed' });
+    } catch (err) {
+      // openFileUrlSafely owns the tab from the moment it is handed over,
+      // and it closes it on every failure exit — but if it throws (the
+      // user closed the reserved tab during the await, so location.replace
+      // raises) nobody reports it. Without this the failure surfaced as an
+      // unhandled rejection and the user saw nothing at all, which is the
+      // exact symptom this whole series exists to remove.
+      toastError('לא ניתן לפתוח את הקובץ', { action: 'guest_doc_open_threw', err });
     } finally {
-      if (!handedOff) { try { tab?.close(); } catch { /* noop */ } }
       setOpeningId(null);
     }
   };
@@ -1203,7 +1257,7 @@ function GuestDocuments({ vehicleIdParam }) {
           onOpen={handleGuestOpen}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingId}
-          onAttach={handleAttachClick}
+          onAttach={attachAllowed ? handleAttachClick : undefined}
           attachingId={attachingId}
         />
       ) : (
@@ -1214,7 +1268,7 @@ function GuestDocuments({ vehicleIdParam }) {
           onOpen={handleGuestOpen}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingId}
-          onAttach={handleAttachClick}
+          onAttach={attachAllowed ? handleAttachClick : undefined}
           attachingId={attachingId}
         />
       )}
@@ -1323,7 +1377,19 @@ function AuthDocuments({ vehicleIdParam }) {
   const [attachingId, setAttachingId] = useState(null);
   const { upload: attachUpload } = useFileUpload({ accountId, userId, mode: 'doc' });
 
+  // Same gate the page's own "הוסף מסמך" action uses. Without it a viewer
+  // saw a paperclip, the upload SUCCEEDED (Storage RLS keys on account
+  // membership, not on edit role), and only the row update was refused —
+  // leaving an orphaned object in the bucket and a raw English PostgREST
+  // string in front of a Hebrew user.
+  const attachAllowed = canEdit(role);
+
   const handleAttachClick = (doc) => {
+    // One input and one target ref for the whole list: a second attach
+    // started mid-flight would retarget the ref and file the picked file
+    // against the wrong card. `disabled` guards the SAME row, not a
+    // different one, so the guard has to live here.
+    if (attachingId) return;
     attachTargetRef.current = doc;
     attachInputRef.current?.click();
   };
@@ -1333,6 +1399,17 @@ function AuthDocuments({ vehicleIdParam }) {
     const doc = attachTargetRef.current;
     e.target.value = '';           // so picking the same file twice re-fires
     if (!file || !doc) return;
+
+    // The offline refusal that `document.update` declares (offlineCapable:
+    // false) can never fire on its own, because the upload runs first and
+    // uploadToBucket is a raw Supabase call with no offline guard and no
+    // withTimeout. Offline the user would sit on a spinner and then get a
+    // raw English fetch error. Check here, where it is still cheap.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      toastError('אין חיבור לאינטרנט. אפשר לצרף את הקובץ כשהחיבור יחזור.', { action: 'doc_attach_offline' });
+      return;
+    }
+
     setAttachingId(doc.id);
     try {
       const { fileUrl, storagePath } = await attachUpload(file);
@@ -1720,7 +1797,7 @@ function AuthDocuments({ vehicleIdParam }) {
           onDownload={handleDownloadDocument}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingDocId}
-          onAttach={handleAttachClick}
+          onAttach={attachAllowed ? handleAttachClick : undefined}
           attachingId={attachingId}
         />
       ) : (
@@ -1731,7 +1808,7 @@ function AuthDocuments({ vehicleIdParam }) {
           onDownload={handleDownloadDocument}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingDocId}
-          onAttach={handleAttachClick}
+          onAttach={attachAllowed ? handleAttachClick : undefined}
           attachingId={attachingId}
         />
       )}

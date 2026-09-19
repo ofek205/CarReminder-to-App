@@ -43,6 +43,13 @@ import usePlanCatalog from '@/hooks/usePlanCatalog';
 import useAccountPlan from '@/hooks/useAccountPlan';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { billingSurface, IAP, NONE } from '@/lib/billingGate';
+import { getBillingBackend } from '@/lib/billing';
+import { PurchaseState, mayOfferPurchase } from '@/lib/billing/purchaseMachine';
+import { usePurchaseFlow } from '@/hooks/usePurchaseFlow';
+import { useFeatureFlag } from '@/lib/featureFlags';
+import useAccountRole from '@/hooks/useAccountRole';
+import PurchaseAction from '@/components/plans/PurchaseAction';
+import VerifyingBanner from '@/components/plans/VerifyingBanner';
 
 // ── pure helpers, exported for testing ──────────────────────────────────
 //
@@ -228,7 +235,7 @@ function Badge({ children, muted }) {
  * mechanism that gives the paid tier its lift without a badge and without
  * painting free as broken: same size, same rows, same weight, warmer values.
  */
-function PlanCard({ plan, order, accent, current, badge, note }) {
+function PlanCard({ plan, order, accent, current, badge, note, action }) {
   return (
     <section
       className={`rounded-3xl shadow-sm p-5${accent ? '' : ' bg-white'}`}
@@ -283,6 +290,7 @@ function PlanCard({ plan, order, accent, current, badge, note }) {
           );
         })}
       </dl>
+      {action}
     </section>
   );
 }
@@ -295,24 +303,27 @@ function PlanCard({ plan, order, accent, current, badge, note }) {
  * screen, which is the duplication this whole layout exists to avoid. A card
  * holding only the delta IS the statement that there is nothing more to it.
  */
-function TierCard({ plan, current }) {
+function TierCard({ plan, current, action }) {
   return (
     <section
-      className="rounded-2xl bg-white shadow-sm px-4 py-3.5 flex items-center justify-between gap-3"
+      className="rounded-2xl bg-white shadow-sm px-4 py-3.5"
       style={{ boxShadow: current ? `0 0 0 2px ${C.primary}` : undefined }}
       aria-label={plan.labelHe}
     >
-      <div className="min-w-0">
-        {/* The label, not a price rebuilt from the number. Two sources for
-            one string is how they drift. */}
-        <p className="text-[15px] font-bold" style={{ color: C.gray800 }}>
-          {plan.labelHe}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {/* The label, not a price rebuilt from the number. Two sources for
+              one string is how they drift. */}
+          <p className="text-[15px] font-bold" style={{ color: C.gray800 }}>
+            {plan.labelHe}
+          </p>
+          {current && <span className="inline-block mt-1.5"><Badge>המסלול שלך</Badge></span>}
+        </div>
+        <p className="text-[15px] font-bold tabular-nums shrink-0" style={{ color: C.gray800 }}>
+          {capLabel(plan.maxVehicles)}
         </p>
-        {current && <span className="inline-block mt-1.5"><Badge>המסלול שלך</Badge></span>}
       </div>
-      <p className="text-[15px] font-bold tabular-nums shrink-0" style={{ color: C.gray800 }}>
-        {capLabel(plan.maxVehicles)}
-      </p>
+      {action}
     </section>
   );
 }
@@ -349,11 +360,46 @@ function SkeletonScreen() {
   );
 }
 
+/**
+ * ⚠️ NOT WIRED TO A SERVER YET, AND IT SAYS SO BY RETURNING false.
+ *
+ * The edge function that checks a purchase token against the Play Developer
+ * API does not exist: the service account credential has not been created.
+ * `false` resolves the flow to PENDING, whose copy is "the payment arrived,
+ * activation is running late", which is exactly and literally true.
+ *
+ * Returning `true` here would be the dangerous stub: it would mark an
+ * unverified token as a granted entitlement.
+ */
+async function verifyPurchase() {
+  return false;
+}
+
 export default function Plans() {
   const catalog = usePlanCatalog();
   const { plan: currentPlan, graceDaysLeft, isGuest } = useAccountPlan();
   const { isBusiness } = useWorkspaceRole();
+  const { accountId } = useAccountRole();
   const surface = billingSurface();
+
+  // ⚠️ ABOVE THE EARLY RETURNS, AND eslint CAUGHT ME PUTTING THEM BELOW.
+  // The loading and error branches return before the cards render, so hooks
+  // placed after them run on some renders and not others. That is the exact
+  // class react-hooks/rules-of-hooks exists to stop, and CLAUDE.md records a
+  // production break from the same family.
+  //
+  // ⚠️ AND THE INVARIANT THIS WHOLE WIRING RESTS ON: with the flag off the
+  // screen must render exactly what it rendered before purchase existed.
+  // Everything new is behind `offering`, which is false for every account
+  // today, because mayOfferPurchase also needs a backend and Android native
+  // has none until the Play plugin is installed.
+  const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
+  const offering = mayOfferPurchase(billingFlag, getBillingBackend() !== null);
+  const { state: purchaseState, products, activeProductId, online, buy, restore } = usePurchaseFlow({
+    enabled: offering,
+    accountId,
+    verifyPurchase,
+  });
 
   const free = catalog.free;
   const paid = catalog.paid;
@@ -406,6 +452,37 @@ export default function Plans() {
   // which is why this costs nothing and covers the paid case for free.
   const fullCards = isOnPaid && featured ? [featured, free] : [free, featured];
 
+  /**
+   * The action strip for one plan.
+   *
+   * ⚠️ THE PRICE COMES FROM PLAY AND IS NEVER REBUILT FROM plan_limits. The
+   * number in our table is internal bookkeeping; the store knows the currency,
+   * the tax treatment and the buyer's locale. Showing a price that differs
+   * from the one charged is a removable offence under Play policy, not a
+   * cosmetic bug, so a plan with no matching Play product renders as
+   * UNAVAILABLE, which shows no price and no control at all.
+   */
+  const actionFor = (p) => {
+    const product = products.find((x) => x.planCode === p.code);
+    // Only the card being acted on shows the busy state. Without this, tapping
+    // one plan would spin every button on the screen.
+    const isActive = product && product.productId === activeProductId;
+    const stateForCard = isActive ? purchaseState
+      : purchaseState === PurchaseState.LOADING_PRODUCTS ? PurchaseState.LOADING_PRODUCTS
+      : !product ? PurchaseState.UNAVAILABLE
+      : PurchaseState.IDLE;
+
+    return (
+      <PurchaseAction
+        state={stateForCard}
+        priceFormatted={product?.priceFormatted}
+        offline={!online}
+        onBuy={() => product && buy(product.productId)}
+        onRestore={restore}
+      />
+    );
+  };
+
   return (
     <PageShell
       title="המסלולים"
@@ -414,15 +491,31 @@ export default function Plans() {
     >
       <div className="space-y-4">
 
+        {/* Sticky, so it survives the scrolling a worried user starts doing
+            in exactly this moment. */}
+        {(purchaseState === PurchaseState.VERIFYING
+          || purchaseState === PurchaseState.PENDING) && (
+          <VerifyingBanner pending={purchaseState === PurchaseState.PENDING} />
+        )}
+
         {/* The framing line. It leads rather than closes: telling the reader
             at the end that nothing here can be bought walks them through four
             cards building an intent the screen then refuses. Said first, it
-            frames the screen as information, which is what it is. */}
-        <p className="text-[13px] px-1" style={{ color: C.gray500 }}>
-          {onTopPlan
-            ? 'אתה במסלול הגבוה ביותר, ללא הגבלת כלי תחבורה.'
-            : unavailableCopy(surface)}
-        </p>
+            frames the screen as information, which is what it is.
+            ⚠️ And once purchase IS available the line has to go, or the screen
+            declares itself unbuyable directly above a working buy button. */}
+        {!offering && (
+          <p className="text-[13px] px-1" style={{ color: C.gray500 }}>
+            {onTopPlan
+              ? 'אתה במסלול הגבוה ביותר, ללא הגבלת כלי תחבורה.'
+              : unavailableCopy(surface)}
+          </p>
+        )}
+        {offering && onTopPlan && (
+          <p className="text-[13px] px-1" style={{ color: C.gray500 }}>
+            אתה במסלול הגבוה ביותר, ללא הגבלת כלי תחבורה.
+          </p>
+        )}
 
         {/* Grace. Wording matches /MyPlan exactly: the same situation on two
             screens must not sound like two different situations. */}
@@ -465,6 +558,7 @@ export default function Plans() {
               : null
             }
             note={noteFor(p)}
+            action={offering && p.priceIlsMonth > 0 ? actionFor(p) : null}
           />
         ))}
 
@@ -484,7 +578,12 @@ export default function Plans() {
               </p>
             </div>
             {others.map((p) => (
-              <TierCard key={p.code} plan={p} current={isCurrent(p)} />
+              <TierCard
+                key={p.code}
+                plan={p}
+                current={isCurrent(p)}
+                action={offering ? actionFor(p) : null}
+              />
             ))}
           </div>
         )}
