@@ -90,9 +90,13 @@ function nameForDataUrl(fileName, mime) {
   return new RegExp('\\.' + ext + '$', 'i').test(base) ? base : base + '.' + ext;
 }
 
-async function openDataUrlAsBlob(url, fileName) {
+async function openDataUrlAsBlob(url, fileName, preOpened = null) {
+  // Whoever hands us a reserved tab expects it never to be left blank on
+  // screen, so every exit below either navigates it or closes it.
+  const closeReserved = () => { try { preOpened?.close(); } catch { /* noop */ } };
+
   const match = /^data:([^;]+);base64,(.+)$/.exec(url);
-  if (!match) return false;
+  if (!match) { closeReserved(); return false; }
   const [, mime, b64] = match;
   try {
     const binary = atob(b64);
@@ -120,6 +124,8 @@ async function openDataUrlAsBlob(url, fileName) {
       if (Capacitor.isNativePlatform()) {
         const { deliverFile } = await import('@/services/vehicleHistory/deliverFile');
         await deliverFile({ blob, fileName: nameForDataUrl(fileName, mime) });
+        // The OS takes it from here, so a browser tab is the wrong shape.
+        closeReserved();
         return true;
       }
     } catch (err) {
@@ -127,14 +133,28 @@ async function openDataUrlAsBlob(url, fileName) {
     }
 
     const blobUrl = URL.createObjectURL(blob);
-    const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
     // 60s gives the new tab time to load + render before we revoke.
     // Using a fixed timeout (instead of waiting for win.onload) avoids
     // cross-origin handle access issues with noopener-opened windows.
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+
+    // Reuse the tab the caller reserved during the click, exactly as the
+    // http(s) path below does. We reach this line only after awaiting the
+    // Capacitor import above, and a window.open that late has lost the
+    // click's user activation: the browser swallows it, `win` is null, and
+    // the user gets "לא ניתן לפתוח את הקובץ" for a file that converted
+    // perfectly. Measured in the preview: the blob was built correctly
+    // (image/png, right size) and the open was still blocked.
+    if (preOpened && !preOpened.closed) {
+      try { preOpened.opener = null; } catch { /* best effort */ }
+      preOpened.location.replace(blobUrl);
+      return true;
+    }
+    const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
     return !!win;
   } catch (err) {
     console.warn('[security] Failed to convert data URL to Blob:', err);
+    closeReserved();
     return false;
   }
 }
@@ -174,8 +194,11 @@ export async function openFileUrlSafely(url, preOpened = null, fileName = null) 
     return false;
   }
   if (typeof url === 'string' && url.startsWith('data:')) {
-    discard();
-    return openDataUrlAsBlob(url, fileName);
+    // Hand the reserved tab over instead of closing it. Discarding it here
+    // guaranteed the popup blocker would eat the open that follows, which
+    // is the whole reason reserveFileTab exists. openDataUrlAsBlob closes
+    // it itself on the native path, where a tab is not what we want.
+    return openDataUrlAsBlob(url, fileName, preOpened);
   }
   // Native path — Capacitor Browser plugin. Dynamic import so the
   // web bundle doesn't pay the plugin's parse cost, and so a missing
