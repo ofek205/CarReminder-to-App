@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download, Car, ArrowLeftRight } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download, Car, ArrowLeftRight, Paperclip } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 
 const ACTION_REQUIRED_TYPES = new Set([
@@ -236,6 +236,23 @@ export const APP_NOTIF_CONFIG = {
     buildHref: (data) => data?.post_id
       ? `/Community?post=${encodeURIComponent(data.post_id)}`
       : '/Community',
+  },
+  documents_missing_file: {
+    // One-off notice to the users whose documents were saved without their
+    // file (124 rows, a renewal-dialog bug fixed 2026-09-19). Amber rather
+    // than the green "we did something for you" family, because this one
+    // admits a fault — but not red, because nothing of theirs is at risk:
+    // the expiry dates and the reminders built on them are intact.
+    //
+    // It routes to /Documents deliberately. admin_message, the obvious
+    // existing type to reuse, has buildHref: () => null, so tapping it
+    // does nothing — and a notice whose entire purpose is "go press the
+    // paperclip" has to land the user on the screen with the paperclip.
+    icon: Paperclip,
+    bg: C.warnBg,
+    iconColor: C.warn,
+    iconBg: C.warn,
+    buildHref: () => '/Documents',
   },
   admin_message: {
     icon: Mail,
