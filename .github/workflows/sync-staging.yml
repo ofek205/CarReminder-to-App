@@ -1,0 +1,132 @@
+# Sync staging — brings `main` back into `staging` after every release.
+#
+# WHY THIS EXISTS
+#
+# Gate 7 step 6 in CLAUDE.md ends with `git checkout staging && git merge main`,
+# and that step keeps being skipped. It was skipped on 2026-09-01, when staging
+# fell thirteen commits behind and the drift included the Android workflows, so
+# a release cut from staging would have reintroduced a bug already fixed in
+# main. It was skipped again on 2026-09-19 for v6.5.8, when staging was nine
+# commits behind and missing a production licence-photo fix, the 6.5.7 bump and
+# two applied SQL files.
+#
+# The failure mode is always the same: the release lands, everyone moves on,
+# and the branch that all future work starts from is quietly stale. Nothing
+# breaks loudly, which is exactly why it keeps happening.
+#
+# WHY IT MERGES INSTEAD OF OPENING A PR
+#
+# A PR would be another step for a human to forget, which is the problem this
+# is meant to solve rather than relocate. So the normal path is automatic and
+# silent, and a PR is opened ONLY when the merge conflicts, which is the one
+# case that genuinely needs a person.
+#
+# WHY IT IS A SEPARATE FILE
+#
+# production-gates.yml is deliberately `pull_request` only, and the four job
+# names it defines are wired into the branch ruleset as required checks.
+# Adding a `push` trigger there would change when those gates run and risk the
+# ruleset no longer matching. This needs a push trigger, so it lives apart.
+#
+# ⚠️ ASSUMPTION THAT WAS NOT VERIFIED
+#
+# That `staging` accepts a push from github-actions[bot]. Claude cannot read
+# the repository rulesets (`gh ruleset` and `gh api` are denied by CLAUDE.md
+# חוק 0), so this was reasoned about rather than checked. If staging is ever
+# given protection that blocks bots, this job starts failing on every release
+# and the fix is to grant the bot a bypass, NOT to loosen staging.
+#
+# NOTE ON LOOPS
+#
+# A push made with GITHUB_TOKEN does not trigger further workflow runs, by
+# design. This pushes to staging and triggers on main, so there is no cycle
+# even setting that aside.
+
+name: Sync staging
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write        # push the merge to staging
+  pull-requests: write   # open the fallback PR when it conflicts
+
+# Two merges to main in quick succession must not race each other onto
+# staging. `cancel-in-progress: false` because skipping a sync is the exact
+# thing this workflow exists to prevent — queue it, never drop it.
+concurrency:
+  group: sync-staging
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge main into staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          # Full history: a shallow clone cannot merge two branches that
+          # diverged before the cutoff, and this one often has to.
+          fetch-depth: 0
+
+      - name: Merge main
+        id: merge
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "staging already contains main, nothing to do"
+            echo "state=noop" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git merge --no-edit origin/main; then
+            echo "state=merged" >> "$GITHUB_OUTPUT"
+          else
+            # Leave no half-finished merge behind in the runner's checkout.
+            git merge --abort
+            echo "state=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push
+        if: steps.merge.outputs.state == 'merged'
+        run: git push origin staging
+
+      - name: Open a PR when it conflicts
+        if: steps.merge.outputs.state == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # `gh pr create` fails when one is already open for the same pair,
+          # which is the normal case if a previous release also conflicted and
+          # nobody has resolved it yet. That is not an error worth failing on.
+          gh pr create \
+            --base staging \
+            --head main \
+            --title "Sync main into staging (conflicted)" \
+            --body "Automatic sync after a release to \`main\` could not merge cleanly, so it needs a human.
+
+          Resolve locally:
+
+          \`\`\`bash
+          git checkout staging && git pull
+          git merge main
+          # resolve, then
+          git push origin staging
+          \`\`\`
+
+          Until this is done, \`staging\` is missing work that is already live in production, and anything branched from it starts stale. See the header of .github/workflows/sync-staging.yml for why this matters." \
+            || echo "a sync PR is already open, leaving it alone"
+
+      - name: Summary
+        if: always()
+        run: |
+          case "${{ steps.merge.outputs.state }}" in
+            merged)   echo "✅ staging now contains main"        >> "$GITHUB_STEP_SUMMARY" ;;
+            noop)     echo "✅ staging already contained main"   >> "$GITHUB_STEP_SUMMARY" ;;
+            conflict) echo "⚠️ conflict — a PR was opened"       >> "$GITHUB_STEP_SUMMARY" ;;
+            *)        echo "❓ the merge step did not report a state" >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
