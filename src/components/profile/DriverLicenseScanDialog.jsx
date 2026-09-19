@@ -154,7 +154,18 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
     // Mark saved BEFORE handleClose so the orphan-cleanup branch
     // doesn't delete the image the parent is about to persist.
     savedRef.current = true;
-    onSave({ ...fields, license_image_url: fileUrl });
+    // Hand the storage path up as well, not just the URL. uploadScanFile
+    // returns both and this dialog already holds the path — it was being
+    // kept only to delete the object if the user abandoned the dialog, and
+    // thrown away on save. file_url is a SIGNED url with a seven-day TTL
+    // (SIGNED_URL_TTL_SEC), so a licence photo saved without its path
+    // simply stops loading a week later, silently. Read it before
+    // handleClose below, which resets the ref.
+    onSave({
+      ...fields,
+      license_image_url: fileUrl,
+      license_image_storage_path: storagePathRef.current || null,
+    });
     handleClose();
   };
 
