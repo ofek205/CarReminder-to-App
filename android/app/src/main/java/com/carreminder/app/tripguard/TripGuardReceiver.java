@@ -71,11 +71,19 @@ public class TripGuardReceiver extends BroadcastReceiver {
             long startWall = TripGuardStore.getTripStartWall(context);
             long startElapsed = TripGuardStore.getTripStartElapsed(context);
 
-            // Consume one-shot snooze and clear the trip regardless of outcome,
-            // so the next trip starts clean.
+            // Consume the one-shot snooze here, but deliberately do NOT clear
+            // the trip-start values: a subsequent CONNECTED within DEBOUNCE_MS
+            // needs getTripStartElapsed() to still read > 0 to recognize "a
+            // trip is already in progress" and treat the reconnect as the same
+            // brief dropout, not a new trip. Clearing it here used to defeat
+            // that debounce check on the very disconnect it exists to protect,
+            // so a car-audio Bluetooth blip right after the real trip end could
+            // start a brand-new (unprotected) trip and fire a second alert even
+            // after the user had already dismissed the first one. The next
+            // genuine trip overwrites these values on its own CONNECTED event
+            // (see below), so nothing needs an explicit reset here.
             boolean snoozed = TripGuardStore.isSnoozeNextTrip(context);
             TripGuardStore.setSnoozeNextTrip(context, false);
-            TripGuardStore.clearTripStart(context);
 
             boolean willAlert = !snoozed
                 && TripGuardWindow.shouldAlert(config, startWall, nowWall, startElapsed, nowElapsed);

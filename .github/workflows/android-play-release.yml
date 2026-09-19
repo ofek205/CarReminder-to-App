@@ -144,20 +144,51 @@ jobs:
 
       - name: Locate AAB
         id: locate_aab
+        # Renamed in place to app-release-v<version>.aab (not just left as the
+        # generic app-release.aab every build produces), so a file downloaded
+        # from an old run can never be mistaken for, or silently re-uploaded
+        # as, a newer one (this is what caused the versionCode 60502 mixup).
         run: |
           AAB_PATH=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
           if [ -z "$AAB_PATH" ]; then
             echo "ERROR: no AAB produced under android/app/build/outputs/bundle/release/"
             exit 1
           fi
-          echo "Found $AAB_PATH"
-          echo "aab_path=$AAB_PATH" >> "$GITHUB_OUTPUT"
+          VERSION=$(node -p "require('./package.json').version")
+          VERSIONED_PATH="$(dirname "$AAB_PATH")/app-release-v${VERSION}.aab"
+          mv "$AAB_PATH" "$VERSIONED_PATH"
+          echo "Found $AAB_PATH -> renamed to $VERSIONED_PATH"
+          echo "aab_path=$VERSIONED_PATH" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upload AAB as artifact (backup)
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-aab
+          name: app-release-aab-v${{ steps.locate_aab.outputs.version }}
           path: ${{ steps.locate_aab.outputs.aab_path }}
+          retention-days: 90
+
+      - name: Locate R8 mapping file
+        # Produced because minifyEnabled is now true (2026-09-12). Uploading
+        # this to Play alongside the AAB is what lets Play Console show real
+        # file:line in crash/ANR reports instead of obfuscated names — an
+        # unminified build never needed one.
+        id: locate_mapping
+        run: |
+          MAPPING_PATH="android/app/build/outputs/mapping/release/mapping.txt"
+          if [ -f "$MAPPING_PATH" ]; then
+            echo "Found $MAPPING_PATH"
+            echo "mapping_path=$MAPPING_PATH" >> "$GITHUB_OUTPUT"
+          else
+            echo "No mapping.txt produced (unexpected now that minifyEnabled is true) — continuing without it."
+          fi
+
+      - name: Upload mapping.txt as artifact (backup)
+        if: ${{ steps.locate_mapping.outputs.mapping_path }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-mapping
+          path: ${{ steps.locate_mapping.outputs.mapping_path }}
           retention-days: 90
 
       - name: Upload to Google Play
@@ -167,5 +198,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.carreminder.app
           releaseFiles: ${{ steps.locate_aab.outputs.aab_path }}
+          mappingFile: ${{ steps.locate_mapping.outputs.mapping_path }}
           track: ${{ github.event.inputs.track }}
           status: ${{ github.event.inputs.status }}

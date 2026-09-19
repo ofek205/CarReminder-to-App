@@ -6,7 +6,7 @@ import {
   HelpCircle, Image, Mail, MapPin, MessageCircle, Music2, Phone,
   Settings, ShieldCheck, Smartphone,
 } from 'lucide-react';
-import { marketingEvent } from '@/lib/marketingEvents';
+import { marketingEvent, trackStoreClickGA4 } from '@/lib/marketingEvents';
 
 const faqs = [
   ['האם זו מערכת למניעת שכחת ילדים ברכב?', 'Car Reminder היא אפליקציית תזכורת וכלי עזר נוסף. היא אינה חיישן ואינה יודעת אם יש ילד ברכב. בסיום הנסיעה היא מזכירה לכם לבדוק את המושב האחורי.'],
@@ -19,12 +19,14 @@ const faqs = [
 ];
 
 function PlatformLinks() {
+  const appleHref = 'https://apps.apple.com/app/carreminder/id6764073107';
+  const googleHref = 'https://play.google.com/store/apps/details?id=com.carreminder.app';
   return <div className="cm-child-platform-links" onClick={() => marketingEvent('store_click', 'child_reminder')} aria-label="הורדת Car Reminder">
-    <a href="https://apps.apple.com/app/carreminder/id6764073107" target="_blank" rel="noopener noreferrer">
+    <a href={appleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('apple', appleHref)}>
       <img src="/marketing/apple.svg" width="18" height="21" alt="" />
       <span>App Store</span>
     </a>
-    <a href="https://play.google.com/store/apps/details?id=com.carreminder.app" target="_blank" rel="noopener noreferrer">
+    <a href={googleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('google', googleHref)}>
       <img src="/marketing/google-play.svg" width="18" height="21" alt="" />
       <span>Google Play</span>
     </a>
@@ -215,7 +217,7 @@ export default function MarketingChildReminderPage() {
     </section>
 
     <section className="cm-child-resources">
-      <div className="cm-wrap"><span className="cm-kicker">מקורות והמשך קריאה</span><h2>הרגלי בטיחות שכדאי לאמץ</h2><div><a href="https://me.health.gov.il/parenting/raising-children/safe-environment/outdoor-safety/child-unattended-car/" target="_blank" rel="noopener noreferrer">משרד הבריאות: מניעת שכחת ילדים ברכב <ExternalLink /></a><a href="https://www.nhtsa.gov/campaign/heatstroke" target="_blank" rel="noopener noreferrer">NHTSA: מניעת פגיעת חום בילדים ברכב <ExternalLink /></a><Link to="/website/reminders">תזכורות נוספות ב-Car Reminder <ArrowLeft /></Link></div></div>
+      <div className="cm-wrap"><span className="cm-kicker">מקורות והמשך קריאה</span><h2>הרגלי בטיחות שכדאי לאמץ</h2><div><a href="https://me.health.gov.il/parenting/raising-children/safe-environment/outdoor-safety/child-unattended-car/" target="_blank" rel="noopener noreferrer">משרד הבריאות: מניעת שכחת ילדים ברכב <ExternalLink /></a><a href="https://www.nhtsa.gov/campaign/heatstroke" target="_blank" rel="noopener noreferrer">NHTSA: מניעת פגיעת חום בילדים ברכב <ExternalLink /></a><Link to="/website/test-insurance-reminders">תזכורות נוספות ב-Car Reminder <ArrowLeft /></Link></div></div>
     </section>
 
     <section className="cm-child-final"><div className="cm-wrap"><Smartphone /><span className="cm-kicker">זמין ב-iPhone וב-Android</span><h2>מוסיפים עוד רגע של בדיקה{' '}<br />לסוף כל נסיעה.</h2><p>הפיצ׳ר כלול בחינם ב-Car Reminder.</p><PlatformLinks /><small>זמינות ההתראה תלויה בחיבור ובהרשאות המכשיר. תמיד בדקו את הרכב בעצמכם.</small></div></section>

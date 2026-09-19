@@ -19,7 +19,6 @@ import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase, Sparkles, C
 import { createPageUrl } from '@/utils';
 import { PageShell, Card } from '@/components/business/system';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import useIsAdmin from '@/hooks/useIsAdmin';
 import { useFeatureFlag } from '@/lib/featureFlags';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
@@ -27,12 +26,11 @@ import { C } from '@/lib/designTokens';
 export default function Settings() {
   const { isBusiness, isOwner, isManager } = useWorkspaceRole();
   const { activeWorkspace } = useWorkspace();
-  const isAdmin = useIsAdmin() === true;
 
   const businessName = activeWorkspace?.account_name || 'העסק';
-  // "בטיחות ילדים" (TripGuard) — personal/parent feature, admin-gated during
-  // rollout (matches the page's own gate). Hidden in a business workspace.
-  const showSafetyEntry = !isBusiness && isAdmin;
+  // "בטיחות ילדים" (TripGuard) — personal/parent feature. Hidden in a
+  // business workspace (matches the page's own gate).
+  const showSafetyEntry = !isBusiness;
 
   // "המסלול והחיוב" (monetization phase 2). Flag-gated because the screen
   // reads plan_limits and account_subscriptions, which do not exist until

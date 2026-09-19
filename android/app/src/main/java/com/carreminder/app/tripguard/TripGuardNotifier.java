@@ -27,8 +27,14 @@ public final class TripGuardNotifier {
     public static final String ACTION_NO_KIDS = "com.carreminder.app.tripguard.NO_KIDS";
     public static final String ACTION_ESCALATE = "com.carreminder.app.tripguard.ESCALATE";
 
-    private static final long[] VIBRATION = { 0, 400, 200, 400, 200, 600 };
-    private static final long[] VIBRATION_STRONG = { 0, 600, 150, 600, 150, 600, 150, 800 };
+    // Deliberately longer and more irregular than a typical message-notification
+    // buzz, so it reads as "check the car now" and not as just another ping.
+    // Android's notification vibration always fires at the device's default
+    // (max) motor amplitude here (there's no per-notification amplitude
+    // control via NotificationCompat.setVibrate), so "stronger" is achieved
+    // through duration and a distinctive rhythm, not motor intensity.
+    private static final long[] VIBRATION = { 0, 500, 200, 500, 200, 500, 200, 900 };
+    private static final long[] VIBRATION_STRONG = { 0, 800, 200, 800, 200, 800, 200, 800, 200, 1200 };
     private static final long ESCALATE_AFTER_MS = 30_000L;
 
     private TripGuardNotifier() {}
