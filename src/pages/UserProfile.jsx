@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
+import useSignedUrl from '@/hooks/useSignedUrl';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
@@ -237,10 +238,20 @@ function AuthUserProfile({ embedded = false }) {
   const [profile, setProfile] = useState(null);
   const [profileId, setProfileId] = useState(null);
   const [form, setForm] = useState({
-    phone: '', birth_date: '', driver_license_number: '', license_expiration_date: '', license_image_url: '',
+    phone: '', birth_date: '', driver_license_number: '', license_expiration_date: '', license_image_url: '', license_image_storage_path: '',
   });
   const [fullName, setFullName] = useState('');
   const [showScan, setShowScan] = useState(false);
+  // The licence photo is a SIGNED url with a seven-day TTL, so rendering
+  // form.license_image_url straight into <img> meant the photo stopped
+  // loading a week after it was scanned — silently, since a failed image
+  // request shows nothing. This is the same hook PostCard and
+  // VehicleImage already use for exactly this reason. The fallback keeps
+  // legacy rows (URL saved, no path) rendering until they are backfilled.
+  const { url: licenseImageSrc } = useSignedUrl(
+    form.license_image_storage_path,
+    { fallback: form.license_image_url },
+  );
   // Mirrors app_config.scan_extraction_enabled. While the global AI
   // scan gate is off, the "סרוק רישיון נהיגה (AI)" button renders
   // disabled with a "כרגע לא זמין" badge instead of opening a wizard
@@ -278,6 +289,7 @@ function AuthUserProfile({ embedded = false }) {
             driver_license_number: p.driver_license_number || '',
             license_expiration_date: p.license_expiration_date || '',
             license_image_url: p.license_image_url || '',
+            license_image_storage_path: p.license_image_storage_path || '',
           });
         }
       } catch (err) {
@@ -304,6 +316,7 @@ function AuthUserProfile({ embedded = false }) {
       driver_license_number: extracted.driver_license_number || form.driver_license_number,
       license_expiration_date: extracted.license_expiration_date || form.license_expiration_date,
       license_image_url: extracted.license_image_url || form.license_image_url,
+      license_image_storage_path: extracted.license_image_storage_path || form.license_image_storage_path,
     };
     setForm(newForm);
 
@@ -360,6 +373,7 @@ function AuthUserProfile({ embedded = false }) {
         driver_license_number: form.driver_license_number?.replace(/[-\s]/g, '') || null,
         license_expiration_date: form.license_expiration_date || null,
         license_image_url: form.license_image_url || null,
+        license_image_storage_path: form.license_image_storage_path || null,
       };
       try {
         if (profileId) {
@@ -545,10 +559,10 @@ function AuthUserProfile({ embedded = false }) {
             </div>
           </div>
 
-          {form.license_image_url && (
+          {licenseImageSrc && (
             <div className="mt-4">
               <Label>תמונת רישיון</Label>
-              <img src={form.license_image_url} alt="רישיון נהיגה" className="mt-1 max-w-xs rounded-xl border border-gray-200 object-cover" />
+              <img src={licenseImageSrc} alt="רישיון נהיגה" className="mt-1 max-w-xs rounded-xl border border-gray-200 object-cover" />
             </div>
           )}
         </Card>
