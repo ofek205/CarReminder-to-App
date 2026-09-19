@@ -22,6 +22,7 @@ import { aiRequest } from '@/lib/aiProxy';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { compressImage } from '@/lib/imageCompress';
 import { DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
+import useFileUpload from '@/hooks/useFileUpload';
 
 // Israeli marinas
 const ISRAEL_MARINAS = [
@@ -61,6 +62,9 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   // flash in-out. Refreshed every time the dialog opens.
   const [aiScanAllowed, setAiScanAllowed] = useState(false);
   const [error, setError] = useState('');
+  // Shown on the success card when the date saved but the attached file
+  // did not. Not an `error`: the save itself succeeded.
+  const [docWarning, setDocWarning] = useState('');
   const { isGuest, updateGuestVehicle, addGuestDocument } = useAuth();
   // Active-workspace account so the renewal document is filed under
   // the same workspace the user is currently in. Pre-fix this routed
@@ -68,6 +72,18 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   // a business vehicle's renewal under the personal account.
   const { accountId } = useAccountRole();
   const queryClient = useQueryClient();
+  // The attached file has to reach Storage before the document row is
+  // written. Until 2026-09-16 this dialog created the row with no
+  // `file_url` and no `storage_path`, so the document showed up in the
+  // list with nothing behind it — 124 such rows in production. DocCard
+  // hides its view and download buttons when both columns are empty, so
+  // those cards did nothing at all when tapped, which is what reached us
+  // as "the documents screen doesn't open anything".
+  const { upload: uploadDocFile } = useFileUpload({
+    accountId,
+    vehicleId: vehicle?.id,
+    mode: 'doc',
+  });
 
   const currentDate = vehicle[dateField];
   const isTest = dateField === 'test_due_date';
@@ -91,6 +107,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     setUploadedDoc(null);
     setManualForm({ title: '', expiry_date: '', issue_date: '' });
     setError('');
+    setDocWarning('');
   };
 
   // Pick a file and ATTACH it (no auto-scan). Moves to 'manual' so the
@@ -108,6 +125,18 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         dataUrl:  ev.target.result,
         mimeType: ready?.type || file.type || 'image/jpeg',
         name:     file.name || 'מסמך',
+        // The COMPRESSED file, kept so handleSave can upload it to Storage.
+        // The base64 above stays because the AI scan needs it inline, but
+        // base64 is NOT what we persist: the DB row gets a Storage path.
+        //
+        // `ready`, not `file`, on purpose. useFileUpload validates size
+        // BEFORE it compresses, against a 10MB cap, and a photo straight
+        // off a phone clears that regularly — the original would be
+        // rejected even though the copy we already hold is a few hundred
+        // KB. compressImage also re-encodes to WebP, so these are the exact
+        // bytes the AI scan saw, and it returns the original untouched when
+        // it cannot help, which is still a valid File.
+        file: ready,
       });
       setError('');
       setStep('manual');
@@ -222,6 +251,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     const documentType = fromAi ? aiResult?.document_type : docLabel;
 
     setStep('done');
+    setDocWarning('');
+    // Local mirror of the warning: state set inside this function is not
+    // readable further down the same call, and the auto-close decision
+    // needs to know whether the upload failed.
+    let docFailed = false;
     try {
       // 1. Save document — only when a file is attached. A user who
       // just wants to update the expiry date (no doc on hand) is fully
@@ -235,15 +269,56 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           vehicle_id: vehicle.id,
         };
         if (isGuest) {
-          addGuestDocument(doc);
+          // Guests have no Storage account, so their file lives inline as
+          // base64 in file_url — the same shape the guest path in
+          // Documents.jsx writes, and what migrateDependent carries into
+          // the DB on sign-up.
+          //
+          // No guard here on purpose: a base64 image is big enough to hit
+          // the localStorage quota, but GuestDataContext writes through
+          // safeSetItem, which catches QuotaExceededError, toasts its own
+          // message and returns false. Nothing can throw past this line
+          // and abort the date update below.
+          addGuestDocument({ ...doc, file_url: uploadedDoc.dataUrl });
         } else if (accountId) {
-          // Auth: file under the active workspace. Skip silently if
-          // accountId hasn't resolved yet — the date update on the
-          // vehicle is the main action and survives that miss.
+          // Auth: the file goes to Storage FIRST, and the row is written
+          // only if that succeeded. A row without file_url + storage_path
+          // is not a document, it is a dead card in the list, so a failed
+          // upload must produce no row rather than an empty one.
+          //
+          // Skipped silently when accountId hasn't resolved yet — the date
+          // update below is the main action and survives that miss.
+          //
+          // Two steps, two catches, because they fail for different reasons
+          // and the user is told which. The row can be refused while the
+          // upload succeeded — the document cap does exactly that — and
+          // "the file was not uploaded" would be a lie in that case.
+          let uploaded = null;
           try {
-            await dal.run('document.create', { ...doc, account_id: accountId });
-          } catch (saveErr) {
-            console.warn('Document save skipped:', saveErr?.message);
+            uploaded = await uploadDocFile(uploadedDoc.file);
+          } catch (uploadErr) {
+            console.warn('Document upload failed:', uploadErr?.message);
+            docFailed = true;
+            setDocWarning('התאריך נשמר, אבל הקובץ לא הועלה. אפשר לצרף אותו שוב ממסך המסמכים.');
+          }
+          if (uploaded) {
+            try {
+              await dal.run('document.create', {
+                ...doc,
+                account_id: accountId,
+                file_url: uploaded.fileUrl,
+                storage_path: uploaded.storagePath,
+              });
+              await queryClient.invalidateQueries({ queryKey: ['documents'] });
+            } catch (saveErr) {
+              // The file is in Storage and nothing points at it. We leave it
+              // rather than delete it: an orphan object costs storage, a
+              // failed cleanup on a shaky connection could delete the wrong
+              // thing, and the row may yet be added by hand.
+              console.warn('Document row not created:', saveErr?.message);
+              docFailed = true;
+              setDocWarning('התאריך נשמר, אבל המסמך לא נוסף לרשימה. אפשר להוסיף אותו ממסך המסמכים.');
+            }
           }
         }
       }
@@ -258,7 +333,9 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
         await queryClient.refetchQueries({ queryKey: ['vehicle', vehicle.id] });
       }
-      setTimeout(() => { onClose(); reset(); }, 800);
+      // Auto-close only when there is nothing to read. A failed upload
+      // leaves the dialog open so the message doesn't vanish in 800ms.
+      if (!docFailed) setTimeout(() => { onClose(); reset(); }, 800);
     } catch (err) {
       console.error('Renewal save error:', err);
       setError('שגיאה בשמירה. נסה שוב.');
@@ -495,6 +572,21 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           <div className="flex flex-col items-center py-6 gap-2">
             <CheckCircle2 className="w-12 h-12" style={{ color: C.successBright }} />
             <p className="text-sm font-bold" style={{ color: T.text }}>{docLabel} עודכן בהצלחה!</p>
+            {/* The date saved but the document did not, either because the
+                upload failed or because the row was refused. The dialog
+                stays open here (see handleSave) so the user reads it. */}
+            {docWarning && (
+              <>
+                <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 mt-1">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <span className="text-xs font-bold text-amber-800">{docWarning}</span>
+                </div>
+                <Button variant="outline" size="sm" className="mt-2"
+                  onClick={() => { onClose(); reset(); }}>
+                  סגור
+                </Button>
+              </>
+            )}
           </div>
         )}
       </DialogContent>
