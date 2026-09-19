@@ -61,8 +61,56 @@ export function marketingPrerender() {
             .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${escape(meta.description)}" />`)
             .replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
           const canonical = origin ? `<link rel="canonical" href="${escape(origin + route)}" />` : '';
+          /**
+           * Social preview tags.
+           *
+           * Until now every one of these pages shipped og:title and
+           * og:description with NO og:image, so a link shared to WhatsApp,
+           * Facebook or LinkedIn rendered as a bare URL with no picture. That
+           * does not affect ranking at all; it affects whether anyone clicks,
+           * and for this product WhatsApp is the organic channel that matters.
+           *
+           * Gated on `origin` for the same reason canonical is: these URLs
+           * have to be absolute, and a preview deploy has no honest origin to
+           * build them from.
+           *
+           * Purpose-built 1200x630 covers, not a cropped hero: both carry the
+           * wordmark, which is what makes a preview read as the product
+           * rather than as a stock photo of a car.
+           *
+           * The business page gets its own, because the thing being shared
+           * there is a fleet console and a phone-in-hand image would promise
+           * the wrong product to the wrong reader. Everything else shares the
+           * default; per-page art for twenty pages is a cost with no return.
+           *
+           * JPEG, not WebP, and that is deliberate. Everything else in
+           * public/marketing/ is WebP and these two cost 48KB and 70KB as
+           * JPEG against 46KB and 62KB as WebP, so the saving was real but
+           * tiny. WhatsApp is the channel this whole tag exists to serve and
+           * its crawler has a long history of rendering nothing for a WebP
+           * og:image. Paying 10KB to remove that risk is not a close call.
+           * Both sit far under the ~300KB a preview fetch will pull.
+           *
+           * twitter:card alone is enough: Twitter falls back to the og:*
+           * values for title, description and image, so repeating them here
+           * would be three more strings to keep in sync for no gain.
+           */
+          const OG_IMAGE = route === '/website/business'
+            ? '/marketing/og-business.jpg'
+            : '/marketing/og-main.jpg';
+          const social = origin ? [
+            `<meta property="og:type" content="${route.startsWith('/website/guides/') ? 'article' : 'website'}" />`,
+            `<meta property="og:site_name" content="Car Reminder" />`,
+            `<meta property="og:locale" content="he_IL" />`,
+            `<meta property="og:url" content="${escape(origin + route)}" />`,
+            `<meta property="og:image" content="${escape(origin + OG_IMAGE)}" />`,
+            `<meta property="og:image:width" content="1200" />`,
+            `<meta property="og:image:height" content="630" />`,
+            `<meta property="og:image:alt" content="${escape('Car Reminder, ניהול רכב, אופנוע וכלי שיט')}" />`,
+            `<meta name="twitter:card" content="summary_large_image" />`,
+          ].join('') : '';
           const schema = origin && route !== '/website/vehicle-check' ? `<script id="cm-seo-schema" type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebPage', name: meta.title, description: meta.description, url: origin + route, inLanguage: 'he' }).replaceAll('<', '\\u003c')}</script>` : '';
-          html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="${origin && route !== '/website/vehicle-check' ? 'index,follow' : 'noindex,follow'}" /><meta property="og:title" content="${escape(meta.title)}" /><meta property="og:description" content="${escape(meta.description)}" />${canonical}${schema}${GA4_SNIPPET}</head>`);
+          html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="${origin && route !== '/website/vehicle-check' ? 'index,follow' : 'noindex,follow'}" /><meta property="og:title" content="${escape(meta.title)}" /><meta property="og:description" content="${escape(meta.description)}" />${social}${canonical}${schema}${GA4_SNIPPET}</head>`);
           const destination = path.join(output, route.slice(1), 'index.html');
           await fs.mkdir(path.dirname(destination), { recursive: true });
           await fs.writeFile(destination, html);
