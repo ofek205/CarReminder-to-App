@@ -65,6 +65,12 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   // Shown on the success card when the date saved but the attached file
   // did not. Not an `error`: the save itself succeeded.
   const [docWarning, setDocWarning] = useState('');
+  // True while handleSave is uploading + writing. The dialog used to jump
+  // straight to the success card and sit there, motionless, for the whole
+  // upload — 30s+ for a phone photo on cellular — because setStep('done')
+  // ran BEFORE the await. A success message shown before the work is done
+  // is the same lie this series exists to remove.
+  const [saving, setSaving] = useState(false);
   const { isGuest, updateGuestVehicle, addGuestDocument } = useAuth();
   // Active-workspace account so the renewal document is filed under
   // the same workspace the user is currently in. Pre-fix this routed
@@ -108,6 +114,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     setManualForm({ title: '', expiry_date: '', issue_date: '' });
     setError('');
     setDocWarning('');
+    setSaving(false);
   };
 
   // Pick a file and ATTACH it (no auto-scan). Moves to 'manual' so the
@@ -250,7 +257,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     const issue        = fromAi ? aiResult?.issue_date : manualForm.issue_date;
     const documentType = fromAi ? aiResult?.document_type : docLabel;
 
-    setStep('done');
+    setSaving(true);
     setDocWarning('');
     // Local mirror of the warning: state set inside this function is not
     // readable further down the same call, and the auto-close decision
@@ -299,7 +306,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           } catch (uploadErr) {
             console.warn('Document upload failed:', uploadErr?.message);
             docFailed = true;
-            setDocWarning('התאריך נשמר, אבל הקובץ לא הועלה. אפשר לצרף אותו שוב ממסך המסמכים.');
+            // NOT "אפשר לצרף אותו שוב ממסך המסמכים". This branch writes no
+            // row at all — that is the whole point of it — so there is no
+            // card on that screen and no paperclip to press. The sibling
+            // message below is the one where a row does exist.
+            setDocWarning('התאריך נשמר, אבל הקובץ לא הועלה. אפשר לנסות שוב מכפתור החידוש.');
           }
           if (uploaded) {
             try {
@@ -310,6 +321,13 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                 storage_path: uploaded.storagePath,
               });
               await queryClient.invalidateQueries({ queryKey: ['documents'] });
+              // The document is filed. Drop the attachment so that if the
+              // vehicle update below throws and the user presses save
+              // again, the retry does not upload a SECOND copy, create a
+              // SECOND row and burn two slots of the document cap. Before
+              // this, a retry duplicated only a row; now it would duplicate
+              // a Storage object too.
+              setUploadedDoc(null);
             } catch (saveErr) {
               // The file is in Storage and nothing points at it. We leave it
               // rather than delete it: an orphan object costs storage, a
@@ -333,6 +351,10 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
         await queryClient.refetchQueries({ queryKey: ['vehicle', vehicle.id] });
       }
+      // Everything that could fail has finished. NOW the success card is
+      // true, which is why setStep moved down here from the top of the
+      // function.
+      setStep('done');
       // Auto-close only when there is nothing to read. A failed upload
       // leaves the dialog open so the message doesn't vanish in 800ms.
       if (!docFailed) setTimeout(() => { onClose(); reset(); }, 800);
@@ -340,6 +362,8 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
       console.error('Renewal save error:', err);
       setError('שגיאה בשמירה. נסה שוב.');
       setStep(fromAi ? 'confirm' : 'manual');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -490,10 +514,12 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             )}
 
             <div className="flex gap-2 pt-1">
-              <button onClick={handleSave} disabled={!canSaveManual}
+              <button onClick={handleSave} disabled={!canSaveManual || saving}
                 className="flex-1 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: T.primary, color: '#fff' }}>
-                <CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן
+                {saving
+                  ? <><Loader2 className="w-4 h-4 inline ml-1 animate-spin" /> שומר…</>
+                  : <><CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן</>}
               </button>
               <button onClick={() => { setError(''); setStep('upload'); }}
                 className="px-4 py-3 rounded-xl font-bold text-sm" style={{ color: C.gray400 }}>
@@ -554,10 +580,12 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             {error && <p className="text-xs font-bold text-red-600">{error}</p>}
 
             <div className="flex gap-2">
-              <button onClick={handleSave}
+              <button onClick={handleSave} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
                 style={{ background: T.primary, color: '#fff' }}>
-                <CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן
+                {saving
+                  ? <><Loader2 className="w-4 h-4 inline ml-1 animate-spin" /> שומר…</>
+                  : <><CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן</>}
               </button>
               <button onClick={() => { reset(); }}
                 className="px-4 py-2.5 rounded-xl font-bold text-sm" style={{ color: C.gray400 }}>
