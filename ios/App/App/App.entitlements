@@ -28,5 +28,22 @@
 	       production env  ↔ APNS_USE_SANDBOX=false (flip on App Store release). -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Universal Links. Without this entitlement iOS never even FETCHES
+	     the apple-app-site-association file, so every https://car-reminder.app
+	     link we send by email or SMS opens in Safari instead of the app.
+	     The server half has been live since 2026-09-19 and serves 200 with
+	     Content-Type application/json and no redirect, which is exactly what
+	     Apple requires; this is the client half that was never added.
+	     Android already claims the same three paths (/JoinInvite,
+	     /VehicleTransfer, /Notifications) via autoVerify intent-filters.
+	     Apex only: www.car-reminder.app does not resolve, so claiming it
+	     would just be a domain iOS fails to validate on every install.
+	     REQUIRES the Associated Domains capability on the App ID in the
+	     Apple Developer portal. Without it the profile lacks the
+	     entitlement and codesign FAILS the build. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:car-reminder.app</string>
+	</array>
 </dict>
 </plist>

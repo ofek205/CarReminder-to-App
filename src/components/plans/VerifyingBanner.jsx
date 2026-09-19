@@ -14,6 +14,13 @@
  *   the most reassuring message on the screen. Sticky means it survives
  *   scrolling, which is exactly when a worried user starts scrolling.
  *
+ * ⚠️ THE NEGATIVE MARGINS MIRROR PageShell'S PADDING (`px-4 sm:px-6`) AND MUST
+ *   KEEP MIRRORING IT. The first version used `-mx-4` alone, which cancels
+ *   only the mobile padding: from 640px up the banner sat 8px inside the
+ *   content on each side and read as a misalignment rather than a bleed. It
+ *   went unnoticed because it was only ever rendered in /dev/components,
+ *   which pads differently from the screen it actually ships on.
+ *
  * @see docs/ux-play-billing-purchase.md §5 state 6
  */
 
@@ -26,7 +33,7 @@ export default function VerifyingBanner({ pending = false }) {
     <div
       role="status"
       aria-live="polite"
-      className="sticky top-0 z-20 -mx-4 mb-4 px-4 py-3 overflow-hidden"
+      className="sticky top-0 z-20 -mx-4 sm:-mx-6 mb-4 px-4 sm:px-6 py-3 overflow-hidden"
       style={{
         background: C.successSubtle,
         borderTop: `1px solid ${C.successBright}`,
