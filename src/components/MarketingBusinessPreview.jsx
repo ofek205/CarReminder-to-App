@@ -5,34 +5,45 @@ import {
   Receipt, Settings, ShieldCheck, TriangleAlert,
 } from 'lucide-react';
 
+/**
+ * `path` is the REAL route each screenshot was taken on, and it drives the
+ * address bar in the browser chrome below.
+ *
+ * It used to read `app.car-reminder.co.il`, a domain that was never ours and
+ * does not resolve. The obvious repair, hardcoding `car-reminder.app`, is also
+ * wrong: that address serves the marketing site, so the bar would promise a
+ * business console to anyone who typed what it showed. And a single frozen
+ * path cannot be honest either, because this shell swaps between six screens
+ * while the bar stays put, so one route would misdescribe the other five.
+ */
 const views = [
   {
-    id: 'overview', label: 'לוח בקרה', icon: LayoutDashboard,
+    id: 'overview', label: 'לוח בקרה', icon: LayoutDashboard, path: '/BusinessDashboard',
     image: '/marketing/business-dashboard-real.webp',
     alt: 'לוח הבקרה העסקי של Car Reminder עם מצב הצי, משימות, הוצאות והתראות',
   },
   {
-    id: 'fleet', label: 'צי הרכבים', icon: Car,
+    id: 'fleet', label: 'צי הרכבים', icon: Car, path: '/Fleet',
     image: '/marketing/business-fleet-real.webp',
     alt: 'מסך צי הרכבים העסקי של Car Reminder עם חיפוש, מיון וסינון',
   },
   {
-    id: 'expenses', label: 'הוצאות וסריקה', icon: Receipt,
+    id: 'expenses', label: 'הוצאות וסריקה', icon: Receipt, path: '/Expenses',
     image: '/marketing/business-expense-real.webp',
     alt: 'מסך הוספת הוצאה לרכב עם צילום וסריקת קבלה במערכת העסקית',
   },
   {
-    id: 'import', label: 'ייבוא צי', icon: FileSpreadsheet,
+    id: 'import', label: 'ייבוא צי', icon: FileSpreadsheet, path: '/BulkAddVehicles',
     image: '/marketing/business-bulk-import-real.webp',
     alt: 'מסך ייבוא מרובה של רכבים מקובץ אקסל או מרשימת מספרי רישוי',
   },
   {
-    id: 'add', label: 'הוספת כלי', icon: CirclePlus,
+    id: 'add', label: 'הוספת כלי', icon: CirclePlus, path: '/AddVehicle',
     image: '/marketing/business-add-vehicle-real.webp',
     alt: 'מסך הוספת כלי תחבורה למערכת העסקית לפי סוג כלי ומספר רישוי',
   },
   {
-    id: 'accidents', label: 'תאונות ודוחות', icon: TriangleAlert,
+    id: 'accidents', label: 'תאונות ודוחות', icon: TriangleAlert, path: '/Accidents',
     image: '/marketing/business-accident-real.webp',
     alt: 'מסך צפייה, הורדה ושיתוף של דוח תאונה במערכת העסקית',
   },
@@ -73,7 +84,7 @@ export default function MarketingBusinessPreview() {
   return <figure className="cm-biz-preview" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
     <div className="cm-biz-device-stage">
       <div className="cm-biz-browser">
-        <div className="cm-biz-browser-bar"><span /><span /><span /><b>Car Reminder</b><em>app.car-reminder.co.il</em></div>
+        <div className="cm-biz-browser-bar"><span /><span /><span /><b>Car Reminder</b><em>car-reminder.app{currentView.path}</em></div>
         <div className="cm-biz-browser-shell"><main key={views[active].id}>{scene}</main></div>
       </div>
       <DriverPhone />

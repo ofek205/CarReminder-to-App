@@ -20,7 +20,9 @@ import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { hapticFeedback } from "@/lib/capacitor";
-import { reportUserError } from "@/lib/crashReporter";
+import { reportError, reportUserError } from "@/lib/crashReporter";
+import { deleteFile } from "@/lib/supabaseStorage";
+import { documentStoragePaths } from "@/lib/documentFiles";
 import useFileUpload from "@/hooks/useFileUpload";
 import { getSignedUrl } from "@/hooks/useSignedUrl";
 import EmptyState from "../components/shared/EmptyState";
@@ -1602,11 +1604,58 @@ function AuthDocuments({ vehicleIdParam }) {
     document.body.removeChild(a);
   };
 
+  // Remove the files a just-deleted document pointed at.
+  //
+  // Fire-and-forget by design, and it runs only AFTER the row is gone. Both
+  // halves matter: deleting the files first would, if the row delete then
+  // failed, leave a document the user can still see and open but whose files
+  // 404, trading a leak the user never notices for corruption they do. And
+  // never awaiting or throwing means a Storage hiccup cannot turn a delete
+  // that genuinely succeeded into an error the user is told to retry, which
+  // is the same posture as the receipt cleanup in Expenses.jsx.
+  const sweepDocFiles = (id, paths) => {
+    if (paths.length === 0) return;
+    Promise.allSettled(paths.map(p => deleteFile(p)))
+      .then(results => {
+        // allSettled preserves input order, so the index still identifies
+        // which path each result belongs to.
+        const failed = results
+          .map((r, i) => ({ reason: r.reason, path: paths[i], ok: r.status === 'fulfilled' }))
+          .filter(r => !r.ok);
+        if (failed.length === 0) return;
+        // Nothing to tell the user: the delete they asked for did happen, and
+        // a leftover file is not something they can act on. It is still a real
+        // cost that has to reach whoever maintains the bucket, so it is
+        // reported with visible:false. reportUserError would file it under
+        // "שגיאות שמשתמשים ראו", where it would be a false positive.
+        reportError('storage_orphan', failed[0].reason, {
+          action: 'doc_delete_file_cleanup',
+          severity: 'warning',
+          visible: false,
+          documentId: id,
+          attempted: paths.length,
+          // The keys, not just a count: a report saying "one file leaked"
+          // cannot be acted on, and these objects are now referenced by no
+          // row, so this log is the only remaining record of where they are.
+          orphanedPaths: failed.map(r => r.path),
+        });
+      })
+      .catch(() => {});
+  };
+
   const handleDelete = async (id) => {
+    // Read the paths BEFORE the delete: invalidateQueries drops the row from
+    // the cache, and the row is the only client-side record of which bucket
+    // keys belong to this document.
+    const paths = documentStoragePaths(documents.find(d => d.id === id));
     try {
       await dal.run('document.delete', { id });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       toast.success('הפריט נמחק בהצלחה');
+      // Without this the row goes and the file stays in the bucket forever:
+      // unreachable, listed by no query, and still paid for. Covers the extras
+      // of a multi-file document too, not just the primary.
+      sweepDocFiles(id, paths);
     } catch (err) {
       console.error('Document delete error:', err);
       toastError('שגיאה במחיקת המסמך', { action: 'doc_delete', err });
