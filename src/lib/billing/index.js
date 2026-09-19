@@ -9,25 +9,148 @@
  * @see docs/ux-play-billing-purchase.md
  */
 
+import { NativePurchases, PURCHASE_TYPE } from '@capgo/native-purchases';
 import { isAndroid, isNative } from '@/lib/capacitor';
 import { mockBackend } from './mockBackend';
+import { PurchaseOutcome } from './types';
 
-export { PurchaseOutcome } from './types';
+export { PurchaseOutcome };
 
 /**
- * ⚠️ PLACEHOLDER, AND DELIBERATELY NOT A SILENT ONE.
+ * The three Play subscription ids.
  *
- * The Play plugin is not installed: package.json carries no purchase
- * dependency, and adding one needs `npx cap sync` plus a native build, both
- * of which are Ofek's under חוק 0. Until then Android native has no backend.
+ * ⚠️ THE SERVER IS STILL THE AUTHORITY. public.iap_products maps a product id
+ * to a plan and is what grant_iap_entitlement() trusts. This list exists only
+ * because the client has to name the products before Play will price them,
+ * and an id that is not in the table simply fails to grant.
  *
- * Returning the mock here instead would be the dangerous shortcut: the app
- * would appear to sell subscriptions on a real device and take no money.
- * Returning null makes `iapReady()` false, which keeps every purchase control
- * hidden, which is the honest state.
+ * Play ids are permanent and cannot be reused, so these are effectively
+ * immutable once the products exist in the console.
+ */
+const PLAY_PRODUCT_IDS = Object.freeze(['plan_p9', 'plan_p19', 'plan_p49']);
+
+/** plan_p9 -> p9. The table is the authority; this only labels the card. */
+const planCodeOf = (productId) => String(productId || '').replace(/^plan_/, '');
+
+/**
+ * Did the user simply close the Play sheet?
+ *
+ * ⚠️ BEST EFFORT, AND THE ONE THING IN THIS FILE THAT CANNOT BE CONFIRMED
+ * WITHOUT A DEVICE. The plugin's type definitions expose no error-code enum,
+ * so a cancellation arrives as a thrown error like any other and has to be
+ * recognised from its shape. Play's own response code for it is 1
+ * (USER_CANCELED), which is what the numeric check is for.
+ *
+ * Getting this wrong in the FALSE direction is the expensive one: a
+ * cancellation misread as a failure shows "התשלום לא הושלם" to somebody who
+ * simply changed their mind. Getting it wrong the other way is harmless, a
+ * silent return to idle.
+ *
+ * 🔴 CONFIRM ON A REAL DEVICE: open the sheet, press back, and check that the
+ * screen returns to idle with no error.
+ */
+function isUserCancellation(err) {
+  const code = err?.code ?? err?.responseCode;
+  if (code === 1 || code === '1') return true;
+  return /cancel/i.test(err?.message || '');
+}
+
+/**
+ * Google Play Billing, through @capgo/native-purchases.
+ *
+ * ⚠️ WRITTEN AGAINST THE INSTALLED .d.ts, NOT THE README, AND THEY DISAGREE.
+ * The npm page states that `restorePurchases()` hands back an array of
+ * transactions. The shipped definitions declare `Promise<void>`. The method
+ * that actually returns owned purchases is `getPurchases()`, and building the
+ * restore path on the documented call would have produced a safety net that
+ * silently found nothing, every time.
  */
 function playBackend() {
-  return null;
+  return {
+    async connect() {
+      const { isBillingSupported } = await NativePurchases.isBillingSupported();
+      return isBillingSupported === true;
+    },
+
+    async listProducts() {
+      const { products } = await NativePurchases.getProducts({
+        productIdentifiers: [...PLAY_PRODUCT_IDS],
+        productType: PURCHASE_TYPE.SUBS,
+      });
+      return (products || []).map((p) => ({
+        productId: p.identifier,
+        planCode: planCodeOf(p.identifier),
+        // The store's own localised string. Never a number we format: the
+        // plugin's own docs warn that a hardcoded price is a store rejection,
+        // and a displayed price that differs from the charged one is a policy
+        // breach rather than a cosmetic bug.
+        priceFormatted: p.priceString,
+        priceCurrency: p.currencyCode,
+      }));
+    },
+
+    async purchase(productId, accountId) {
+      if (!accountId) {
+        return { outcome: PurchaseOutcome.FAILED, productId, message: 'no accountId' };
+      }
+      try {
+        const txn = await NativePurchases.purchaseProduct({
+          productIdentifier: productId,
+          productType: PURCHASE_TYPE.SUBS,
+          // The only link Play gives back. Our account_id is a uuid, which is
+          // exactly what Android accepts here (uuid, max 64 chars).
+          appAccountToken: accountId,
+          // ⚠️ DEFAULTS TO TRUE, AND TRUE WOULD BE WRONG FOR US.
+          // Auto-acknowledging marks the purchase as honoured before our
+          // server has seen the token. Play refunds an unacknowledged
+          // purchase after three days, and that refund is the user's
+          // protection if our grant never lands. Acknowledging up front
+          // throws it away. We acknowledge after the entitlement is written.
+          autoAcknowledgePurchases: false,
+        });
+        return {
+          outcome: PurchaseOutcome.PURCHASED,
+          productId,
+          purchaseToken: txn?.purchaseToken,
+        };
+      } catch (err) {
+        if (isUserCancellation(err)) {
+          return { outcome: PurchaseOutcome.CANCELLED, productId };
+        }
+        return { outcome: PurchaseOutcome.FAILED, productId, message: err?.message };
+      }
+    },
+
+    async queryOwnedPurchases() {
+      const { purchases } = await NativePurchases.getPurchases({
+        productType: PURCHASE_TYPE.SUBS,
+        onlyCurrentEntitlements: true,
+      });
+      // ⚠️ NO LOCAL ACTIVE/EXPIRED FILTER BEYOND THAT FLAG, ON PURPOSE.
+      // `isActive` and `willCancel` are documented as iOS-only and always
+      // null on Android, so the device genuinely cannot tell a refunded
+      // subscription from a live one. The plugin's own guidance is to use the
+      // Play Developer API, which is what our verification step does. So
+      // every token here goes to the server and the server decides; a
+      // refunded purchase simply fails verification and grants nothing.
+      return (purchases || []).map((t) => ({
+        outcome: PurchaseOutcome.OWNED,
+        productId: t.productIdentifier ?? t.productId,
+        purchaseToken: t.purchaseToken,
+      }));
+    },
+
+    async acknowledge(purchaseToken) {
+      if (!purchaseToken) return false;
+      await NativePurchases.acknowledgePurchase({ purchaseToken });
+      return true;
+    },
+  };
+}
+
+/** Opens Play's own subscription page. /MyPlan routes here for iap_google. */
+export async function openStoreSubscriptionManagement() {
+  await NativePurchases.manageSubscriptions();
 }
 
 /**
