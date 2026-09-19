@@ -4,6 +4,7 @@ import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,25 +72,35 @@ export default function RepairTypes() {
       is_active: true,
     };
 
-    if (editingType) {
-      await dal.run('repairType.update', { ...data, id: editingType.id });
-    } else {
-      await dal.run('repairType.create', data);
+    try {
+      if (editingType) {
+        await dal.run('repairType.update', { ...data, id: editingType.id });
+      } else {
+        await dal.run('repairType.create', data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['repair-types'] });
+      // Only close on success: a failed save keeps the dialog open so the
+      // user can retry without retyping.
+      setShowDialog(false);
+    } catch (e) {
+      toastError(`שמירה נכשלה: ${e.message}`, { action: 'repair_type_save', err: e });
+    } finally {
+      setSaving(false);
     }
-
-    queryClient.invalidateQueries({ queryKey: ['repair-types'] });
-    setShowDialog(false);
-    setSaving(false);
   };
 
   const handleDelete = async (type) => {
     // Check if there are logs using this type, then open the matching
     // in-app confirm dialog (soft-deactivate vs hard-delete).
-    const logs = await db.repair_logs.filter({ repair_type_id: type.id });
-    if (logs.length > 0) {
-      setConfirmDeactivate({ type, count: logs.length });
-    } else {
-      setConfirmDeleteType(type);
+    try {
+      const logs = await db.repair_logs.filter({ repair_type_id: type.id });
+      if (logs.length > 0) {
+        setConfirmDeactivate({ type, count: logs.length });
+      } else {
+        setConfirmDeleteType(type);
+      }
+    } catch (e) {
+      toastError(`בדיקת התיקונים המשויכים נכשלה: ${e.message}`, { action: 'repair_type_delete_check', err: e });
     }
   };
 
@@ -98,8 +109,12 @@ export default function RepairTypes() {
     const target = confirmDeactivate?.type;
     setConfirmDeactivate(null);
     if (!target) return;
-    await dal.run('repairType.update', { id: target.id, is_active: false });
-    queryClient.invalidateQueries({ queryKey: ['repair-types'] });
+    try {
+      await dal.run('repairType.update', { id: target.id, is_active: false });
+      queryClient.invalidateQueries({ queryKey: ['repair-types'] });
+    } catch (e) {
+      toastError(`ההשבתה נכשלה: ${e.message}`, { action: 'repair_type_deactivate', err: e });
+    }
   };
 
   // Hard delete — no logs reference this type.
@@ -107,8 +122,12 @@ export default function RepairTypes() {
     const target = confirmDeleteType;
     setConfirmDeleteType(null);
     if (!target) return;
-    await dal.run('repairType.delete', { id: target.id });
-    queryClient.invalidateQueries({ queryKey: ['repair-types'] });
+    try {
+      await dal.run('repairType.delete', { id: target.id });
+      queryClient.invalidateQueries({ queryKey: ['repair-types'] });
+    } catch (e) {
+      toastError(`מחיקה נכשלה: ${e.message}`, { action: 'repair_type_delete', err: e });
+    }
   };
 
   if (isGuest) return (
