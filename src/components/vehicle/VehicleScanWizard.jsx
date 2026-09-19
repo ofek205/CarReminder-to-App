@@ -16,6 +16,7 @@ import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import useFileUpload from '@/hooks/useFileUpload';
 import useAccountPlan from '@/hooks/useAccountPlan';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
 import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
@@ -74,6 +75,44 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const [capKind, setCapKind] = useState('personal');
   const { plan: accountPlan } = useAccountPlan();
   const capacity = useVehicleCapacity();
+
+  // The scanned licence goes to Storage like every other file in the app.
+  // Until now this wizard wrote the whole image into documents.file_url as
+  // base64 — the Base44-era pattern useFileUpload exists to replace — so a
+  // 3MB photo became a ~4MB text column that the documents list re-fetched
+  // on every load, for every row, forever.
+  //
+  // No vehicleId at hook time: in 'new' mode the vehicle does not exist
+  // yet when the file is picked. `{accountId}/uploads` is the path the
+  // Storage policy already accepts for exactly that case, and every member
+  // of the account can read it.
+  const { upload: uploadScanDoc } = useFileUpload({ accountId, userId, mode: 'doc' });
+
+  /**
+   * File the scanned licence as a document on `vehicleId`.
+   *
+   * Uploads first and writes the row only if that succeeded, so a failed
+   * upload leaves no row rather than an empty one — the same rule the
+   * renewal dialog now follows. Both callers already own the main action
+   * (the vehicle was created or updated); this is best-effort on top, and
+   * a failure here must never undo it.
+   */
+  const saveScanAsDocument = async (vehicleId) => {
+    if (!uploadedFile || !vehicleId || !accountId) return;
+    try {
+      const { fileUrl: url, storagePath } = await uploadScanDoc(uploadedFile);
+      await dal.run('document.create', {
+        account_id: accountId,
+        vehicle_id: vehicleId,
+        document_type: 'רישיון רכב',
+        title: 'רישיון רכב (סרוק)',
+        file_url: url,
+        storage_path: storagePath,
+      });
+    } catch (docErr) {
+      console.warn('Scan document save skipped:', docErr?.message);
+    }
+  };
   // completion fields (not from license)
   const [completion, setCompletion] = useState({
     nickname: '',
@@ -368,17 +407,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       const vehicle = await dal.run('vehicle.create', data);
 
       // Save document
-      if (fileUrl && vehicle?.id) {
-        try {
-          await dal.run('document.create', {
-            account_id: accountId,
-            vehicle_id: vehicle.id,
-            document_type: 'רישיון רכב',
-            title: 'רישיון רכב (סרוק)',
-            file_url: fileUrl,
-          });
-        } catch (docErr) { console.warn('Document save skipped:', docErr?.message); }
-      }
+      await saveScanAsDocument(vehicle?.id);
 
       setSaving(false);
       handleClose();
@@ -420,17 +449,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       if (Object.keys(vehicleUpdate).length > 0) {
         await dal.run('vehicle.update', { ...vehicleUpdate, id: selectedVehicleId });
       }
-      if (fileUrl) {
-        try {
-          await dal.run('document.create', {
-            account_id: accountId,
-            vehicle_id: selectedVehicleId,
-            document_type: 'רישיון רכב',
-            title: 'רישיון רכב (סרוק)',
-            file_url: fileUrl,
-          });
-        } catch (docErr) { console.warn('Document save skipped:', docErr?.message); }
-      }
+      await saveScanAsDocument(selectedVehicleId);
       setSaving(false);
       if (onUpdateVehicle) onUpdateVehicle(selectedVehicleId);
       handleClose();
