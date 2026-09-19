@@ -130,10 +130,20 @@ export async function uploadScanFile({ file, userId }) {
   return uploadToBucket(file, `scans/${userId}`);
 }
 
-/** Delete a file by its storage_path. Silent on 404 so repeated deletes are safe. */
+/**
+ * Delete a file by its storage_path. Silent on 404 so repeated deletes are safe.
+ *
+ * Rejects when Storage refuses the removal. supabase-js reports that in the
+ * returned envelope rather than by throwing, so without this check the helper
+ * could not fail at all, and a caller that wants to notice a file it failed to
+ * clean up (see sweepDocFiles in Documents.jsx) would have had nothing to
+ * observe. Every existing call site already treats cleanup as best-effort and
+ * catches, so this widens what can be REPORTED, not what can break.
+ */
 export async function deleteFile(storage_path) {
   if (!storage_path) return;
-  await supabase.storage.from(BUCKET).remove([storage_path]);
+  const { error } = await supabase.storage.from(BUCKET).remove([storage_path]);
+  if (error) throw error;
 }
 
 /**
