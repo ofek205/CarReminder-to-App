@@ -67,7 +67,30 @@ export function isSafeFileUrl(url) {
  * The Blob URL is short-lived; we revoke it after 60 seconds, which is more
  * than enough for the new tab to load and decode the file.
  */
-function openDataUrlAsBlob(url) {
+// Extension for the file we hand to the OS. iOS picks which apps may open a
+// shared file from its extension, not from the MIME type, so a PDF written
+// as `document` offers the user almost nothing to open it with.
+//
+// ⚠️ MUST cover every entry in ALLOWED_DATA_URL_MIMES above. Anything missing
+// falls through to .bin, and a .bin on iOS offers the user no app that can
+// open it — the file arrives but is useless.
+const MIME_EXT = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+};
+
+function nameForDataUrl(fileName, mime) {
+  const ext = MIME_EXT[mime] || 'bin';
+  const base = (fileName || 'document').replace(/[\\/:*?"<>|]/g, '').trim() || 'document';
+  return new RegExp('\\.' + ext + '$', 'i').test(base) ? base : base + '.' + ext;
+}
+
+async function openDataUrlAsBlob(url, fileName) {
   const match = /^data:([^;]+);base64,(.+)$/.exec(url);
   if (!match) return false;
   const [, mime, b64] = match;
@@ -76,6 +99,33 @@ function openDataUrlAsBlob(url) {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
     const blob = new Blob([bytes], { type: mime });
+
+    // ⚠️ NATIVE MUST NOT REACH window.open BELOW. This branch used to be
+    // web-only by assumption — the comment on openFileUrlSafely still said
+    // "no data: URLs flow through native today" — but legacy documents are
+    // stored as a base64 data: URI in documents.file_url with no
+    // storage_path, and those do reach here on a phone.
+    //
+    // On iOS, window.open returns null inside WKWebView. So the line below
+    // returned false, openFileUrlSafely returned false, and the user got
+    // "לא ניתן לפתוח את הקובץ" for every document saved before storage
+    // paths existed. Newer documents were unaffected, because they resolve
+    // to an https signed URL and take the Capacitor Browser path instead.
+    //
+    // A blob: URL is no better than a data: URL here: WKWebView will not
+    // navigate to either from script. The file has to reach the OS as a
+    // file, which is what deliverFile does (Filesystem + Share).
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { deliverFile } = await import('@/services/vehicleHistory/deliverFile');
+        await deliverFile({ blob, fileName: nameForDataUrl(fileName, mime) });
+        return true;
+      }
+    } catch (err) {
+      console.warn('[security] native data: delivery failed, trying the web path:', err);
+    }
+
     const blobUrl = URL.createObjectURL(blob);
     const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
     // 60s gives the new tab time to load + render before we revoke.
@@ -102,15 +152,20 @@ function openDataUrlAsBlob(url) {
  *   though the Supabase signed URL is perfectly valid HTTPS.
  * - On web, opens with `window.open(... noopener,noreferrer)` to
  *   prevent reverse tabnabbing.
- * - Converts whitelisted data: URLs to Blob URLs (modern browsers
- *   refuse top-level navigation to data: URLs since 2017). Web only —
- *   no data: URLs flow through native today.
+ * - Converts whitelisted data: URLs to Blob URLs on the web (browsers have
+ *   refused top-level navigation to data: URLs since 2017), and hands them to
+ *   the OS as a real file on native.
+ *
+ *   ⚠️ This used to say "Web only — no data: URLs flow through native today",
+ *   and that was wrong: legacy documents carry a base64 data: URI in
+ *   documents.file_url, so every one of them took this path on a phone and
+ *   failed silently. See the note inside openDataUrlAsBlob.
  *
  * Returns a Promise<boolean>. true = the open call succeeded; false =
  * URL was rejected (untrusted, malformed data:) or the browser blocked
  * the open (popup blocker, native plugin error).
  */
-export async function openFileUrlSafely(url, preOpened = null) {
+export async function openFileUrlSafely(url, preOpened = null, fileName = null) {
   const discard = () => { try { preOpened?.close(); } catch { /* noop */ } };
 
   if (!isSafeFileUrl(url)) {
@@ -120,7 +175,7 @@ export async function openFileUrlSafely(url, preOpened = null) {
   }
   if (typeof url === 'string' && url.startsWith('data:')) {
     discard();
-    return openDataUrlAsBlob(url);
+    return openDataUrlAsBlob(url, fileName);
   }
   // Native path — Capacitor Browser plugin. Dynamic import so the
   // web bundle doesn't pay the plugin's parse cost, and so a missing

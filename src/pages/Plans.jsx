@@ -14,7 +14,7 @@
  * deploy, and a hardcoded number becomes a lie the moment that happens.
  *
  * Two card genres, because §1.1 describes two engines and they are not
- * equals. Free and the entry paid tier get FULL cards carrying all five
+ * equals. Free and the entry paid tier get FULL cards carrying all six
  * dimensions in identical positions, because free vs paid is the decision
  * almost everyone actually makes. The tiers above get COMPACT cards carrying
  * only the delta, because they are feature-identical and differ solely in
@@ -34,7 +34,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Car, Sparkles, ScanLine, Share2, Briefcase, CornerDownLeft } from 'lucide-react';
+import { Car, FileText, Sparkles, ScanLine, Share2, Briefcase, CornerDownLeft } from 'lucide-react';
 import PageShell from '@/components/business/system/PageShell';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { createPageUrl } from '@/utils';
@@ -128,24 +128,25 @@ export function unavailableCopy(surface) {
 }
 
 /**
- * The five dimensions, in the order this account should read them.
+ * The six dimensions, in the order this account should read them.
  *
  * ⚠️ THE ORDER IS DERIVED, NOT FIXED. For a business account sitting on free,
  * "ממשק עסקי: לא כלול" is the single most consequential line on the screen,
- * and as the fifth row it is the last thing read. It moves to the top for
+ * and as the last row it is the last thing read. It moves to the top for
  * them. Both full cards reorder together, so the vertical alignment that
  * makes the comparison readable is never broken.
  */
 export function rowOrder(isBusiness) {
   return isBusiness
-    ? ['business', 'vehicles', 'ai', 'plate', 'shares']
-    : ['vehicles', 'ai', 'plate', 'shares', 'business'];
+    ? ['business', 'vehicles', 'documents', 'ai', 'plate', 'shares']
+    : ['vehicles', 'documents', 'ai', 'plate', 'shares', 'business'];
 }
 
 /** One dimension's value for one plan. Every branch goes through the helpers. */
 export function rowValue(key, plan) {
   if (!plan) return '';
   if (key === 'vehicles') return capLabel(plan.maxVehicles);
+  if (key === 'documents') return capLabel(plan.maxDocuments);
   if (key === 'ai')       return advisorLabel(plan);
   if (key === 'plate')    return monthlyLabel(plan.plateChecksPerMonth);
   if (key === 'shares')   return capLabel(plan.maxShares);
@@ -195,7 +196,8 @@ export function higherTiers(paid, featured) {
 // ── presentation ────────────────────────────────────────────────────────
 
 const ROW_META = {
-  vehicles: { icon: Car,       label: 'כלי תחבורה' },
+  vehicles:  { icon: Car,      label: 'כלי תחבורה' },
+  documents: { icon: FileText, label: 'מסמכים שמורים' },
   ai:       { icon: Sparkles,  label: 'מומחה AI' },
   plate:    { icon: ScanLine,  label: 'בדיקת רכב' },
   shares:   { icon: Share2,    label: 'שיתוף רכבים' },
@@ -220,7 +222,7 @@ function Badge({ children, muted }) {
 }
 
 /**
- * A full plan card: the five dimensions as a definition list.
+ * A full plan card: the six dimensions as a definition list.
  *
  * `accent` colours the VALUES, not the card chrome. That is the whole
  * mechanism that gives the paid tier its lift without a badge and without

@@ -1,0 +1,3241 @@
+{
+  "inspectedDate": "2026-09-12",
+  "evidence": "Static local source only. Comments, dynamic calls, composed routes and SQL application order require manual verification. No production data was read.",
+  "counts": {
+    "literalRoutes": 73,
+    "adminRoutes": 14,
+    "adminSourceFiles": 29,
+    "dalCommands": 128,
+    "adminCommands": 17,
+    "emailAdminCommands": 7,
+    "edgeFunctions": 18,
+    "rootSqlFiles": 222,
+    "repeatedSqlFunctionNames": 97
+  },
+  "routes": [
+    {
+      "name": "Accidents",
+      "file": "src/pages.config.js",
+      "line": 129
+    },
+    {
+      "name": "AccountSettings",
+      "file": "src/pages.config.js",
+      "line": 130
+    },
+    {
+      "name": "demo",
+      "file": "src/pages.config.js",
+      "line": 132
+    },
+    {
+      "name": "AiAssistant",
+      "file": "src/pages.config.js",
+      "line": 133
+    },
+    {
+      "name": "AddAccident",
+      "file": "src/pages.config.js",
+      "line": 134
+    },
+    {
+      "name": "Auth",
+      "file": "src/pages.config.js",
+      "line": 135
+    },
+    {
+      "name": "Community",
+      "file": "src/pages.config.js",
+      "line": 136
+    },
+    {
+      "name": "Contact",
+      "file": "src/pages.config.js",
+      "line": 137
+    },
+    {
+      "name": "DeleteAccount",
+      "file": "src/pages.config.js",
+      "line": 138
+    },
+    {
+      "name": "PrivacyPolicy",
+      "file": "src/pages.config.js",
+      "line": 139
+    },
+    {
+      "name": "TermsOfService",
+      "file": "src/pages.config.js",
+      "line": 140
+    },
+    {
+      "name": "AddVehicle",
+      "file": "src/pages.config.js",
+      "line": 141
+    },
+    {
+      "name": "AdminReviews",
+      "file": "src/pages.config.js",
+      "line": 142
+    },
+    {
+      "name": "AdminDashboard",
+      "file": "src/pages.config.js",
+      "line": 143
+    },
+    {
+      "name": "AdminHome",
+      "file": "src/pages.config.js",
+      "line": 144
+    },
+    {
+      "name": "Dashboard",
+      "file": "src/pages.config.js",
+      "line": 145
+    },
+    {
+      "name": "DemoVehicleDetail",
+      "file": "src/pages.config.js",
+      "line": 146
+    },
+    {
+      "name": "Documents",
+      "file": "src/pages.config.js",
+      "line": 147
+    },
+    {
+      "name": "EditVehicle",
+      "file": "src/pages.config.js",
+      "line": 148
+    },
+    {
+      "name": "FindGarage",
+      "file": "src/pages.config.js",
+      "line": 149
+    },
+    {
+      "name": "JoinInvite",
+      "file": "src/pages.config.js",
+      "line": 150
+    },
+    {
+      "name": "VehicleTransfer",
+      "file": "src/pages.config.js",
+      "line": 151
+    },
+    {
+      "name": "MaintenanceTemplates",
+      "file": "src/pages.config.js",
+      "line": 152
+    },
+    {
+      "name": "Notifications",
+      "file": "src/pages.config.js",
+      "line": 153
+    },
+    {
+      "name": "ReminderSettingsPage",
+      "file": "src/pages.config.js",
+      "line": 154
+    },
+    {
+      "name": "AiServices",
+      "file": "src/pages.config.js",
+      "line": 155
+    },
+    {
+      "name": "MyPlan",
+      "file": "src/pages.config.js",
+      "line": 156
+    },
+    {
+      "name": "Plans",
+      "file": "src/pages.config.js",
+      "line": 157
+    },
+    {
+      "name": "RepairTypes",
+      "file": "src/pages.config.js",
+      "line": 158
+    },
+    {
+      "name": "UserProfile",
+      "file": "src/pages.config.js",
+      "line": 159
+    },
+    {
+      "name": "VehicleDetail",
+      "file": "src/pages.config.js",
+      "line": 160
+    },
+    {
+      "name": "Vehicles",
+      "file": "src/pages.config.js",
+      "line": 161
+    },
+    {
+      "name": "Settings",
+      "file": "src/pages.config.js",
+      "line": 162
+    },
+    {
+      "name": "EmailCenter",
+      "file": "src/pages.config.js",
+      "line": 163
+    },
+    {
+      "name": "NotificationPreferences",
+      "file": "src/pages.config.js",
+      "line": 164
+    },
+    {
+      "name": "ChecklistHub",
+      "file": "src/pages.config.js",
+      "line": 165
+    },
+    {
+      "name": "Checklist",
+      "file": "src/pages.config.js",
+      "line": 166
+    },
+    {
+      "name": "ChecklistEditor",
+      "file": "src/pages.config.js",
+      "line": 167
+    },
+    {
+      "name": "ChecklistHistory",
+      "file": "src/pages.config.js",
+      "line": 168
+    },
+    {
+      "name": "AdminAiSettings",
+      "file": "src/pages.config.js",
+      "line": 169
+    },
+    {
+      "name": "AdminAiUsage",
+      "file": "src/pages.config.js",
+      "line": 170
+    },
+    {
+      "name": "AdminAi",
+      "file": "src/pages.config.js",
+      "line": 171
+    },
+    {
+      "name": "CreateBusinessWorkspace",
+      "file": "src/pages.config.js",
+      "line": 172
+    },
+    {
+      "name": "Routes",
+      "file": "src/pages.config.js",
+      "line": 173
+    },
+    {
+      "name": "CreateRoute",
+      "file": "src/pages.config.js",
+      "line": 174
+    },
+    {
+      "name": "RouteDetail",
+      "file": "src/pages.config.js",
+      "line": 175
+    },
+    {
+      "name": "FleetMap",
+      "file": "src/pages.config.js",
+      "line": 176
+    },
+    {
+      "name": "ActivityLog",
+      "file": "src/pages.config.js",
+      "line": 177
+    },
+    {
+      "name": "Expenses",
+      "file": "src/pages.config.js",
+      "line": 178
+    },
+    {
+      "name": "MyExpenses",
+      "file": "src/pages.config.js",
+      "line": 179
+    },
+    {
+      "name": "Reports",
+      "file": "src/pages.config.js",
+      "line": 180
+    },
+    {
+      "name": "Drivers",
+      "file": "src/pages.config.js",
+      "line": 181
+    },
+    {
+      "name": "DriverDetail",
+      "file": "src/pages.config.js",
+      "line": 184
+    },
+    {
+      "name": "AdminBusinessRequests",
+      "file": "src/pages.config.js",
+      "line": 185
+    },
+    {
+      "name": "AdminPlans",
+      "file": "src/pages.config.js",
+      "line": 186
+    },
+    {
+      "name": "AdminAlerts",
+      "file": "src/pages.config.js",
+      "line": 187
+    },
+    {
+      "name": "AdminUsers",
+      "file": "src/pages.config.js",
+      "line": 188
+    },
+    {
+      "name": "AdminAuditLog",
+      "file": "src/pages.config.js",
+      "line": 189
+    },
+    {
+      "name": "AdminViewSessions",
+      "file": "src/pages.config.js",
+      "line": 190
+    },
+    {
+      "name": "AdminHealth",
+      "file": "src/pages.config.js",
+      "line": 191
+    },
+    {
+      "name": "AdminAnalytics",
+      "file": "src/pages.config.js",
+      "line": 192
+    },
+    {
+      "name": "Fleet",
+      "file": "src/pages.config.js",
+      "line": 193
+    },
+    {
+      "name": "BusinessDashboard",
+      "file": "src/pages.config.js",
+      "line": 194
+    },
+    {
+      "name": "BusinessSettings",
+      "file": "src/pages.config.js",
+      "line": 195
+    },
+    {
+      "name": "MyVehicles",
+      "file": "src/pages.config.js",
+      "line": 196
+    },
+    {
+      "name": "BulkAddVehicles",
+      "file": "src/pages.config.js",
+      "line": 197
+    },
+    {
+      "name": "Team",
+      "file": "src/pages.config.js",
+      "line": 198
+    },
+    {
+      "name": "TeamManagement",
+      "file": "src/pages.config.js",
+      "line": 199
+    },
+    {
+      "name": "DrivingLog",
+      "file": "src/pages.config.js",
+      "line": 200
+    },
+    {
+      "name": "vehicle-check",
+      "file": "src/pages.config.js",
+      "line": 201
+    },
+    {
+      "name": "SafetyReminder",
+      "file": "src/pages.config.js",
+      "line": 202
+    },
+    {
+      "name": "Forms",
+      "file": "src/pages.config.js",
+      "line": 203
+    },
+    {
+      "name": "dev/components",
+      "file": "src/pages.config.js",
+      "line": 209
+    }
+  ],
+  "adminRoutes": [
+    {
+      "name": "AdminDashboard",
+      "file": "src/pages.config.js",
+      "line": 143
+    },
+    {
+      "name": "AdminHome",
+      "file": "src/pages.config.js",
+      "line": 144
+    },
+    {
+      "name": "EmailCenter",
+      "file": "src/pages.config.js",
+      "line": 163
+    },
+    {
+      "name": "AdminAiSettings",
+      "file": "src/pages.config.js",
+      "line": 169
+    },
+    {
+      "name": "AdminAiUsage",
+      "file": "src/pages.config.js",
+      "line": 170
+    },
+    {
+      "name": "AdminAi",
+      "file": "src/pages.config.js",
+      "line": 171
+    },
+    {
+      "name": "AdminBusinessRequests",
+      "file": "src/pages.config.js",
+      "line": 185
+    },
+    {
+      "name": "AdminPlans",
+      "file": "src/pages.config.js",
+      "line": 186
+    },
+    {
+      "name": "AdminAlerts",
+      "file": "src/pages.config.js",
+      "line": 187
+    },
+    {
+      "name": "AdminUsers",
+      "file": "src/pages.config.js",
+      "line": 188
+    },
+    {
+      "name": "AdminAuditLog",
+      "file": "src/pages.config.js",
+      "line": 189
+    },
+    {
+      "name": "AdminViewSessions",
+      "file": "src/pages.config.js",
+      "line": 190
+    },
+    {
+      "name": "AdminHealth",
+      "file": "src/pages.config.js",
+      "line": 191
+    },
+    {
+      "name": "AdminAnalytics",
+      "file": "src/pages.config.js",
+      "line": 192
+    }
+  ],
+  "commands": [
+    {
+      "name": "share.byEmail",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 27
+    },
+    {
+      "name": "share.revoke",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 35
+    },
+    {
+      "name": "share.updateRole",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 40
+    },
+    {
+      "name": "share.leave",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 46
+    },
+    {
+      "name": "share.accept",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 51
+    },
+    {
+      "name": "member.inviteByEmail",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 57
+    },
+    {
+      "name": "member.redeemInvite",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 66
+    },
+    {
+      "name": "member.remove",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 71
+    },
+    {
+      "name": "member.changeRole",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 77
+    },
+    {
+      "name": "member.cancelInvite",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 85
+    },
+    {
+      "name": "ownership.transfer",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 94
+    },
+    {
+      "name": "businessWorkspace.request",
+      "file": "src/lib/dal/commands/access.js",
+      "line": 102
+    },
+    {
+      "name": "accident.create",
+      "file": "src/lib/dal/commands/accidents.js",
+      "line": 15
+    },
+    {
+      "name": "accident.update",
+      "file": "src/lib/dal/commands/accidents.js",
+      "line": 21
+    },
+    {
+      "name": "account.ensure",
+      "file": "src/lib/dal/commands/account.js",
+      "line": 23
+    },
+    {
+      "name": "account.claimMigrated",
+      "file": "src/lib/dal/commands/account.js",
+      "line": 31
+    },
+    {
+      "name": "account.deleteMine",
+      "file": "src/lib/dal/commands/account.js",
+      "line": 41
+    },
+    {
+      "name": "userPreferences.setLastActive",
+      "file": "src/lib/dal/commands/account.js",
+      "line": 49
+    },
+    {
+      "name": "admin.deleteVehicle",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 48
+    },
+    {
+      "name": "admin.updateVehicle",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 53
+    },
+    {
+      "name": "admin.deleteVehicles",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 59
+    },
+    {
+      "name": "admin.setAccountOwner",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 65
+    },
+    {
+      "name": "admin.deleteAccount",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 75
+    },
+    {
+      "name": "admin.deleteUserFull",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 80
+    },
+    {
+      "name": "admin.setRole",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 85
+    },
+    {
+      "name": "admin.setUserNote",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 90
+    },
+    {
+      "name": "admin.approveBusinessRequest",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 96
+    },
+    {
+      "name": "admin.denyBusinessRequest",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 104
+    },
+    {
+      "name": "admin.broadcastAppUpdate",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 113
+    },
+    {
+      "name": "admin.publishReleaseAnnouncement",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 121
+    },
+    {
+      "name": "admin.setAiProvider",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 129
+    },
+    {
+      "name": "admin.resolveBug",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 136
+    },
+    {
+      "name": "admin.popupCreate",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 142
+    },
+    {
+      "name": "admin.popupUpdate",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 147
+    },
+    {
+      "name": "admin.popupDelete",
+      "file": "src/lib/dal/commands/admin.js",
+      "line": 152
+    },
+    {
+      "name": "cap.bumpPersonal",
+      "file": "src/lib/dal/commands/cap.js",
+      "line": 26
+    },
+    {
+      "name": "cap.syncToCount",
+      "file": "src/lib/dal/commands/cap.js",
+      "line": 40
+    },
+    {
+      "name": "cap.createBusinessWorkspace",
+      "file": "src/lib/dal/commands/cap.js",
+      "line": 51
+    },
+    {
+      "name": "checklist.create",
+      "file": "src/lib/dal/commands/checklists.js",
+      "line": 18
+    },
+    {
+      "name": "checklist.update",
+      "file": "src/lib/dal/commands/checklists.js",
+      "line": 24
+    },
+    {
+      "name": "checklistRun.create",
+      "file": "src/lib/dal/commands/checklists.js",
+      "line": 30
+    },
+    {
+      "name": "checklistRun.update",
+      "file": "src/lib/dal/commands/checklists.js",
+      "line": 36
+    },
+    {
+      "name": "community.postCreate",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 31
+    },
+    {
+      "name": "community.postDelete",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 36
+    },
+    {
+      "name": "community.postUpdateBody",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 41
+    },
+    {
+      "name": "community.commentPost",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 47
+    },
+    {
+      "name": "community.commentNotify",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 56
+    },
+    {
+      "name": "community.commentCreate",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 64
+    },
+    {
+      "name": "community.likeAdd",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 70
+    },
+    {
+      "name": "community.likeRemove",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 76
+    },
+    {
+      "name": "community.reactionAdd",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 81
+    },
+    {
+      "name": "community.reactionUpdate",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 87
+    },
+    {
+      "name": "community.reactionRemove",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 94
+    },
+    {
+      "name": "community.savedAdd",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 99
+    },
+    {
+      "name": "community.savedRemove",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 105
+    },
+    {
+      "name": "community.userBlock",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 111
+    },
+    {
+      "name": "community.userUnblock",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 116
+    },
+    {
+      "name": "community.postReport",
+      "file": "src/lib/dal/commands/community.js",
+      "line": 122
+    },
+    {
+      "name": "corkNote.create",
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "line": 27
+    },
+    {
+      "name": "corkNote.update",
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "line": 35
+    },
+    {
+      "name": "corkNote.delete",
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "line": 42
+    },
+    {
+      "name": "task.create",
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "line": 49
+    },
+    {
+      "name": "task.toggleDone",
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "line": 57
+    },
+    {
+      "name": "task.delete",
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "line": 64
+    },
+    {
+      "name": "document.create",
+      "file": "src/lib/dal/commands/documents.js",
+      "line": 16
+    },
+    {
+      "name": "document.delete",
+      "file": "src/lib/dal/commands/documents.js",
+      "line": 22
+    },
+    {
+      "name": "externalDriver.create",
+      "file": "src/lib/dal/commands/drivers.js",
+      "line": 27
+    },
+    {
+      "name": "externalDriver.update",
+      "file": "src/lib/dal/commands/drivers.js",
+      "line": 32
+    },
+    {
+      "name": "externalDriver.archive",
+      "file": "src/lib/dal/commands/drivers.js",
+      "line": 37
+    },
+    {
+      "name": "driverAssignment.assignRegistered",
+      "file": "src/lib/dal/commands/drivers.js",
+      "line": 42
+    },
+    {
+      "name": "driverAssignment.assignExternal",
+      "file": "src/lib/dal/commands/drivers.js",
+      "line": 47
+    },
+    {
+      "name": "driverAssignment.end",
+      "file": "src/lib/dal/commands/drivers.js",
+      "line": 52
+    },
+    {
+      "name": "emailAdmin.setNotificationEnabled",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 18
+    },
+    {
+      "name": "emailAdmin.setTriggerEnabled",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 26
+    },
+    {
+      "name": "emailAdmin.upsertTemplate",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 34
+    },
+    {
+      "name": "emailAdmin.updateTemplate",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 42
+    },
+    {
+      "name": "emailAdmin.publishTemplate",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 48
+    },
+    {
+      "name": "emailAdmin.upsertSettings",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 54
+    },
+    {
+      "name": "emailAdmin.upsertTrigger",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 59
+    },
+    {
+      "name": "emailPrefs.setSubscription",
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "line": 66
+    },
+    {
+      "name": "expense.create",
+      "file": "src/lib/dal/commands/expenses.js",
+      "line": 22
+    },
+    {
+      "name": "expense.update",
+      "file": "src/lib/dal/commands/expenses.js",
+      "line": 28
+    },
+    {
+      "name": "expense.delete",
+      "file": "src/lib/dal/commands/expenses.js",
+      "line": 34
+    },
+    {
+      "name": "maintenance.create",
+      "file": "src/lib/dal/commands/maintenance.js",
+      "line": 17
+    },
+    {
+      "name": "maintenance.update",
+      "file": "src/lib/dal/commands/maintenance.js",
+      "line": 46
+    },
+    {
+      "name": "maintenance.delete",
+      "file": "src/lib/dal/commands/maintenance.js",
+      "line": 62
+    },
+    {
+      "name": "maintPref.create",
+      "file": "src/lib/dal/commands/maintenance.js",
+      "line": 68
+    },
+    {
+      "name": "maintPref.update",
+      "file": "src/lib/dal/commands/maintenance.js",
+      "line": 74
+    },
+    {
+      "name": "maintPref.delete",
+      "file": "src/lib/dal/commands/maintenance.js",
+      "line": 80
+    },
+    {
+      "name": "notification.vehicleChange",
+      "file": "src/lib/dal/commands/notifications.js",
+      "line": 19
+    },
+    {
+      "name": "appNotification.markRead",
+      "file": "src/lib/dal/commands/notifications.js",
+      "line": 32
+    },
+    {
+      "name": "profile.create",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 20
+    },
+    {
+      "name": "profile.update",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 26
+    },
+    {
+      "name": "reminderSettings.create",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 32
+    },
+    {
+      "name": "reminderSettings.update",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 38
+    },
+    {
+      "name": "reminderSnooze.upsert",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 48
+    },
+    {
+      "name": "reminderSnooze.delete",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 59
+    },
+    {
+      "name": "notificationLog.create",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 65
+    },
+    {
+      "name": "notificationLog.markRead",
+      "file": "src/lib/dal/commands/profile.js",
+      "line": 71
+    },
+    {
+      "name": "repair.save",
+      "file": "src/lib/dal/commands/repairs.js",
+      "line": 25
+    },
+    {
+      "name": "repair.delete",
+      "file": "src/lib/dal/commands/repairs.js",
+      "line": 40
+    },
+    {
+      "name": "repairType.create",
+      "file": "src/lib/dal/commands/repairs.js",
+      "line": 46
+    },
+    {
+      "name": "repairType.update",
+      "file": "src/lib/dal/commands/repairs.js",
+      "line": 52
+    },
+    {
+      "name": "repairType.delete",
+      "file": "src/lib/dal/commands/repairs.js",
+      "line": 58
+    },
+    {
+      "name": "route.createWithStops",
+      "file": "src/lib/dal/commands/routes.js",
+      "line": 21
+    },
+    {
+      "name": "route.updateStopStatus",
+      "file": "src/lib/dal/commands/routes.js",
+      "line": 38
+    },
+    {
+      "name": "route.addStopDocumentation",
+      "file": "src/lib/dal/commands/routes.js",
+      "line": 51
+    },
+    {
+      "name": "storage.upload",
+      "file": "src/lib/dal/commands/storage.js",
+      "line": 31
+    },
+    {
+      "name": "telemetry.popupEvent",
+      "file": "src/lib/dal/commands/telemetry.js",
+      "line": 24
+    },
+    {
+      "name": "telemetry.eulaAccept",
+      "file": "src/lib/dal/commands/telemetry.js",
+      "line": 29
+    },
+    {
+      "name": "contactMessage.create",
+      "file": "src/lib/dal/commands/telemetry.js",
+      "line": 34
+    },
+    {
+      "name": "review.create",
+      "file": "src/lib/dal/commands/telemetry.js",
+      "line": 39
+    },
+    {
+      "name": "telemetry.reportAppVersion",
+      "file": "src/lib/dal/commands/telemetry.js",
+      "line": 48
+    },
+    {
+      "name": "vehicleTransfer.offer",
+      "file": "src/lib/dal/commands/transfers.js",
+      "line": 48
+    },
+    {
+      "name": "vehicleTransfer.preview",
+      "file": "src/lib/dal/commands/transfers.js",
+      "line": 65
+    },
+    {
+      "name": "vehicleTransfer.accept",
+      "file": "src/lib/dal/commands/transfers.js",
+      "line": 87
+    },
+    {
+      "name": "vehicleTransfer.decline",
+      "file": "src/lib/dal/commands/transfers.js",
+      "line": 103
+    },
+    {
+      "name": "vehicleTransfer.cancel",
+      "file": "src/lib/dal/commands/transfers.js",
+      "line": 115
+    },
+    {
+      "name": "vehicleTransfer.list",
+      "file": "src/lib/dal/commands/transfers.js",
+      "line": 123
+    },
+    {
+      "name": "vehicle.update",
+      "file": "src/lib/dal/commands/vehicles.js",
+      "line": 16
+    },
+    {
+      "name": "vehicle.create",
+      "file": "src/lib/dal/commands/vehicles.js",
+      "line": 24
+    },
+    {
+      "name": "vehicle.deleteWithShareChoice",
+      "file": "src/lib/dal/commands/vehicles.js",
+      "line": 45
+    },
+    {
+      "name": "vehicle.bulkAdd",
+      "file": "src/lib/dal/commands/vehicles.js",
+      "line": 58
+    },
+    {
+      "name": "vehicle.driverUpdateMileage",
+      "file": "src/lib/dal/commands/vehicles.js",
+      "line": 70
+    },
+    {
+      "name": "vehicle.driverLogEvent",
+      "file": "src/lib/dal/commands/vehicles.js",
+      "line": 81
+    },
+    {
+      "name": "vesselIssue.create",
+      "file": "src/lib/dal/commands/vesselIssues.js",
+      "line": 10
+    },
+    {
+      "name": "vesselIssue.update",
+      "file": "src/lib/dal/commands/vesselIssues.js",
+      "line": 16
+    },
+    {
+      "name": "vesselIssue.delete",
+      "file": "src/lib/dal/commands/vesselIssues.js",
+      "line": 22
+    }
+  ],
+  "adminLiteralCalls": [
+    {
+      "name": "admin_popup_stats_7d",
+      "file": "src/components/admin/AdminPopupsTab.jsx",
+      "line": 45,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_popups",
+      "file": "src/components/admin/AdminPopupsTab.jsx",
+      "line": 44,
+      "kind": "table"
+    },
+    {
+      "name": "admin_account_details",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 140,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_user_accounts",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 159,
+      "kind": "rpc"
+    },
+    {
+      "name": "my_account_plan",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 1932,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_user_notes",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 1565,
+      "kind": "table"
+    },
+    {
+      "name": "account_subscriptions",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 1930,
+      "kind": "table"
+    },
+    {
+      "name": "plan_limits",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 1933,
+      "kind": "table"
+    },
+    {
+      "name": "send-email",
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "line": 1669,
+      "kind": "edge"
+    },
+    {
+      "name": "get_app_versions",
+      "file": "src/components/admin/AdminVersionTab.jsx",
+      "line": 69,
+      "kind": "rpc"
+    },
+    {
+      "name": "get_version_distribution",
+      "file": "src/components/admin/AdminVersionTab.jsx",
+      "line": 70,
+      "kind": "rpc"
+    },
+    {
+      "name": "app_config",
+      "file": "src/components/admin/AdminVersionTab.jsx",
+      "line": 86,
+      "kind": "table"
+    },
+    {
+      "name": "ai_provider_settings",
+      "file": "src/pages/AdminAiSettings.jsx",
+      "line": 77,
+      "kind": "table"
+    },
+    {
+      "name": "ai-proxy",
+      "file": "src/pages/AdminAiSettings.jsx",
+      "line": 78,
+      "kind": "edge"
+    },
+    {
+      "name": "admin_list_accounts",
+      "file": "src/pages/AdminAiUsage.jsx",
+      "line": 135,
+      "kind": "rpc"
+    },
+    {
+      "name": "ai_usage_logs",
+      "file": "src/pages/AdminAiUsage.jsx",
+      "line": 122,
+      "kind": "table"
+    },
+    {
+      "name": "app_config",
+      "file": "src/pages/AdminAiUsage.jsx",
+      "line": 128,
+      "kind": "table"
+    },
+    {
+      "name": "app_config",
+      "file": "src/pages/AdminAiUsage.jsx",
+      "line": 296,
+      "kind": "table"
+    },
+    {
+      "name": "admin_acknowledge_alert",
+      "file": "src/pages/AdminAlerts.jsx",
+      "line": 97,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_alerts",
+      "file": "src/pages/AdminAlerts.jsx",
+      "line": 78,
+      "kind": "table"
+    },
+    {
+      "name": "send-email",
+      "file": "src/pages/AdminAlerts.jsx",
+      "line": 281,
+      "kind": "edge"
+    },
+    {
+      "name": "admin_analytics_summary",
+      "file": "src/pages/AdminAnalytics.jsx",
+      "line": 120,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_vehicle_count_distribution",
+      "file": "src/pages/AdminAnalytics.jsx",
+      "line": 703,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_zero_vehicle_cohort_trend",
+      "file": "src/pages/AdminAnalytics.jsx",
+      "line": 790,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_phone_coverage",
+      "file": "src/pages/AdminAnalytics.jsx",
+      "line": 840,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_analytics_drilldown",
+      "file": "src/pages/AdminAnalytics.jsx",
+      "line": 1207,
+      "kind": "rpc"
+    },
+    {
+      "name": "ai_usage_logs",
+      "file": "src/pages/AdminAnalytics.jsx",
+      "line": 340,
+      "kind": "table"
+    },
+    {
+      "name": "admin_audit_log_list",
+      "file": "src/pages/AdminAuditLog.jsx",
+      "line": 93,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_list_business_workspace_requests",
+      "file": "src/pages/AdminBusinessRequests.jsx",
+      "line": 47,
+      "kind": "rpc"
+    },
+    {
+      "name": "send-email",
+      "file": "src/pages/AdminBusinessRequests.jsx",
+      "line": 306,
+      "kind": "edge"
+    },
+    {
+      "name": "admin_list_accounts",
+      "file": "src/pages/AdminDashboard.jsx",
+      "line": 1364,
+      "kind": "rpc"
+    },
+    {
+      "name": "app_errors",
+      "file": "src/pages/AdminDashboard.jsx",
+      "line": 2247,
+      "kind": "table"
+    },
+    {
+      "name": "admin_health_status",
+      "file": "src/pages/AdminHealth.jsx",
+      "line": 54,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_health_drilldown",
+      "file": "src/pages/AdminHealth.jsx",
+      "line": 207,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_action_inbox",
+      "file": "src/pages/AdminHome.jsx",
+      "line": 79,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_health_status",
+      "file": "src/pages/AdminHome.jsx",
+      "line": 97,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_list_plan_exceptions",
+      "file": "src/pages/AdminPlans.jsx",
+      "line": 144,
+      "kind": "rpc"
+    },
+    {
+      "name": "plan_limits",
+      "file": "src/pages/AdminPlans.jsx",
+      "line": 162,
+      "kind": "table"
+    },
+    {
+      "name": "reviews",
+      "file": "src/pages/AdminReviews.jsx",
+      "line": 229,
+      "kind": "table"
+    },
+    {
+      "name": "admin_user_list",
+      "file": "src/pages/AdminUsers.jsx",
+      "line": 221,
+      "kind": "rpc"
+    },
+    {
+      "name": "anonymous_analytics",
+      "file": "src/pages/AdminUsers.jsx",
+      "line": 256,
+      "kind": "table"
+    },
+    {
+      "name": "admin_list_view_sessions",
+      "file": "src/pages/AdminViewSessions.jsx",
+      "line": 31,
+      "kind": "rpc"
+    },
+    {
+      "name": "admin_force_end_view",
+      "file": "src/pages/AdminViewSessions.jsx",
+      "line": 113,
+      "kind": "rpc"
+    }
+  ],
+  "edgeFunctions": [
+    "supabase/functions/admin-impersonate/index.ts",
+    "supabase/functions/ai-proxy/index.ts",
+    "supabase/functions/apple-revoke/index.ts",
+    "supabase/functions/backfill-welcome/index.ts",
+    "supabase/functions/check-ai-quota/index.ts",
+    "supabase/functions/check-test-renewals/index.ts",
+    "supabase/functions/dispatch-admin-alert/index.ts",
+    "supabase/functions/dispatch-broadcast/index.ts",
+    "supabase/functions/dispatch-no-vehicle-nudge/index.ts",
+    "supabase/functions/dispatch-push/index.ts",
+    "supabase/functions/dispatch-recall-alerts/index.ts",
+    "supabase/functions/dispatch-reminder-emails/index.ts",
+    "supabase/functions/gov-sync-vehicles/index.ts",
+    "supabase/functions/overpass-proxy/index.ts",
+    "supabase/functions/resend-webhook/index.ts",
+    "supabase/functions/send-daily-digest/index.ts",
+    "supabase/functions/send-email/index.ts",
+    "supabase/functions/unsubscribe/index.ts"
+  ],
+  "featureFlagCallsites": [
+    {
+      "name": "chat_attachments_enabled",
+      "file": "src/pages/AiAssistant.jsx",
+      "line": 224
+    },
+    {
+      "name": "reauth_otp_enabled",
+      "file": "src/pages/DeleteAccount.jsx",
+      "line": 82
+    },
+    {
+      "name": "monetization_ui_enabled",
+      "file": "src/pages/Settings.jsx",
+      "line": 46
+    }
+  ],
+  "duplicateSqlDefinitions": {
+    "touch_updated_at": [
+      {
+        "name": "touch_updated_at",
+        "file": "staging-init-consolidated.sql",
+        "line": 238
+      },
+      {
+        "name": "touch_updated_at",
+        "file": "supabase-base44-migration.sql",
+        "line": 228
+      },
+      {
+        "name": "touch_updated_at",
+        "file": "supabase-external-drivers.sql",
+        "line": 60
+      }
+    ],
+    "user_account_ids": [
+      {
+        "name": "user_account_ids",
+        "file": "staging-init-consolidated.sql",
+        "line": 357
+      },
+      {
+        "name": "user_account_ids",
+        "file": "supabase-rls-policies.sql",
+        "line": 22
+      }
+    ],
+    "is_admin": [
+      {
+        "name": "is_admin",
+        "file": "staging-init-consolidated.sql",
+        "line": 765
+      },
+      {
+        "name": "is_admin",
+        "file": "staging-init-consolidated.sql",
+        "line": 785
+      },
+      {
+        "name": "is_admin",
+        "file": "supabase-critical-fixes.sql",
+        "line": 93
+      },
+      {
+        "name": "is_admin",
+        "file": "supabase-critical-fixes.sql",
+        "line": 113
+      }
+    ],
+    "redeem_invite_token": [
+      {
+        "name": "redeem_invite_token",
+        "file": "staging-init-consolidated.sql",
+        "line": 871
+      },
+      {
+        "name": "redeem_invite_token",
+        "file": "staging-init-consolidated.sql",
+        "line": 1849
+      },
+      {
+        "name": "redeem_invite_token",
+        "file": "staging-init-consolidated.sql",
+        "line": 5308
+      },
+      {
+        "name": "redeem_invite_token",
+        "file": "supabase-app-notifications.sql",
+        "line": 57
+      },
+      {
+        "name": "redeem_invite_token",
+        "file": "supabase-invite-role-strict.sql",
+        "line": 10
+      },
+      {
+        "name": "redeem_invite_token",
+        "file": "supabase-redeem-allow-driver-2026-06-27.sql",
+        "line": 17
+      },
+      {
+        "name": "redeem_invite_token",
+        "file": "supabase-security-hardening.sql",
+        "line": 52
+      }
+    ],
+    "community_posts_set_author": [
+      {
+        "name": "community_posts_set_author",
+        "file": "staging-init-consolidated.sql",
+        "line": 1014
+      },
+      {
+        "name": "community_posts_set_author",
+        "file": "supabase-security-hardening.sql",
+        "line": 195
+      }
+    ],
+    "community_comments_set_author": [
+      {
+        "name": "community_comments_set_author",
+        "file": "staging-init-consolidated.sql",
+        "line": 1053
+      },
+      {
+        "name": "community_comments_set_author",
+        "file": "supabase-security-hardening.sql",
+        "line": 234
+      }
+    ],
+    "rate_limit_check": [
+      {
+        "name": "rate_limit_check",
+        "file": "staging-init-consolidated.sql",
+        "line": 1098
+      },
+      {
+        "name": "rate_limit_check",
+        "file": "supabase-security-hardening.sql",
+        "line": 279
+      }
+    ],
+    "throttle_insert": [
+      {
+        "name": "throttle_insert",
+        "file": "staging-init-consolidated.sql",
+        "line": 1129
+      },
+      {
+        "name": "throttle_insert",
+        "file": "supabase-security-hardening.sql",
+        "line": 310
+      }
+    ],
+    "is_current_user_admin": [
+      {
+        "name": "is_current_user_admin",
+        "file": "staging-init-consolidated.sql",
+        "line": 1160
+      },
+      {
+        "name": "is_current_user_admin",
+        "file": "staging-init-consolidated.sql",
+        "line": 6004
+      },
+      {
+        "name": "is_current_user_admin",
+        "file": "supabase-admin-check-unification.sql",
+        "line": 50
+      },
+      {
+        "name": "is_current_user_admin",
+        "file": "supabase-admin-functions.sql",
+        "line": 11
+      },
+      {
+        "name": "is_current_user_admin",
+        "file": "supabase-security-audit-2026-05-27.sql",
+        "line": 49
+      },
+      {
+        "name": "is_current_user_admin",
+        "file": "supabase-security-hardening.sql",
+        "line": 345
+      },
+      {
+        "name": "is_current_user_admin",
+        "file": "supabase-security-hotfix-2026-06-06.sql",
+        "line": 25
+      }
+    ],
+    "handle_new_user": [
+      {
+        "name": "handle_new_user",
+        "file": "staging-init-consolidated.sql",
+        "line": 1280
+      },
+      {
+        "name": "handle_new_user",
+        "file": "staging-init-consolidated.sql",
+        "line": 1548
+      },
+      {
+        "name": "handle_new_user",
+        "file": "supabase-harden-handle-new-user-2026-06-03.sql",
+        "line": 21
+      },
+      {
+        "name": "handle_new_user",
+        "file": "supabase-new-user-bootstrap.sql",
+        "line": 87
+      },
+      {
+        "name": "handle_new_user",
+        "file": "supabase-phase1-workspace-foundation.sql",
+        "line": 132
+      },
+      {
+        "name": "handle_new_user",
+        "file": "supabase-reminder-default-on-2026-05-20.sql",
+        "line": 39
+      },
+      {
+        "name": "handle_new_user",
+        "file": "supabase-signup-resilience.sql",
+        "line": 59
+      }
+    ],
+    "signup_health": [
+      {
+        "name": "signup_health",
+        "file": "staging-init-consolidated.sql",
+        "line": 1344
+      },
+      {
+        "name": "signup_health",
+        "file": "supabase-signup-resilience.sql",
+        "line": 123
+      }
+    ],
+    "provision_orphan_users": [
+      {
+        "name": "provision_orphan_users",
+        "file": "staging-init-consolidated.sql",
+        "line": 1411
+      },
+      {
+        "name": "provision_orphan_users",
+        "file": "supabase-signup-resilience.sql",
+        "line": 190
+      }
+    ],
+    "ensure_user_account": [
+      {
+        "name": "ensure_user_account",
+        "file": "staging-init-consolidated.sql",
+        "line": 1496
+      },
+      {
+        "name": "ensure_user_account",
+        "file": "supabase-fix-duplicate-personal-accounts-2026-05-31.sql",
+        "line": 41
+      },
+      {
+        "name": "ensure_user_account",
+        "file": "supabase-new-user-bootstrap.sql",
+        "line": 34
+      },
+      {
+        "name": "ensure_user_account",
+        "file": "supabase-phase1-workspace-foundation.sql",
+        "line": 91
+      }
+    ],
+    "update_updated_at": [
+      {
+        "name": "update_updated_at",
+        "file": "staging-init-consolidated.sql",
+        "line": 1626
+      },
+      {
+        "name": "update_updated_at",
+        "file": "supabase-add-profiles-table.sql",
+        "line": 31
+      }
+    ],
+    "notify_invitee_by_email": [
+      {
+        "name": "notify_invitee_by_email",
+        "file": "staging-init-consolidated.sql",
+        "line": 1977
+      },
+      {
+        "name": "notify_invitee_by_email",
+        "file": "staging-init-consolidated.sql",
+        "line": 5417
+      },
+      {
+        "name": "notify_invitee_by_email",
+        "file": "supabase-app-notifications.sql",
+        "line": 185
+      },
+      {
+        "name": "notify_invitee_by_email",
+        "file": "supabase-fix-fullname-reads-2026-07-02.sql",
+        "line": 313
+      },
+      {
+        "name": "notify_invitee_by_email",
+        "file": "supabase-notify-invitee-harden.sql",
+        "line": 18
+      }
+    ],
+    "cork_notes_touch": [
+      {
+        "name": "cork_notes_touch",
+        "file": "staging-init-consolidated.sql",
+        "line": 2279
+      },
+      {
+        "name": "cork_notes_touch",
+        "file": "supabase-cork-notes-columns.sql",
+        "line": 20
+      }
+    ],
+    "vessel_checklists_touch": [
+      {
+        "name": "vessel_checklists_touch",
+        "file": "staging-init-consolidated.sql",
+        "line": 2487
+      },
+      {
+        "name": "vessel_checklists_touch",
+        "file": "supabase-vessel-checklists.sql",
+        "line": 72
+      }
+    ],
+    "vessel_issues_touch": [
+      {
+        "name": "vessel_issues_touch",
+        "file": "staging-init-consolidated.sql",
+        "line": 2574
+      },
+      {
+        "name": "vessel_issues_touch",
+        "file": "supabase-vessel-issues.sql",
+        "line": 73
+      }
+    ],
+    "vessel_checklist_runs_touch": [
+      {
+        "name": "vessel_checklist_runs_touch",
+        "file": "staging-init-consolidated.sql",
+        "line": 2669
+      },
+      {
+        "name": "vessel_checklist_runs_touch",
+        "file": "supabase-checklist-runs.sql",
+        "line": 81
+      }
+    ],
+    "cleanup_old_checklist_runs": [
+      {
+        "name": "cleanup_old_checklist_runs",
+        "file": "staging-init-consolidated.sql",
+        "line": 2686
+      },
+      {
+        "name": "cleanup_old_checklist_runs",
+        "file": "supabase-checklist-runs.sql",
+        "line": 98
+      }
+    ],
+    "accidents_set_updated_at": [
+      {
+        "name": "accidents_set_updated_at",
+        "file": "staging-init-consolidated.sql",
+        "line": 2944
+      },
+      {
+        "name": "accidents_set_updated_at",
+        "file": "supabase-accident-extras-fix.sql",
+        "line": 88
+      }
+    ],
+    "save_repair_with_children": [
+      {
+        "name": "save_repair_with_children",
+        "file": "staging-init-consolidated.sql",
+        "line": 2986
+      },
+      {
+        "name": "save_repair_with_children",
+        "file": "staging-init-consolidated.sql",
+        "line": 3152
+      },
+      {
+        "name": "save_repair_with_children",
+        "file": "supabase-admin-view-as-write-rpc.sql",
+        "line": 44
+      },
+      {
+        "name": "save_repair_with_children",
+        "file": "supabase-save-repair-accident-link.sql",
+        "line": 16
+      },
+      {
+        "name": "save_repair_with_children",
+        "file": "supabase-save-repair-rpc.sql",
+        "line": 26
+      }
+    ],
+    "enforce_vehicle_share_cap": [
+      {
+        "name": "enforce_vehicle_share_cap",
+        "file": "staging-init-consolidated.sql",
+        "line": 3380
+      },
+      {
+        "name": "enforce_vehicle_share_cap",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 79
+      }
+    ],
+    "share_vehicle_with_email": [
+      {
+        "name": "share_vehicle_with_email",
+        "file": "staging-init-consolidated.sql",
+        "line": 3530
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "staging-init-consolidated.sql",
+        "line": 4559
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "staging-init-consolidated.sql",
+        "line": 4648
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "staging-init-consolidated.sql",
+        "line": 5075
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "supabase-vehicle-share-role-edit.sql",
+        "line": 129
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 12
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "supabase-vehicle-shares-hardening.sql",
+        "line": 196
+      },
+      {
+        "name": "share_vehicle_with_email",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 229
+      }
+    ],
+    "accept_vehicle_share": [
+      {
+        "name": "accept_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 3644
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 4287
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 4452
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 4703
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 67
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "supabase-vehicle-shares-hardening.sql",
+        "line": 89
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "supabase-vehicle-shares-ux.sql",
+        "line": 55
+      },
+      {
+        "name": "accept_vehicle_share",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 343
+      }
+    ],
+    "decline_vehicle_share": [
+      {
+        "name": "decline_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 3735
+      },
+      {
+        "name": "decline_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 4746
+      },
+      {
+        "name": "decline_vehicle_share",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 110
+      },
+      {
+        "name": "decline_vehicle_share",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 434
+      }
+    ],
+    "revoke_vehicle_share": [
+      {
+        "name": "revoke_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 3789
+      },
+      {
+        "name": "revoke_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 4777
+      },
+      {
+        "name": "revoke_vehicle_share",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 141
+      },
+      {
+        "name": "revoke_vehicle_share",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 488
+      }
+    ],
+    "leave_vehicle_share": [
+      {
+        "name": "leave_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 3841
+      },
+      {
+        "name": "leave_vehicle_share",
+        "file": "staging-init-consolidated.sql",
+        "line": 4808
+      },
+      {
+        "name": "leave_vehicle_share",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 172
+      },
+      {
+        "name": "leave_vehicle_share",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 540
+      }
+    ],
+    "list_vehicle_shares": [
+      {
+        "name": "list_vehicle_shares",
+        "file": "staging-init-consolidated.sql",
+        "line": 3891
+      },
+      {
+        "name": "list_vehicle_shares",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 590
+      }
+    ],
+    "expire_stale_share_invites": [
+      {
+        "name": "expire_stale_share_invites",
+        "file": "staging-init-consolidated.sql",
+        "line": 3935
+      },
+      {
+        "name": "expire_stale_share_invites",
+        "file": "staging-init-consolidated.sql",
+        "line": 4836
+      },
+      {
+        "name": "expire_stale_share_invites",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 200
+      },
+      {
+        "name": "expire_stale_share_invites",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 634
+      }
+    ],
+    "delete_vehicle_with_share_choice": [
+      {
+        "name": "delete_vehicle_with_share_choice",
+        "file": "staging-init-consolidated.sql",
+        "line": 4008
+      },
+      {
+        "name": "delete_vehicle_with_share_choice",
+        "file": "staging-init-consolidated.sql",
+        "line": 4870
+      },
+      {
+        "name": "delete_vehicle_with_share_choice",
+        "file": "supabase-admin-view-as-write-rpc.sql",
+        "line": 162
+      },
+      {
+        "name": "delete_vehicle_with_share_choice",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 234
+      },
+      {
+        "name": "delete_vehicle_with_share_choice",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 707
+      }
+    ],
+    "notify_vehicle_change": [
+      {
+        "name": "notify_vehicle_change",
+        "file": "staging-init-consolidated.sql",
+        "line": 4086
+      },
+      {
+        "name": "notify_vehicle_change",
+        "file": "staging-init-consolidated.sql",
+        "line": 4502
+      },
+      {
+        "name": "notify_vehicle_change",
+        "file": "staging-init-consolidated.sql",
+        "line": 4908
+      },
+      {
+        "name": "notify_vehicle_change",
+        "file": "supabase-vehicle-shares-copy.sql",
+        "line": 272
+      },
+      {
+        "name": "notify_vehicle_change",
+        "file": "supabase-vehicle-shares-hardening.sql",
+        "line": 139
+      },
+      {
+        "name": "notify_vehicle_change",
+        "file": "supabase-vehicle-shares.sql",
+        "line": 785
+      }
+    ],
+    "prevent_vehicle_account_hijack": [
+      {
+        "name": "prevent_vehicle_account_hijack",
+        "file": "staging-init-consolidated.sql",
+        "line": 4418
+      },
+      {
+        "name": "prevent_vehicle_account_hijack",
+        "file": "supabase-vehicle-shares-hardening.sql",
+        "line": 55
+      }
+    ],
+    "update_vehicle_share_role": [
+      {
+        "name": "update_vehicle_share_role",
+        "file": "staging-init-consolidated.sql",
+        "line": 4965
+      },
+      {
+        "name": "update_vehicle_share_role",
+        "file": "supabase-vehicle-share-role-edit.sql",
+        "line": 17
+      }
+    ],
+    "get_vehicle_owner_name": [
+      {
+        "name": "get_vehicle_owner_name",
+        "file": "staging-init-consolidated.sql",
+        "line": 5240
+      },
+      {
+        "name": "get_vehicle_owner_name",
+        "file": "supabase-vehicle-owner-name.sql",
+        "line": 26
+      }
+    ],
+    "scrub_text": [
+      {
+        "name": "scrub_text",
+        "file": "staging-init-consolidated.sql",
+        "line": 5643
+      },
+      {
+        "name": "scrub_text",
+        "file": "supabase-community-sanitize.sql",
+        "line": 24
+      }
+    ],
+    "community_posts_sanitize": [
+      {
+        "name": "community_posts_sanitize",
+        "file": "staging-init-consolidated.sql",
+        "line": 5677
+      },
+      {
+        "name": "community_posts_sanitize",
+        "file": "supabase-community-sanitize.sql",
+        "line": 58
+      }
+    ],
+    "community_comments_sanitize": [
+      {
+        "name": "community_comments_sanitize",
+        "file": "staging-init-consolidated.sql",
+        "line": 5691
+      },
+      {
+        "name": "community_comments_sanitize",
+        "file": "supabase-community-sanitize.sql",
+        "line": 72
+      }
+    ],
+    "contact_messages_sanitize": [
+      {
+        "name": "contact_messages_sanitize",
+        "file": "staging-init-consolidated.sql",
+        "line": 5705
+      },
+      {
+        "name": "contact_messages_sanitize",
+        "file": "supabase-community-sanitize.sql",
+        "line": 86
+      }
+    ],
+    "community_posts_rate_limit": [
+      {
+        "name": "community_posts_rate_limit",
+        "file": "staging-init-consolidated.sql",
+        "line": 5726
+      },
+      {
+        "name": "community_posts_rate_limit",
+        "file": "supabase-community-sanitize.sql",
+        "line": 107
+      }
+    ],
+    "community_comments_rate_limit": [
+      {
+        "name": "community_comments_rate_limit",
+        "file": "staging-init-consolidated.sql",
+        "line": 5752
+      },
+      {
+        "name": "community_comments_rate_limit",
+        "file": "supabase-community-sanitize.sql",
+        "line": 133
+      }
+    ],
+    "contact_messages_rate_limit": [
+      {
+        "name": "contact_messages_rate_limit",
+        "file": "staging-init-consolidated.sql",
+        "line": 5778
+      },
+      {
+        "name": "contact_messages_rate_limit",
+        "file": "supabase-community-sanitize.sql",
+        "line": 159
+      }
+    ],
+    "post_comment": [
+      {
+        "name": "post_comment",
+        "file": "staging-init-consolidated.sql",
+        "line": 5827
+      },
+      {
+        "name": "post_comment",
+        "file": "supabase-post-comment-rpc.sql",
+        "line": 22
+      }
+    ],
+    "user_can_edit_account": [
+      {
+        "name": "user_can_edit_account",
+        "file": "staging-init-consolidated.sql",
+        "line": 5932
+      },
+      {
+        "name": "user_can_edit_account",
+        "file": "supabase-fix-documents-rls.sql",
+        "line": 12
+      }
+    ],
+    "user_can_delete_account": [
+      {
+        "name": "user_can_delete_account",
+        "file": "staging-init-consolidated.sql",
+        "line": 5949
+      },
+      {
+        "name": "user_can_delete_account",
+        "file": "supabase-fix-documents-rls.sql",
+        "line": 29
+      }
+    ],
+    "admin_list_accounts": [
+      {
+        "name": "admin_list_accounts",
+        "file": "staging-init-consolidated.sql",
+        "line": 6027
+      },
+      {
+        "name": "admin_list_accounts",
+        "file": "supabase-admin-functions.sql",
+        "line": 34
+      }
+    ],
+    "admin_delete_account": [
+      {
+        "name": "admin_delete_account",
+        "file": "staging-init-consolidated.sql",
+        "line": 6095
+      },
+      {
+        "name": "admin_delete_account",
+        "file": "supabase-admin-audit-log.sql",
+        "line": 177
+      },
+      {
+        "name": "admin_delete_account",
+        "file": "supabase-admin-functions.sql",
+        "line": 102
+      }
+    ],
+    "admin_set_role": [
+      {
+        "name": "admin_set_role",
+        "file": "staging-init-consolidated.sql",
+        "line": 6113
+      },
+      {
+        "name": "admin_set_role",
+        "file": "supabase-admin-audit-log.sql",
+        "line": 207
+      },
+      {
+        "name": "admin_set_role",
+        "file": "supabase-admin-functions.sql",
+        "line": 120
+      }
+    ],
+    "admin_popups_touch": [
+      {
+        "name": "admin_popups_touch",
+        "file": "staging-init-consolidated.sql",
+        "line": 6200
+      },
+      {
+        "name": "admin_popups_touch",
+        "file": "supabase-admin-popups.sql",
+        "line": 58
+      }
+    ],
+    "admin_popups_snapshot": [
+      {
+        "name": "admin_popups_snapshot",
+        "file": "staging-init-consolidated.sql",
+        "line": 6223
+      },
+      {
+        "name": "admin_popups_snapshot",
+        "file": "supabase-admin-popups.sql",
+        "line": 81
+      }
+    ],
+    "admin_popup_stats_7d": [
+      {
+        "name": "admin_popup_stats_7d",
+        "file": "staging-init-consolidated.sql",
+        "line": 6295
+      },
+      {
+        "name": "admin_popup_stats_7d",
+        "file": "supabase-admin-popups.sql",
+        "line": 153
+      }
+    ],
+    "admin_popups_guard_system": [
+      {
+        "name": "admin_popups_guard_system",
+        "file": "staging-init-consolidated.sql",
+        "line": 6448
+      },
+      {
+        "name": "admin_popups_guard_system",
+        "file": "supabase-admin-popups-seed-system.sql",
+        "line": 135
+      }
+    ],
+    "get_ai_provider": [
+      {
+        "name": "get_ai_provider",
+        "file": "staging-init-consolidated.sql",
+        "line": 6538
+      },
+      {
+        "name": "get_ai_provider",
+        "file": "supabase-ai-provider-settings.sql",
+        "line": 69
+      }
+    ],
+    "set_ai_provider": [
+      {
+        "name": "set_ai_provider",
+        "file": "staging-init-consolidated.sql",
+        "line": 6560
+      },
+      {
+        "name": "set_ai_provider",
+        "file": "supabase-ai-provider-settings.sql",
+        "line": 91
+      }
+    ],
+    "set_updated_at": [
+      {
+        "name": "set_updated_at",
+        "file": "staging-init-consolidated.sql",
+        "line": 6687
+      },
+      {
+        "name": "set_updated_at",
+        "file": "supabase-email-management.sql",
+        "line": 91
+      },
+      {
+        "name": "set_updated_at",
+        "file": "supabase-offline-updated-at-2026-09-09.sql",
+        "line": 150
+      }
+    ],
+    "get_email_template": [
+      {
+        "name": "get_email_template",
+        "file": "staging-init-consolidated.sql",
+        "line": 6720
+      },
+      {
+        "name": "get_email_template",
+        "file": "staging-init-consolidated.sql",
+        "line": 7805
+      },
+      {
+        "name": "get_email_template",
+        "file": "supabase-email-management.sql",
+        "line": 124
+      },
+      {
+        "name": "get_email_template",
+        "file": "supabase-email-phase4.sql",
+        "line": 59
+      }
+    ],
+    "email_template_snapshot": [
+      {
+        "name": "email_template_snapshot",
+        "file": "staging-init-consolidated.sql",
+        "line": 6978
+      },
+      {
+        "name": "email_template_snapshot",
+        "file": "supabase-email-events-versions.sql",
+        "line": 60
+      }
+    ],
+    "email_stats_recent": [
+      {
+        "name": "email_stats_recent",
+        "file": "staging-init-consolidated.sql",
+        "line": 7020
+      },
+      {
+        "name": "email_stats_recent",
+        "file": "supabase-email-events-versions.sql",
+        "line": 102
+      }
+    ],
+    "ingest_resend_event": [
+      {
+        "name": "ingest_resend_event",
+        "file": "staging-init-consolidated.sql",
+        "line": 7067
+      },
+      {
+        "name": "ingest_resend_event",
+        "file": "supabase-email-events-versions.sql",
+        "line": 149
+      }
+    ],
+    "email_dispatch_candidates": [
+      {
+        "name": "email_dispatch_candidates",
+        "file": "staging-init-consolidated.sql",
+        "line": 7249
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "staging-init-consolidated.sql",
+        "line": 7863
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-email-candidate-per-user-prefs-2026-06-26.sql",
+        "line": 34
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-email-candidate-window-fix-2026-06-06.sql",
+        "line": 6
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-email-dispatcher.sql",
+        "line": 124
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-email-phase4.sql",
+        "line": 117
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-phase9-driver-reminders.sql",
+        "line": 23
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-reminder-overdue-emails-2026-06-27.sql",
+        "line": 32
+      },
+      {
+        "name": "email_dispatch_candidates",
+        "file": "supabase-reminders-skip-sold-2026-09-11.sql",
+        "line": 68
+      }
+    ],
+    "email_log_attempt": [
+      {
+        "name": "email_log_attempt",
+        "file": "staging-init-consolidated.sql",
+        "line": 7321
+      },
+      {
+        "name": "email_log_attempt",
+        "file": "supabase-email-dispatcher.sql",
+        "line": 196
+      }
+    ],
+    "email_trigger_record_run": [
+      {
+        "name": "email_trigger_record_run",
+        "file": "staging-init-consolidated.sql",
+        "line": 7348
+      },
+      {
+        "name": "email_trigger_record_run",
+        "file": "supabase-email-dispatcher.sql",
+        "line": 223
+      }
+    ],
+    "email_broadcast_recipients": [
+      {
+        "name": "email_broadcast_recipients",
+        "file": "staging-init-consolidated.sql",
+        "line": 7517
+      },
+      {
+        "name": "email_broadcast_recipients",
+        "file": "supabase-email-marketing-broadcasts.sql",
+        "line": 117
+      },
+      {
+        "name": "email_broadcast_recipients",
+        "file": "supabase-security-audit-2026-05-27.sql",
+        "line": 84
+      }
+    ],
+    "email_template_publish": [
+      {
+        "name": "email_template_publish",
+        "file": "staging-init-consolidated.sql",
+        "line": 7780
+      },
+      {
+        "name": "email_template_publish",
+        "file": "supabase-email-phase4.sql",
+        "line": 34
+      }
+    ],
+    "delete_my_account": [
+      {
+        "name": "delete_my_account",
+        "file": "staging-init-consolidated.sql",
+        "line": 8055
+      },
+      {
+        "name": "delete_my_account",
+        "file": "supabase-delete-account-rpc-b2b.sql",
+        "line": 20
+      },
+      {
+        "name": "delete_my_account",
+        "file": "supabase-delete-account-rpc.sql",
+        "line": 26
+      },
+      {
+        "name": "delete_my_account",
+        "file": "supabase-ownership-integrity-2026-06-26.sql",
+        "line": 86
+      }
+    ],
+    "seed_likes": [
+      {
+        "name": "seed_likes",
+        "file": "staging-init-consolidated.sql",
+        "line": 8183
+      },
+      {
+        "name": "seed_likes",
+        "file": "supabase-seed-community-engagement.sql",
+        "line": 15
+      }
+    ],
+    "seed_reactions": [
+      {
+        "name": "seed_reactions",
+        "file": "staging-init-consolidated.sql",
+        "line": 8194
+      },
+      {
+        "name": "seed_reactions",
+        "file": "supabase-seed-community-engagement.sql",
+        "line": 26
+      }
+    ],
+    "check_admin_alerts": [
+      {
+        "name": "check_admin_alerts",
+        "file": "supabase-admin-alerts-v2-error-triggers.sql",
+        "line": 29
+      },
+      {
+        "name": "check_admin_alerts",
+        "file": "supabase-admin-alerts.sql",
+        "line": 73
+      }
+    ],
+    "admin_acknowledge_alert": [
+      {
+        "name": "admin_acknowledge_alert",
+        "file": "supabase-admin-alerts.sql",
+        "line": 224
+      },
+      {
+        "name": "admin_acknowledge_alert",
+        "file": "supabase-admin-audit-log.sql",
+        "line": 250
+      }
+    ],
+    "is_workspace_manager": [
+      {
+        "name": "is_workspace_manager",
+        "file": "supabase-admin-view-as-write-rpc.sql",
+        "line": 27
+      },
+      {
+        "name": "is_workspace_manager",
+        "file": "supabase-phase6-routes-and-tasks.sql",
+        "line": 126
+      }
+    ],
+    "invite_account_member_by_email": [
+      {
+        "name": "invite_account_member_by_email",
+        "file": "supabase-admin-view-as-write-rpc.sql",
+        "line": 220
+      },
+      {
+        "name": "invite_account_member_by_email",
+        "file": "supabase-invite-name-2026-06-27.sql",
+        "line": 27
+      },
+      {
+        "name": "invite_account_member_by_email",
+        "file": "supabase-membership-rpcs-2026-06-26.sql",
+        "line": 434
+      },
+      {
+        "name": "invite_account_member_by_email",
+        "file": "supabase-unified-account-invite.sql",
+        "line": 28
+      }
+    ],
+    "admin_start_view": [
+      {
+        "name": "admin_start_view",
+        "file": "supabase-admin-view-as.sql",
+        "line": 112
+      },
+      {
+        "name": "admin_start_view",
+        "file": "supabase-view-as-target-user-2026-07-24.sql",
+        "line": 83
+      }
+    ],
+    "admin_current_view": [
+      {
+        "name": "admin_current_view",
+        "file": "supabase-admin-view-as.sql",
+        "line": 211
+      },
+      {
+        "name": "admin_current_view",
+        "file": "supabase-view-as-target-user-2026-07-24.sql",
+        "line": 214
+      }
+    ],
+    "approve_business_workspace_request": [
+      {
+        "name": "approve_business_workspace_request",
+        "file": "supabase-business-approve-notify-2026-06-06.sql",
+        "line": 17
+      },
+      {
+        "name": "approve_business_workspace_request",
+        "file": "supabase-phase9-business-requests.sql",
+        "line": 157
+      }
+    ],
+    "request_business_workspace": [
+      {
+        "name": "request_business_workspace",
+        "file": "supabase-business-request-gate-2026-06-06.sql",
+        "line": 28
+      },
+      {
+        "name": "request_business_workspace",
+        "file": "supabase-phase9-business-requests.sql",
+        "line": 112
+      }
+    ],
+    "create_business_workspace": [
+      {
+        "name": "create_business_workspace",
+        "file": "supabase-business-request-gate-2026-06-06.sql",
+        "line": 117
+      },
+      {
+        "name": "create_business_workspace",
+        "file": "supabase-phase4-business-vehicles.sql",
+        "line": 113
+      },
+      {
+        "name": "create_business_workspace",
+        "file": "supabase-phase9-business-requests.sql",
+        "line": 64
+      }
+    ],
+    "assign_driver": [
+      {
+        "name": "assign_driver",
+        "file": "supabase-driver-assignment-notify.sql",
+        "line": 20
+      },
+      {
+        "name": "assign_driver",
+        "file": "supabase-phase6-routes-and-tasks.sql",
+        "line": 269
+      },
+      {
+        "name": "assign_driver",
+        "file": "supabase-phase7-activity-log.sql",
+        "line": 146
+      }
+    ],
+    "add_vehicle_expense": [
+      {
+        "name": "add_vehicle_expense",
+        "file": "supabase-expense-receipts.sql",
+        "line": 28
+      },
+      {
+        "name": "add_vehicle_expense",
+        "file": "supabase-phase8-reports-and-costs.sql",
+        "line": 75
+      },
+      {
+        "name": "add_vehicle_expense",
+        "file": "supabase-vehicle-expenses-fixes-p0.sql",
+        "line": 34
+      }
+    ],
+    "update_vehicle_expense": [
+      {
+        "name": "update_vehicle_expense",
+        "file": "supabase-expense-receipts.sql",
+        "line": 94
+      },
+      {
+        "name": "update_vehicle_expense",
+        "file": "supabase-phase8-reports-and-costs.sql",
+        "line": 140
+      },
+      {
+        "name": "update_vehicle_expense",
+        "file": "supabase-vehicle-expenses-fixes-p0.sql",
+        "line": 113
+      }
+    ],
+    "accept_account_invite": [
+      {
+        "name": "accept_account_invite",
+        "file": "supabase-fix-fullname-reads-2026-07-02.sql",
+        "line": 22
+      },
+      {
+        "name": "accept_account_invite",
+        "file": "supabase-invite-actions-view-as-2026-07-24.sql",
+        "line": 43
+      },
+      {
+        "name": "accept_account_invite",
+        "file": "supabase-unified-account-invite.sql",
+        "line": 192
+      }
+    ],
+    "decline_account_invite": [
+      {
+        "name": "decline_account_invite",
+        "file": "supabase-fix-fullname-reads-2026-07-02.sql",
+        "line": 93
+      },
+      {
+        "name": "decline_account_invite",
+        "file": "supabase-invite-actions-view-as-2026-07-24.sql",
+        "line": 133
+      },
+      {
+        "name": "decline_account_invite",
+        "file": "supabase-unified-account-invite.sql",
+        "line": 269
+      }
+    ],
+    "transfer_ownership": [
+      {
+        "name": "transfer_ownership",
+        "file": "supabase-fix-fullname-reads-2026-07-02.sql",
+        "line": 154
+      },
+      {
+        "name": "transfer_ownership",
+        "file": "supabase-membership-rpcs-2026-06-26.sql",
+        "line": 30
+      }
+    ],
+    "leave_account": [
+      {
+        "name": "leave_account",
+        "file": "supabase-fix-fullname-reads-2026-07-02.sql",
+        "line": 243
+      },
+      {
+        "name": "leave_account",
+        "file": "supabase-membership-rpcs-2026-06-26.sql",
+        "line": 303
+      }
+    ],
+    "workspace_team_directory": [
+      {
+        "name": "workspace_team_directory",
+        "file": "supabase-invite-name-2026-06-27.sql",
+        "line": 160
+      },
+      {
+        "name": "workspace_team_directory",
+        "file": "supabase-team-directory.sql",
+        "line": 17
+      }
+    ],
+    "account_plan": [
+      {
+        "name": "account_plan",
+        "file": "supabase-monetization-phase1-plans-2026-09-08.sql",
+        "line": 242
+      },
+      {
+        "name": "account_plan",
+        "file": "supabase-monetization-phase2b-admin-2026-09-08.sql",
+        "line": 179
+      }
+    ],
+    "enforce_vehicle_plan_cap_stmt": [
+      {
+        "name": "enforce_vehicle_plan_cap_stmt",
+        "file": "supabase-monetization-phase4-vehicle-cap-2026-09-08.sql",
+        "line": 88
+      },
+      {
+        "name": "enforce_vehicle_plan_cap_stmt",
+        "file": "supabase-vehicle-archive-readonly-2026-09-11.sql",
+        "line": 82
+      }
+    ],
+    "vehicle_cap_room": [
+      {
+        "name": "vehicle_cap_room",
+        "file": "supabase-monetization-phase4-vehicle-cap-2026-09-08.sql",
+        "line": 209
+      },
+      {
+        "name": "vehicle_cap_room",
+        "file": "supabase-vehicle-archive-readonly-2026-09-11.sql",
+        "line": 173
+      }
+    ],
+    "enforce_personal_vehicle_cap": [
+      {
+        "name": "enforce_personal_vehicle_cap",
+        "file": "supabase-personal-cap-archive-2026-09-11.sql",
+        "line": 76
+      },
+      {
+        "name": "enforce_personal_vehicle_cap",
+        "file": "supabase-vehicle-cap-2026-07-25.sql",
+        "line": 96
+      }
+    ],
+    "my_vehicle_capacity": [
+      {
+        "name": "my_vehicle_capacity",
+        "file": "supabase-personal-cap-archive-2026-09-11.sql",
+        "line": 145
+      },
+      {
+        "name": "my_vehicle_capacity",
+        "file": "supabase-vehicle-cap-2026-07-25.sql",
+        "line": 163
+      }
+    ],
+    "create_route_with_stops": [
+      {
+        "name": "create_route_with_stops",
+        "file": "supabase-phase11-create-route-stops-extended.sql",
+        "line": 36
+      },
+      {
+        "name": "create_route_with_stops",
+        "file": "supabase-phase13-create-route-stops-loop-fix.sql",
+        "line": 19
+      },
+      {
+        "name": "create_route_with_stops",
+        "file": "supabase-phase6-routes-and-tasks.sql",
+        "line": 335
+      },
+      {
+        "name": "create_route_with_stops",
+        "file": "supabase-phase7-activity-log.sql",
+        "line": 204
+      },
+      {
+        "name": "create_route_with_stops",
+        "file": "supabase-task-assignment-notify.sql",
+        "line": 17
+      }
+    ],
+    "update_stop_status": [
+      {
+        "name": "update_stop_status",
+        "file": "supabase-phase12-stop-arrived-and-actions.sql",
+        "line": 29
+      },
+      {
+        "name": "update_stop_status",
+        "file": "supabase-phase6-routes-and-tasks.sql",
+        "line": 426
+      },
+      {
+        "name": "update_stop_status",
+        "file": "supabase-phase7-activity-log.sql",
+        "line": 282
+      }
+    ],
+    "add_stop_documentation": [
+      {
+        "name": "add_stop_documentation",
+        "file": "supabase-phase6-routes-and-tasks.sql",
+        "line": 495
+      },
+      {
+        "name": "add_stop_documentation",
+        "file": "supabase-phase7-activity-log.sql",
+        "line": 390
+      }
+    ],
+    "tg_app_notifications_dispatch_push": [
+      {
+        "name": "tg_app_notifications_dispatch_push",
+        "file": "supabase-push-trigger-dedup.sql",
+        "line": 30
+      },
+      {
+        "name": "tg_app_notifications_dispatch_push",
+        "file": "supabase-push-trigger.sql",
+        "line": 130
+      }
+    ],
+    "publish_release_announcement": [
+      {
+        "name": "publish_release_announcement",
+        "file": "supabase-release-announcement-2026-06-04.sql",
+        "line": 22
+      },
+      {
+        "name": "publish_release_announcement",
+        "file": "supabase-release-announcement-quiet-edit-2026-06-06.sql",
+        "line": 16
+      }
+    ],
+    "preview_vehicle_transfer": [
+      {
+        "name": "preview_vehicle_transfer",
+        "file": "supabase-transfer-preview-by-id-2026-09-11.sql",
+        "line": 58
+      },
+      {
+        "name": "preview_vehicle_transfer",
+        "file": "supabase-vehicle-transfer-2026-09-11.sql",
+        "line": 339
+      }
+    ],
+    "fn_list_vehicle_expenses": [
+      {
+        "name": "fn_list_vehicle_expenses",
+        "file": "supabase-vehicle-expenses-aggregate.sql",
+        "line": 41
+      },
+      {
+        "name": "fn_list_vehicle_expenses",
+        "file": "supabase-vehicle-expenses-feed.sql",
+        "line": 155
+      }
+    ],
+    "fn_vehicle_expense_date_bounds": [
+      {
+        "name": "fn_vehicle_expense_date_bounds",
+        "file": "supabase-vehicle-expenses-aggregate.sql",
+        "line": 183
+      },
+      {
+        "name": "fn_vehicle_expense_date_bounds",
+        "file": "supabase-vehicle-expenses-feed.sql",
+        "line": 231
+      }
+    ]
+  },
+  "sourceFingerprints": [
+    {
+      "file": "src/components/admin/AdminPopupEditor.jsx",
+      "sha256": "37b3f95abff8d63623679245fc8a8866b24ab830334bcefc941bb40f1a2e3ce8"
+    },
+    {
+      "file": "src/components/admin/AdminPopupsTab.jsx",
+      "sha256": "96ffd6eac452fc8e83f528f6711c74128d1f97808d23d8d9acca4ebd2a3f1523"
+    },
+    {
+      "file": "src/components/admin/AdminUserDrawer.jsx",
+      "sha256": "e931ea11122057fc3a4b2a2786d9ac0388c00689775e93c3df2f98744bebdb0a"
+    },
+    {
+      "file": "src/components/admin/AdminVersionTab.jsx",
+      "sha256": "0e13866284d8278d115c4c3d175274a27a1300e0353aabf951cd829f84357839"
+    },
+    {
+      "file": "src/components/admin/BroadcastDialog.jsx",
+      "sha256": "042ae805358dc9b8f1b48977f7187c5692cb2acdcd0983e20d68a6676b7f5d21"
+    },
+    {
+      "file": "src/components/admin/KillSwitchBanner.jsx",
+      "sha256": "e2826ea646558c223acef14181845ab664542929b10ea0963a8b21e99ec09587"
+    },
+    {
+      "file": "src/components/admin/NotificationTypeRow.jsx",
+      "sha256": "b273fc140a60fdb50a0b068994e73c4bf8334b32e171b6d4b410c7f0be43b35e"
+    },
+    {
+      "file": "src/components/admin/SendLogTab.jsx",
+      "sha256": "33775bb8d0e82c4f4b2a1d13bbc912fb8e8c2588cb624373f007d646ccddda00"
+    },
+    {
+      "file": "src/components/admin/SendTestDialog.jsx",
+      "sha256": "d8734aae1614c94aff68e6ec3b7d3ad0d7d8edd165249778b4129e59f7f3d104"
+    },
+    {
+      "file": "src/components/admin/StatsStrip.jsx",
+      "sha256": "6773ace7c82686dc4b4d78f800a4ee52513fe42e1ccf7dc90b5e247d98895a9b"
+    },
+    {
+      "file": "src/components/admin/TemplateEditorDialog.jsx",
+      "sha256": "59db733e6e329ae716337f06eae5f446a274d847a6421c8367c01c0f60d5310c"
+    },
+    {
+      "file": "src/components/admin/TriggersTab.jsx",
+      "sha256": "be2273e594d9d52a243c1029cefd6d6ac8baeb2333b93e5edb0230726a235a17"
+    },
+    {
+      "file": "src/components/admin/VersionHistoryDialog.jsx",
+      "sha256": "1d6d7e24975fadb5c9b9557b66767374848fae28baff2292824ad5eb2e15824d"
+    },
+    {
+      "file": "src/components/admin/ViewAsBanner.jsx",
+      "sha256": "08ad771e38bd4ff7fae9573c000ef620b2c638fba01a07c39be97ef3c052ea87"
+    },
+    {
+      "file": "src/lib/dal/commands/access.js",
+      "sha256": "1e9114c4cc50ddd90f59cde35430e5bc707b4815efef18939054e8613567fe97"
+    },
+    {
+      "file": "src/lib/dal/commands/accidents.js",
+      "sha256": "b27f63ee8e00d6f5a4a9626d6515f2694540fb08e43274297f6f8b57a26a5b29"
+    },
+    {
+      "file": "src/lib/dal/commands/account.js",
+      "sha256": "8fa750cae32472abe7e2470700a46745d90d50345cce2cc0d93ff3ff74ffc7cf"
+    },
+    {
+      "file": "src/lib/dal/commands/admin.js",
+      "sha256": "2539b32fe048fe84a9367127a7d5ef6a34d24ff364d58e7e55ce6096673170b7"
+    },
+    {
+      "file": "src/lib/dal/commands/cap.js",
+      "sha256": "c689f095a3211e4f96b82c13134a7357206e0a09cac08303d1587cdd12922814"
+    },
+    {
+      "file": "src/lib/dal/commands/checklists.js",
+      "sha256": "b4afe0b31082b316b53e79dc7deece549600a8c37d7d919625218c4c315d75d2"
+    },
+    {
+      "file": "src/lib/dal/commands/community.js",
+      "sha256": "2ea00a708d1ae08010d46c674069a65445e2c248206561c3080c66f48893098e"
+    },
+    {
+      "file": "src/lib/dal/commands/corkNotes.js",
+      "sha256": "8034e3dd053a0303de2cfb1440677a805ed072c758b8a50e1b188b009609bee2"
+    },
+    {
+      "file": "src/lib/dal/commands/documents.js",
+      "sha256": "460da437e2fbafe2efa567c2a0a08980953af8ea5d7cc6523da559b8a6ee1622"
+    },
+    {
+      "file": "src/lib/dal/commands/drivers.js",
+      "sha256": "fa01d5b9bffea4dd8023c61416e18aa42b576713eb9bbe1008ce4a685cde8835"
+    },
+    {
+      "file": "src/lib/dal/commands/emailAdmin.js",
+      "sha256": "ef84c816df2f956cdf1a6d7e689f55e0f0b85ca3cddd0b64bfdd4765b7fdaf6b"
+    },
+    {
+      "file": "src/lib/dal/commands/expenses.js",
+      "sha256": "4394428169715359486257b968c4fa7c0d2a4c49de2f0648b76b8a645822f65e"
+    },
+    {
+      "file": "src/lib/dal/commands/maintenance.js",
+      "sha256": "54e3427a85f233ceb499f7e5c96947b5b22e2b6cf7b62b2a3b43eb38154ed04d"
+    },
+    {
+      "file": "src/lib/dal/commands/notifications.js",
+      "sha256": "4ef49690589f3044b521ca7fd8faf04602a8d1085fb42be5b910ee1062a29cb8"
+    },
+    {
+      "file": "src/lib/dal/commands/profile.js",
+      "sha256": "125282059ff645d3ed12ef00de6813b2c3e498065ff99da31def0d6e7d2112d5"
+    },
+    {
+      "file": "src/lib/dal/commands/repairs.js",
+      "sha256": "9833aab59ac90eb17aaaa9a4f9bcf5e02653ec76b15d13f2cf2038d84827ec7a"
+    },
+    {
+      "file": "src/lib/dal/commands/routes.js",
+      "sha256": "01aa0735372fef4f07114236fca411400b36531fca51fb62ddd76d1d67a61e86"
+    },
+    {
+      "file": "src/lib/dal/commands/storage.js",
+      "sha256": "f3042aeed07174a1914a267400f51ad16141f31a2b4499c0349b41512e37122c"
+    },
+    {
+      "file": "src/lib/dal/commands/telemetry.js",
+      "sha256": "95dfec3966aeab565f0a07b5ad3ac62af0fa22953bd9c6c1ea5f981a7d919a39"
+    },
+    {
+      "file": "src/lib/dal/commands/transfers.js",
+      "sha256": "013fc82d77d2ebc1a1b1671a407eafb95ced983d6c6ddbff0ae2ea3471a14026"
+    },
+    {
+      "file": "src/lib/dal/commands/vehicles.js",
+      "sha256": "ad9c3187fc6cc4c85e69382ee7d3b54989b0354036a258b0143808ff5a888b5d"
+    },
+    {
+      "file": "src/lib/dal/commands/vesselIssues.js",
+      "sha256": "1979bf76a21b28bcaec9eb204a81469b3918a0d5fcc073b2be00a5b7b0b4f4ff"
+    },
+    {
+      "file": "src/pages.config.js",
+      "sha256": "2280bf052b30b019648b5fd51ecf698c9529d9558e386d88bc49568d212442f4"
+    },
+    {
+      "file": "src/pages/AdminAi.jsx",
+      "sha256": "128f57cf74287ba75a13e5f2c5cf01c0fdf2a6ebcb2df0af5528e6b60077aa6f"
+    },
+    {
+      "file": "src/pages/AdminAiSettings.jsx",
+      "sha256": "4319fceb8340987aeacca13ae7e825818f3e71a793a0b8e07289259f5d77e956"
+    },
+    {
+      "file": "src/pages/AdminAiUsage.jsx",
+      "sha256": "9a768177e99f101d9332d6e8866148373361717d27ad1ae52f3acd6fe77ccb68"
+    },
+    {
+      "file": "src/pages/AdminAlerts.jsx",
+      "sha256": "8d0f2092d9b9e6ad49a79f5f062b393bee2c9a90cb8c7681669423da6bfa2903"
+    },
+    {
+      "file": "src/pages/AdminAnalytics.jsx",
+      "sha256": "bcc51d8fb8c1811abdb823e7b19cc612f2a94122386e5cbf7a8cedf1fa439e63"
+    },
+    {
+      "file": "src/pages/AdminAuditLog.jsx",
+      "sha256": "4840435817c506394b4ff4685b8b1122ad26331a760c754e47ddb0ed81473ba9"
+    },
+    {
+      "file": "src/pages/AdminBusinessRequests.jsx",
+      "sha256": "138afe1116f8a9f6809d89219b17394372e297fa95a702beda7a947135e79ea8"
+    },
+    {
+      "file": "src/pages/AdminDashboard.jsx",
+      "sha256": "69f6b65f04e5dde92d5b3f2435769dc684f85e04cd5cc671ff23e44081bc3fa4"
+    },
+    {
+      "file": "src/pages/AdminHealth.jsx",
+      "sha256": "687af3431ff9d83734ca5c3c61c76d9cde9b8a902a8adfd1bab66694bd0e7be4"
+    },
+    {
+      "file": "src/pages/AdminHome.jsx",
+      "sha256": "e8e227ccf5069bd63a1bae22c0a2a6248aa179af6df7e6e65e1c2edf40e2a458"
+    },
+    {
+      "file": "src/pages/AdminPlans.jsx",
+      "sha256": "c0d1851326234761614b96e14de41c9033e27d7b361f7b8cd89b68f35bde31ff"
+    },
+    {
+      "file": "src/pages/AdminReviews.jsx",
+      "sha256": "be961a00d5af07cb633044ee0d9fa2724f8f4fe93b8ed2d77b9048e14c32a5c1"
+    },
+    {
+      "file": "src/pages/AdminUsers.jsx",
+      "sha256": "f9ec6374201040370f441398d9bff1ade606a67d86e2d533851aa581e6412c57"
+    },
+    {
+      "file": "src/pages/AdminViewSessions.jsx",
+      "sha256": "d182a32645893916d98a33576c4402e7d543f833b3507e2bcd67d49b78276489"
+    },
+    {
+      "file": "src/pages/EmailCenter.jsx",
+      "sha256": "62cdf435deb0ed6e757d0d9af68709974dec5cad41181a4b56ca741c99bbb97e"
+    },
+    {
+      "file": "supabase/functions/admin-impersonate/index.ts",
+      "sha256": "e47cd65a018c180e4892ed44ec0afb981f329a67b1d18c5f51e4eb5a7896c6de"
+    },
+    {
+      "file": "supabase/functions/ai-proxy/index.ts",
+      "sha256": "6a5139f7ba287b64e75b88813e23ac2eb9f7a820591542f46317794616ea3f22"
+    },
+    {
+      "file": "supabase/functions/apple-revoke/index.ts",
+      "sha256": "b83e9066cc2ac30ce93c5c7e67b13e04ab523e63e45e6f7b5e6a1eb76d8b3417"
+    },
+    {
+      "file": "supabase/functions/backfill-welcome/index.ts",
+      "sha256": "d4f18f218c4abb6728a56804448b7db6a467a6a8997947ae2e005a7d2afdf57c"
+    },
+    {
+      "file": "supabase/functions/check-ai-quota/index.ts",
+      "sha256": "4ee611020c61c956f2b59245f6e100cf945ff216cf2cf226546ece5550dd5e31"
+    },
+    {
+      "file": "supabase/functions/check-test-renewals/index.ts",
+      "sha256": "2b5b6090044e21933a11e231a48e7e677ffa76e0c3fa6ba0f5e18a289ad404d3"
+    },
+    {
+      "file": "supabase/functions/dispatch-admin-alert/index.ts",
+      "sha256": "c5830b276805c395930ca0bf69192755b1d686440412f4788e0adfb980c2e95f"
+    },
+    {
+      "file": "supabase/functions/dispatch-broadcast/index.ts",
+      "sha256": "5f0906b667a11622ea872cd0b4f7f57937815a157e7aaef900dc3ec204fd740f"
+    },
+    {
+      "file": "supabase/functions/dispatch-no-vehicle-nudge/index.ts",
+      "sha256": "f2f8dcd29cdda4a3b681060ba1bb1b1601a29761cfa7d04273f915b8c89dc25c"
+    },
+    {
+      "file": "supabase/functions/dispatch-push/index.ts",
+      "sha256": "fbe2f4ca33d50aeaccf089593b52d4bb9cde3f462ac339541a537572b0aeac69"
+    },
+    {
+      "file": "supabase/functions/dispatch-recall-alerts/index.ts",
+      "sha256": "d20b7c0858523f130133471e4b8442c33134d6afb0c0aa060891cd967d4e5a99"
+    },
+    {
+      "file": "supabase/functions/dispatch-reminder-emails/index.ts",
+      "sha256": "a1e9fe5277e1ed286df2f8dcf648bef004feb7b4841ec972e1eef8ade4b103d3"
+    },
+    {
+      "file": "supabase/functions/gov-sync-vehicles/index.ts",
+      "sha256": "e4689cfd71f30a3436e0ebfebfe44184455a1f3813766227da8e9735a9a5b14b"
+    },
+    {
+      "file": "supabase/functions/overpass-proxy/index.ts",
+      "sha256": "c0c5ec370bb3ec06c49a8547aea94121ab6a98aa729dabc82845577a14fe1faf"
+    },
+    {
+      "file": "supabase/functions/resend-webhook/index.ts",
+      "sha256": "14cbd6fb1a3f21a2877d2beb62c15d11d764167be0880c7a32b5a0f555d70337"
+    },
+    {
+      "file": "supabase/functions/send-daily-digest/index.ts",
+      "sha256": "75983c472d7d481a7f172432662d9260c83a7767bc9520d75a1515349721ef1f"
+    },
+    {
+      "file": "supabase/functions/send-email/index.ts",
+      "sha256": "c87a50ada5766d6cc2e0d7fa95b6506fa4ab5613180cc9df68d5f46aa12f4ac9"
+    },
+    {
+      "file": "supabase/functions/unsubscribe/index.ts",
+      "sha256": "6b25f7a6f2c9bae5345889181af8b1bb2652a65af2661bc4c52fa755e51455f6"
+    }
+  ]
+}

@@ -27,7 +27,7 @@
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  CreditCard, Car, Search, Share2, Sparkles,
+  CreditCard, Car, FileText, Search, Share2, Sparkles,
   AlertCircle, RotateCw, ShieldCheck, Info, UserPlus, ChevronLeft,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -442,6 +442,23 @@ export default function MyPlan() {
               value={vehiclesValue}
               used={showVehicleUsage ? capacity.count : undefined}
               cap={plan.maxVehicles}
+            />
+            {/* Documents: the CAP ONLY, and the missing numerator is
+                deliberate. A client-side count would disagree with what the
+                trigger enforces: documents_select_via_share widens what a
+                user may SEE beyond what their own account holds, so counting
+                visible rows is not the question the cap answers. That is the
+                same reason useVehicleCapacity goes through
+                my_vehicle_capacity() rather than counting. A real figure
+                needs a server RPC; until then the limit alone is true, and
+                "0 / 5" for someone holding seven would not be. Same shape as
+                the shares row below. */}
+            <LimitRow
+              icon={FileText}
+              label="מסמכים שמורים"
+              value={plan.maxDocuments === null || plan.maxDocuments === undefined
+                ? UNLIMITED
+                : `עד ${plan.maxDocuments}`}
             />
             {/* Plate checks: a real meter once the counter has been read.
                 usedPlate is null while the usage query is loading or has
