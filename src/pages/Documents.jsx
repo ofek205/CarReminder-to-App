@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
+import { compressImage } from '@/lib/imageCompress';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
@@ -728,7 +729,7 @@ function ExpiryPill({ expiryDate }) {
 // The card just renders buttons and reports clicks. Falls back gracefully
 // when `onDownload` isn't provided (guest path) — uses the inline file_url
 // link, which for guests is the base64 data: URL stored locally.
-function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId }) {
+function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId, onAttach, attachingId }) {
   const cat = getCat(doc.document_type);
 
   // The card has *some* payload to view/download if either column has it.
@@ -836,6 +837,25 @@ function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId }) {
               </Button>
             </>
           )}
+          {/* The row has no file. The STATEMENT lives in the metadata row
+              above ("ללא קובץ"); the ACTION belongs here, where every other
+              action on this card already is. That split is the point: the
+              original bug was an empty action column that taught the user
+              to press the card itself. */}
+          {!hasFile && onAttach && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-gray-600 border-gray-200 hover:bg-gray-50 h-8 px-2"
+              onClick={() => onAttach(doc)}
+              disabled={attachingId === doc.id}
+            >
+              {attachingId === doc.id
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Paperclip className="h-4 w-4" />}
+              <span className="hidden sm:inline text-xs">צרף קובץ</span>
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDelete(doc.id)}>
             <Trash2 className="h-4 w-4 text-red-500" />
           </Button>
@@ -849,7 +869,7 @@ function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId }) {
 // Wraps GroupedDocList inside a per-vehicle section so the user can scan
 // "which docs belong to which vehicle" at a glance, instead of a flat
 // category list that mixes all vehicles' docs together.
-function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingId }) {
+function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingId, onAttach, attachingId }) {
   const [collapsed, setCollapsed] = useState({});
 
   // Partition docs by vehicle id. "Unassigned" docs (no vehicle_id) fall
@@ -910,7 +930,8 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, o
               <div className="mt-2">
                 <GroupedDocList docs={vDocs} vehicles={vehicles}
                   onOpen={onOpen} onDownload={onDownload}
-                  onDelete={onDelete} openingId={openingId} />
+                  onDelete={onDelete} openingId={openingId}
+                  onAttach={onAttach} attachingId={attachingId} />
               </div>
             )}
           </div>
@@ -921,7 +942,7 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, o
 }
 
 //  Grouped document list 
-function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingId }) {
+function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingId, onAttach, attachingId }) {
   const [collapsed, setCollapsed] = useState({});
 
   const allCategories = [...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES];
@@ -992,6 +1013,8 @@ function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingI
                       onDownload={onDownload}
                       onDelete={onDelete}
                       openingId={openingId}
+                      onAttach={onAttach}
+                      attachingId={attachingId}
                     />
                   )}
                   {/* Older documents - collapsed by default */}
@@ -1012,6 +1035,8 @@ function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingI
                             onDownload={onDownload}
                             onDelete={onDelete}
                             openingId={openingId}
+                            onAttach={onAttach}
+                            attachingId={attachingId}
                           />
                         </div>
                       ))}
@@ -1035,6 +1060,42 @@ function GuestDocuments({ vehicleIdParam }) {
   const [saving, setSaving] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
   const [openingId, setOpeningId] = useState(null);
+  const attachInputRef = useRef(null);
+  const attachTargetRef = useRef(null);
+  const [attachingId, setAttachingId] = useState(null);
+
+  // A guest's file never leaves the device, so attaching is just writing
+  // the base64 into file_url — the shape every other guest document has.
+  // No upload, and therefore no failure mode beyond the storage quota,
+  // which GuestDataContext already reports through safeSetItem.
+  const handleAttachClick = (doc) => {
+    attachTargetRef.current = doc;
+    attachInputRef.current?.click();
+  };
+
+  const handleAttachFile = async (e) => {
+    const file = e.target.files?.[0];
+    const doc = attachTargetRef.current;
+    e.target.value = '';
+    if (!file || !doc) return;
+    setAttachingId(doc.id);
+    try {
+      const compressed = await compressImage(file);
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(compressed);
+      });
+      updateGuestDocument(doc.id, { file_url: base64 });
+      toast.success('הקובץ צורף');
+    } catch (err) {
+      toastError('לא הצלחנו לצרף את הקובץ', { action: 'guest_doc_attach_failed', err });
+    } finally {
+      setAttachingId(null);
+      attachTargetRef.current = null;
+    }
+  };
 
   // Guests could not open a single document, ever, even one they had just
   // saved with a file. This component passed only `onDelete`, and DocCard
@@ -1140,6 +1201,8 @@ function GuestDocuments({ vehicleIdParam }) {
           onOpen={handleGuestOpen}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingId}
+          onAttach={handleAttachClick}
+          attachingId={attachingId}
         />
       ) : (
         // "All vehicles" view. group by vehicle first, then by category.
@@ -1149,8 +1212,18 @@ function GuestDocuments({ vehicleIdParam }) {
           onOpen={handleGuestOpen}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingId}
+          onAttach={handleAttachClick}
+          attachingId={attachingId}
         />
       )}
+
+      <input
+        ref={attachInputRef}
+        type="file"
+        accept={DOC_OR_IMAGE_ACCEPT}
+        className="hidden"
+        onChange={handleAttachFile}
+      />
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}
@@ -1232,6 +1305,53 @@ function AuthDocuments({ vehicleIdParam }) {
   const [openingDocId, setOpeningDocId] = useState(null);
   const [aiScanOn, setAiScanOn] = useState(false);
   const queryClient = useQueryClient();
+
+  // Attaching a file to a row that has none. 124 documents in production
+  // are in that state, and until now the only way out was to delete the
+  // row and rebuild it, which would also have thrown away the expiry date
+  // that still drives its reminder.
+  //
+  // The hook is built without a vehicleId because one instance serves the
+  // whole list and each row belongs to a different vehicle. That lands the
+  // file under `{accountId}/uploads`, which the Storage policy accepts and
+  // every member of the account can read — the same path AddVehicle uses
+  // for a photo picked before the vehicle row exists.
+  const attachInputRef = useRef(null);
+  const attachTargetRef = useRef(null);
+  const [attachingId, setAttachingId] = useState(null);
+  const { upload: attachUpload } = useFileUpload({ accountId, userId, mode: 'doc' });
+
+  const handleAttachClick = (doc) => {
+    attachTargetRef.current = doc;
+    attachInputRef.current?.click();
+  };
+
+  const handleAttachFile = async (e) => {
+    const file = e.target.files?.[0];
+    const doc = attachTargetRef.current;
+    e.target.value = '';           // so picking the same file twice re-fires
+    if (!file || !doc) return;
+    setAttachingId(doc.id);
+    try {
+      const { fileUrl, storagePath } = await attachUpload(file);
+      // Only the two file columns. Notably NOT account_id: the row already
+      // belongs where it belongs, and the one RLS policy that does not
+      // re-validate account_id on update is the editor-share one, so the
+      // safest patch is the smallest.
+      await dal.run('document.update', {
+        id: doc.id,
+        file_url: fileUrl,
+        storage_path: storagePath,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['documents'] });
+      toast.success('הקובץ צורף');
+    } catch (err) {
+      toastError(err?.message || 'לא הצלחנו לצרף את הקובץ', { action: 'doc_attach_failed', err });
+    } finally {
+      setAttachingId(null);
+      attachTargetRef.current = null;
+    }
+  };
 
   useEffect(() => {
     async function init() {
@@ -1551,6 +1671,8 @@ function AuthDocuments({ vehicleIdParam }) {
           onDownload={handleDownloadDocument}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingDocId}
+          onAttach={handleAttachClick}
+          attachingId={attachingId}
         />
       ) : (
         <VehicleGroupedDocList
@@ -1560,8 +1682,22 @@ function AuthDocuments({ vehicleIdParam }) {
           onDownload={handleDownloadDocument}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingDocId}
+          onAttach={handleAttachClick}
+          attachingId={attachingId}
         />
       )}
+
+      {/* One input for the whole list; the row is remembered in a ref.
+          DOC_OR_IMAGE_ACCEPT keeps PDFs first, which is load-bearing on
+          Android: a media type first opens the photo picker and a PDF
+          cannot be chosen at all. */}
+      <input
+        ref={attachInputRef}
+        type="file"
+        accept={DOC_OR_IMAGE_ACCEPT}
+        className="hidden"
+        onChange={handleAttachFile}
+      />
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}
