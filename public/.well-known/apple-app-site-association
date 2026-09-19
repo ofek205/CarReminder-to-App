@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["L36CBSRNZT.com.carreminders.app"],
+        "components": [
+          {
+            "/": "/JoinInvite*",
+            "comment": "Vehicle share invitation. Mirrors the Android pathPrefix in AndroidManifest.xml."
+          },
+          {
+            "/": "/VehicleTransfer*",
+            "comment": "Digital ownership transfer, both the recipient link and the in-app screen."
+          },
+          {
+            "/": "/Notifications*",
+            "comment": "Notification deep link."
+          }
+        ]
+      }
+    ]
+  }
+}
