@@ -65,7 +65,7 @@ function isUserCancellation(err) {
  * restore path on the documented call would have produced a safety net that
  * silently found nothing, every time.
  */
-function playBackend() {
+function buildPlayBackend() {
   return {
     async connect() {
       const { isBillingSupported } = await NativePurchases.isBillingSupported();
@@ -148,9 +148,81 @@ function playBackend() {
   };
 }
 
-/** Opens Play's own subscription page. /MyPlan routes here for iap_google. */
+/**
+ * ⚠️ A SINGLETON, AND THE LACK OF ONE IS WHAT LEFT /Plans SPINNING ALL NIGHT
+ * ON A REAL DEVICE WHILE EVERY BROWSER CHECK PASSED.
+ *
+ * getBillingBackend() used to call buildPlayBackend() on every invocation, so
+ * it handed back a NEW object each time. usePurchaseFlow puts that object in
+ * the dependency array of the effect that loads the catalogue. A fresh
+ * identity every render means the effect re-runs every render:
+ *
+ *     catalogue resolves -> setState -> re-render -> new backend object
+ *       -> deps changed -> effect re-runs -> setState(LOADING_PRODUCTS)
+ *       -> re-render -> new backend object -> ...
+ *
+ * The screen never leaves LOADING_PRODUCTS, and re-queries Play forever. The
+ * catalogue timeout added earlier does not rescue it: the timeout fires,
+ * UNAVAILABLE is set, that is itself a state change, and the next render
+ * starts the whole cycle again. A twelve-second flip-flop reads as a
+ * permanent spinner, which is precisely what was reported.
+ *
+ * ⚠️ AND THIS IS WHY THE PREVIEW NEVER SHOWED IT. The browser branches return
+ * `mockBackend` (a module-level object) or `null`, both of which are
+ * referentially stable, so the loop is unreachable off Android. A bug that
+ * only exists on the platform the preview cannot run is the argument for
+ * fixing identity HERE, at the source, rather than asking every caller to
+ * remember a useMemo.
+ *
+ * Safe as a singleton because the object is stateless: every method is a
+ * direct call into the plugin, and it holds no connection or cursor of its own.
+ */
+let playBackendSingleton = null;
+function playBackend() {
+  if (playBackendSingleton === null) playBackendSingleton = buildPlayBackend();
+  return playBackendSingleton;
+}
+
+/**
+ * Opens Play's own subscription page, where a subscriber cancels or changes
+ * payment method.
+ *
+ * ⚠️ THIS IS THE ONLY CANCEL ROUTE THAT EXISTS, AND FOR A WHILE IT WAS WIRED
+ * TO NOTHING. The function was written, documented in the UX spec as the
+ * /MyPlan control, and then never imported by a screen, so a subscriber had
+ * no way out of the plan from inside the app. Play expects that route to
+ * exist; more to the point, a subscription with no visible exit is the kind
+ * of thing people charge back rather than cancel.
+ *
+ * ⚠️ RETURNS A BOOLEAN RATHER THAN THROWING. The caller is a button on a
+ * screen that must keep working. A plugin that is missing, or a device with
+ * no Play Store, is a reason to show the user a fallback sentence, never a
+ * reason to take down /MyPlan.
+ *
+ * @returns {Promise<boolean>} true when the store page was handed off to
+ */
 export async function openStoreSubscriptionManagement() {
-  await NativePurchases.manageSubscriptions();
+  if (!canOpenStoreSubscriptionManagement()) return false;
+  try {
+    await NativePurchases.manageSubscriptions();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Can this platform actually open that page?
+ *
+ * ⚠️ EXPORTED SO A SCREEN CAN DECIDE WHETHER TO RENDER THE CONTROL AT ALL,
+ * rather than rendering one that returns false in silence. /MyPlan shows the
+ * manage button by subscription SOURCE, which is right: someone who bought on
+ * their phone and is reading in a browser should still learn where the
+ * subscription lives. But the sheet is a native Play surface, so on that
+ * browser the sentence is the honest thing to show and the button is not.
+ */
+export function canOpenStoreSubscriptionManagement() {
+  return isNative && isAndroid;
 }
 
 /**

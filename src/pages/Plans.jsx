@@ -32,7 +32,8 @@
  * @see docs/spec-monetization-plans-v2.md §1.1, §5.1, §5.4
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Car, FileText, Sparkles, ScanLine, Share2, Briefcase, CornerDownLeft } from 'lucide-react';
 import PageShell from '@/components/business/system/PageShell';
@@ -41,10 +42,12 @@ import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { C } from '@/lib/designTokens';
 import usePlanCatalog from '@/hooks/usePlanCatalog';
-import useAccountPlan from '@/hooks/useAccountPlan';
+import useAccountPlan, { ACCOUNT_PLAN_QUERY_KEY } from '@/hooks/useAccountPlan';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import { VEHICLE_CAPACITY_QUERY_KEY } from '@/hooks/useVehicleCapacity';
+import { FEATURE_USAGE_QUERY_KEY } from '@/hooks/useFeatureUsage';
 import { billingSurface, IAP, NONE } from '@/lib/billingGate';
-import { getBillingBackend } from '@/lib/billing';
+import { getBillingBackend, openStoreSubscriptionManagement } from '@/lib/billing';
 import { PurchaseState, mayOfferPurchase } from '@/lib/billing/purchaseMachine';
 import { usePurchaseFlow } from '@/hooks/usePurchaseFlow';
 import { useFeatureFlag } from '@/lib/featureFlags';
@@ -128,10 +131,22 @@ export function personalNote(effective, catalogue) {
  * the screen then refuses. They were not reworded for the move: the page
  * subtitle gives "רכישה" its antecedent, which was the only thing the new
  * position actually needed.
+ *
+ * ⚠️ "המנוי מנוהל באתר" WAS REMOVED ON 2026-09-20, AND IT WAS LIVE ON THE
+ * INTERNAL TRACK WHEN IT SHOULD NOT HAVE BEEN.
+ *
+ * It was the 'none' string, and 'none' was Android. That wording is only
+ * lawful under Play's consumption-only exemption, which the app stopped
+ * qualifying for the moment the Billing library shipped inside the binary.
+ * Play Billing present AND an external purchase referred to is the hybrid
+ * Play forbids outright. Android is now an 'iap' surface (see billingGate),
+ * so it no longer reaches this branch at all, and the branch itself no
+ * longer points anywhere: 'none' now means an unrecognised native platform,
+ * which is the last place that should be handed a website.
  */
 export function unavailableCopy(surface) {
   if (surface === IAP)  return 'רכישה אינה זמינה בגרסה הזו של האפליקציה.';
-  if (surface === NONE) return 'רכישה אינה זמינה באפליקציה. המנוי מנוהל באתר.';
+  if (surface === NONE) return 'רכישה אינה זמינה באפליקציה.';
   return 'רכישה אינה זמינה כרגע.';
 }
 
@@ -386,7 +401,7 @@ async function verifyPurchase({ purchaseToken, productId, accountId }) {
 
 export default function Plans() {
   const catalog = usePlanCatalog();
-  const { plan: currentPlan, graceDaysLeft, isGuest } = useAccountPlan();
+  const { plan: currentPlan, subscription, graceDaysLeft, isGuest } = useAccountPlan();
   const { isBusiness } = useWorkspaceRole();
   const { accountId } = useAccountRole();
   const surface = billingSurface();
@@ -404,10 +419,32 @@ export default function Plans() {
   // has none until the Play plugin is installed.
   const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
   const offering = mayOfferPurchase(billingFlag, getBillingBackend() !== null);
+
+  /**
+   * ⚠️ WITHOUT THIS, PAYING US CHANGED NOTHING THE USER COULD SEE.
+   *
+   * The grant lands in the database, but useAccountPlan holds a 60-second
+   * staleTime and nothing told React Query the world had moved. The card
+   * flipped to "המסלול שלך" while isCurrent() twelve lines below still
+   * matched the free plan, so ONE SCREEN showed two different answers to
+   * "which plan am I on", and /MyPlan showed the free one too.
+   *
+   * Every key that reads an entitlement is invalidated, not just the plan:
+   * the caps and the usage meters are all derived from it, and a refreshed
+   * plan sitting next to a stale "4 מתוך 5" is the same contradiction one
+   * level down.
+   */
+  const queryClient = useQueryClient();
+  const onGranted = useCallback(() => {
+    [ACCOUNT_PLAN_QUERY_KEY, VEHICLE_CAPACITY_QUERY_KEY, FEATURE_USAGE_QUERY_KEY]
+      .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+  }, [queryClient]);
+
   const { state: purchaseState, products, activeProductId, online, buy, restore } = usePurchaseFlow({
     enabled: offering,
     accountId,
     verifyPurchase,
+    onGranted,
   });
 
   const free = catalog.free;
@@ -481,13 +518,34 @@ export default function Plans() {
       : !product ? PurchaseState.UNAVAILABLE
       : PurchaseState.IDLE;
 
+    /**
+     * ⚠️ A SECOND PURCHASE WAS ONE TAP AWAY, ON EVERY OTHER CARD.
+     *
+     * Nothing here asked whether the account was already subscribed, so once
+     * a purchase landed, the remaining paid cards kept a live "בחר מסלול"
+     * and so did the card for the plan the user had just bought. Tapping any
+     * of them calls purchaseProduct() with no replacement mode, which Play
+     * treats as a NEW subscription rather than a change: two live
+     * subscriptions, two charges, one account.
+     *
+     * ⚠️ GATED ON source === 'iap_google', NOT ON "is on a paid plan".
+     * An admin grant also puts an account on p19, and sending that person to
+     * Play would open a subscriptions list their plan is not in. The source
+     * column is the only thing that actually says "Google holds this
+     * relationship", and useAccountPlan already reads it.
+     */
+    const storeManaged = subscription?.source === 'iap_google';
+    const manage = storeManaged && !!product && !isActive;
+
     return (
       <PurchaseAction
         state={stateForCard}
         priceFormatted={product?.priceFormatted}
         offline={!online}
+        manage={manage}
         onBuy={() => product && buy(product.productId)}
         onRestore={restore}
+        onManage={openStoreSubscriptionManagement}
       />
     );
   };

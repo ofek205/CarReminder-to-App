@@ -34,18 +34,33 @@ export const WEB = 'web';
  *
  * iOS native  -> 'iap'   StoreKit only. Our prices, our site, our checkout
  *                        are all forbidden, including as plain text.
- * Android native -> 'none'  Today the app ships no Play Billing, so under the
- *                        consumption-only exemption it may TELL the user
- *                        that a subscription exists elsewhere but may not
- *                        link to it. Adding Play Billing later means that
- *                        sentence has to be REMOVED: hybrid is forbidden.
+ * Android native -> 'iap'  Play Billing. See the warning below.
  * browser / PWA -> 'web'   No store rules apply.
+ *
+ * ⚠️ ANDROID MOVED FROM 'none' TO 'iap' ON 2026-09-20, AND IT HAD TO.
+ *
+ * 'none' encoded the consumption-only exemption, which permits an app that
+ * sells nothing in-app to MENTION that a subscription exists elsewhere. The
+ * app stopped qualifying the moment the Play Billing library shipped inside
+ * the binary and three subscriptions went live in the console. Play forbids
+ * the HYBRID: Play Billing present AND an external purchase referred to.
+ *
+ * Until this change unavailableCopy(NONE) was rendering
+ * "רכישה אינה זמינה באפליקציה. המנוי מנוהל באתר." on Android, in a build that
+ * already carried Play Billing. That sentence, in that build, is the
+ * violation itself, and it was live on the internal track.
+ *
+ * ⚠️ THE TRIGGER IS THE BUILD, NOT THE FEATURE FLAG. play_billing_enabled
+ * controls whether we OFFER a purchase; it does not remove the Billing
+ * library from the APK. So the exemption is gone whether the flag is on or
+ * off, and this function must stay flag-independent. Whether there is a
+ * sheet to press is a different question, answered by iapReady().
  *
  * @returns {'iap'|'none'|'web'}
  */
 export function billingSurface() {
   if (isNative && isIOS) return IAP;
-  if (isNative && isAndroid) return NONE;
+  if (isNative && isAndroid) return IAP;
   // Anything else is a browser. Note the ORDER: this falls through to 'web'
   // only after both native checks, so an unrecognised native platform can
   // never be treated as a browser and be handed a checkout link.
@@ -78,8 +93,13 @@ export function canReferToWeb() {
  * May this surface merely SAY that a paid plan exists elsewhere, without
  * linking or pricing it?
  *
- * This is the Android-only middle ground the consumption-only exemption
- * creates, and it is why `none` is not simply "show nothing".
+ * ⚠️ FALSE ON ANDROID SINCE 2026-09-20. This used to be the Android middle
+ * ground created by the consumption-only exemption. Shipping Play Billing
+ * ended that exemption, so Android may no longer refer to a purchase made
+ * anywhere else. Today only a browser may.
+ *
+ * If what a screen wants is to say "a paid plan exists" without pointing
+ * outside the app, that is mayMentionPaidPlans(), not this.
  */
 export function canMentionExternalPurchase() {
   return billingSurface() !== IAP;
@@ -107,21 +127,76 @@ export function canMentionExternalPurchase() {
  * CreateBusinessWorkspace, an in-app admin-approval request rather than a
  * purchase, so no store rule touches it.
  *
+ * ⚠️ THE SECOND ARGUMENT IS NOT OPTIONAL POLISH, IT IS THE WHOLE POINT NOW.
+ *
+ * Since Android became 'iap' this function would otherwise strip the call to
+ * action from the cap wall on the one platform that finally has something to
+ * sell, because the IAP branch was written for iOS where there genuinely is
+ * no sheet. `iapReady` is the missing distinction: 'iap' says which store
+ * governs the platform, `iapReady` says whether a sheet can actually open
+ * right now. They were identical everywhere until Play Billing shipped,
+ * which is how they came to be conflated in the first place.
+ *
+ * Callers pass `iapReady(flag)` from lib/billing. This module stays free of
+ * the flag so it remains synchronous and testable.
+ *
  * @param {'plan'|'personal'|null} kind  which cap refused
+ * @param {{iapReady?: boolean}} [opts]  is there a purchase sheet to open
  * @returns {{cta: 'plan'|'business'|null, mayMentionPlans: boolean}}
  */
-export function capWallAction(kind) {
+export function capWallAction(kind, opts = {}) {
+  const iapReady = opts.iapReady === true;
   if (kind === 'personal') {
     return { cta: 'business', mayMentionPlans: false };
   }
+
   const surface = billingSurface();
-  if (surface === IAP) {
-    // iOS: nothing about plans, prices, or the site. Not even as prose.
-    return { cta: null, mayMentionPlans: false };
-  }
-  if (surface === NONE) {
-    // Android: may say a paid plan exists, may not link to it.
-    return { cta: null, mayMentionPlans: true };
-  }
-  return { cta: 'plan', mayMentionPlans: true };
+
+  if (surface === WEB) return { cta: 'plan', mayMentionPlans: true };
+
+  // An unrecognised native platform: no store to sell through and no link we
+  // are willing to hand it. The conservative answer is the only safe one.
+  if (surface === NONE) return { cta: null, mayMentionPlans: false };
+
+  // ── surface === IAP ──────────────────────────────────────────────────────
+  // ⚠️ TWO STORES LAND HERE SINCE ANDROID MOVED TO 'iap', AND THEY DIFFER ON
+  // THE LEGAL QUESTION, NOT ONLY ON THE PRACTICAL ONE.
+  //
+  //   Android: Play Billing is in the binary and three subscriptions are live,
+  //            so NAMING a paid plan is both permitted and true. What Play
+  //            forbids is pointing at an EXTERNAL purchase, which no copy
+  //            behind `mayMentionPlans` does. Keeping this true is also what
+  //            stops the flip to 'iap' silently deleting a helpful sentence
+  //            from four cap walls that were never in breach.
+  //
+  //   iOS:     3.1.1(a) covers prose, so until StoreKit exists we may not
+  //            name a paid plan at all. Unchanged.
+  //
+  // The CTA is the separate question, and the one `iapReady` answers: a
+  // button may only appear where a sheet can actually open.
+  if (isAndroid) return { cta: iapReady ? 'plan' : null, mayMentionPlans: true };
+  return { cta: null, mayMentionPlans: false };
+}
+
+/**
+ * May this surface merely NAME a paid plan, without linking anywhere outside
+ * the app?
+ *
+ * ⚠️ NOT THE SAME QUESTION AS canMentionExternalPurchase(), AND THE TWO
+ * STOPPED AGREEING WHEN ANDROID BECAME 'iap'.
+ *
+ * "A paid plan exists" is a statement about our own product. "Buy it over
+ * there" is steering. Android may now do the first and must not do the
+ * second, so a single gate can no longer answer both.
+ */
+export function mayMentionPaidPlans() {
+  const surface = billingSurface();
+  if (surface === WEB) return true;
+  // ⚠️ ENUMERATED, NOT `!== IAP`. The first version was written as
+  // `billingSurface() !== IAP || isAndroid`, which quietly returned TRUE for
+  // an unrecognised native platform, because 'none' is also not 'iap'. A
+  // store whose rules we do not know is the one place that must be silent,
+  // and a negation gave it the permissive answer by default.
+  if (surface === IAP) return isAndroid;
+  return false;
 }

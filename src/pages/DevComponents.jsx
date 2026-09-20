@@ -480,12 +480,17 @@ export default function DevComponents() {
           ['6 אימות בשרת', PurchaseState.VERIFYING, '₪9.00', false],
           ['7 הצלחה', PurchaseState.SUCCESS, '₪9.00', false],
           ['9 כשל תשלום', PurchaseState.FAILED, '₪9.00', false],
-          ['10 כבר בבעלותך', PurchaseState.OWNED, '₪9.00', false],
-          ['פעולה איטית', PurchaseState.PENDING, '₪9.00', false],
-        ].map(([label, st, price, offline]) => (
+          ['10 כבר בבעלותך', PurchaseState.OWNED, '₪9.00', false, false],
+          ['פעולה איטית', PurchaseState.PENDING, '₪9.00', false, false],
+          // 11 is what a card shows to somebody who is ALREADY subscribed.
+          // Before it existed, every other plan card kept a live "בחר מסלול"
+          // after a purchase landed, and tapping one opened a SECOND Play
+          // subscription rather than changing plan.
+          ['11 מנוי קיים, ניהול בחנות', PurchaseState.IDLE, '₪19.00', false, true],
+        ].map(([label, st, price, offline, manage]) => (
           <div key={label} className="rounded-3xl bg-white shadow-sm p-5">
             <p className="text-cr-xs text-cr-text-muted mb-1">{label}</p>
-            <PurchaseAction state={st} priceFormatted={price} offline={offline} />
+            <PurchaseAction state={st} priceFormatted={price} offline={offline} manage={manage} />
           </div>
         ))}
       </Section>

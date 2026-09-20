@@ -130,11 +130,24 @@ describe('unavailableCopy', () => {
     expect(s).toBeTruthy();
   });
 
-  it('may name the website on Android, which permits mentioning', () => {
-    // Play's consumption-only exemption allows telling the user a
-    // subscription exists elsewhere. Linking to it is what is forbidden, and
-    // this is a sentence, not a link.
-    expect(unavailableCopy('none')).toContain('אתר');
+  it('names no website on ANY surface, because Android now ships Play Billing', () => {
+    // ⚠️ THIS CASE USED TO ASSERT THE OPPOSITE, AND THE ASSERTION WAS THE BUG.
+    //
+    // It required unavailableCopy('none') to CONTAIN 'אתר', on the strength
+    // of Play's consumption-only exemption. That exemption only covers an app
+    // that sells nothing in-app, and the app stopped qualifying when the
+    // Billing library shipped inside the binary. Play Billing present AND an
+    // external purchase referred to is the hybrid Play forbids outright, and
+    // "המנוי מנוהל באתר" was live on the internal track for exactly that
+    // reason: a green test was holding it in place.
+    //
+    // Android is now an 'iap' surface and never reaches the 'none' branch at
+    // all; 'none' means an unrecognised native platform, which is the last
+    // place that should be handed a website.
+    for (const surface of ['iap', 'none', 'web', 'something-else']) {
+      expect(unavailableCopy(surface), surface).not.toContain('אתר');
+      expect(unavailableCopy(surface), surface).not.toContain('http');
+    }
   });
 
   it('is plain on the web, where no store rule applies', () => {

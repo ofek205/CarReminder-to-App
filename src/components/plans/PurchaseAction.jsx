@@ -64,8 +64,10 @@ export default function PurchaseAction({
   priceFormatted,
   busy = false,
   offline = false,
+  manage = false,
   onBuy,
   onRestore,
+  onManage,
 }) {
   const unavailable = state === PurchaseState.UNAVAILABLE;
   const loading     = state === PurchaseState.LOADING_PRODUCTS;
@@ -114,6 +116,29 @@ export default function PurchaseAction({
               <Check className="h-4 w-4" aria-hidden />
               המסלול שלך
             </div>
+          ) : manage ? (
+            /**
+             * ⚠️ THIS BRANCH EXISTS BECAUSE THE SCREEN LET SOMEBODY BUY TWICE.
+             *
+             * After a purchase landed, every OTHER paid card stayed on a live
+             * "בחר מסלול". Tapping it calls purchaseProduct() with no
+             * replacement mode, which is not an upgrade: Play opens a second
+             * subscription and charges for both. Seconds after paying us ₪9,
+             * a curious tap on the ₪19 card cost real money twice over.
+             *
+             * A plan CHANGE is a genuine thing to want, and Play is where it
+             * is actually performed, with proration it computes and we do
+             * not. So the card keeps its price, drops the charge, and points
+             * at the one place the change can be made correctly.
+             */
+            <button
+              type="button"
+              onClick={onManage}
+              className="w-full h-12 rounded-2xl text-[15px] font-bold disabled:opacity-60"
+              style={{ background: 'transparent', color: C.primary, border: `1px solid ${C.primary}` }}
+            >
+              ניהול המנוי
+            </button>
           ) : showRestore ? (
             /* ⚠️ OUTLINE, NOT FILLED. Same size and position as the buy
                button, different weight. That is what says "this is not a new
@@ -147,6 +172,12 @@ export default function PurchaseAction({
             </button>
           )}
 
+          {manage && (
+            <p className="mt-2 text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
+              כבר יש לך מנוי פעיל. מעבר בין מסלולים וביטול נעשים ב-Google Play, שם גם מחושב ההפרש.
+            </p>
+          )}
+
           {owned && (
             <p className="mt-2 text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
               כבר יש לך מנוי פעיל בחשבון Google הזה. נשחזר אותו לחשבון שלך באפליקציה, בלי חיוב נוסף.
@@ -168,7 +199,11 @@ export default function PurchaseAction({
           {/* ⚠️ REQUIRED BY PLAY, and placed against the button on purpose.
               Pushed to the card footer it becomes legal boilerplate the eye
               skips; next to the control it belongs to the action. */}
-          {!success && !pending && (
+          {/* ⚠️ AND NOT UNDER `manage` EITHER. The disclosure describes the
+              charge this button is about to make, so printing it beside a
+              control that makes no charge states a renewal the user is not
+              agreeing to here. */}
+          {!success && !pending && !manage && (
             <p className="mt-2 text-[11px] leading-relaxed" style={{ color: C.gray500 }}>
               החיוב מתחדש אוטומטית. ניתן לבטל בכל עת דרך Google Play.
             </p>
