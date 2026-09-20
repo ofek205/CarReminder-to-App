@@ -10,8 +10,9 @@
  * @see docs/ux-play-billing-purchase.md §5
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getBillingBackend } from '@/lib/billing';
+import { reportError } from '@/lib/crashReporter';
 import {
   PurchaseState, afterSheet, afterVerification, afterCatalogue, mayOfferPurchase,
 } from '@/lib/billing/purchaseMachine';
@@ -28,17 +29,52 @@ export { PurchaseState };
 const VERIFY_TIMEOUT_MS = 20000;
 
 /**
+ * ⚠️ SHORTER THAN THE VERIFICATION CEILING, AND DELIBERATELY SO.
+ *
+ * Nobody has paid anything yet at this point, so the cost of giving up early
+ * is a screen that says the catalogue is unavailable, which is recoverable by
+ * reopening it. The verification ceiling is long because the money has
+ * already moved and patience there is worth more than a fast answer.
+ */
+const CATALOGUE_TIMEOUT_MS = 12000;
+
+/** Rejects rather than resolving, so the caller's catch owns the failure. */
+function withCatalogueTimeout(fn) {
+  return Promise.race([
+    fn(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('play_catalogue_timeout')), CATALOGUE_TIMEOUT_MS)),
+  ]);
+}
+
+/**
  * @param {object}  opts
  * @param {boolean} opts.enabled    resolved play_billing_enabled
  * @param {string}  opts.accountId
  * @param {(t: {purchaseToken: string, productId: string}) => Promise<boolean>} opts.verifyPurchase
+ * @param {() => void} [opts.onGranted]  fired once per successful grant
  */
-export function usePurchaseFlow({ enabled, accountId, verifyPurchase }) {
+export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted }) {
   const [state, setState] = useState(PurchaseState.LOADING_PRODUCTS);
   const [products, setProducts] = useState([]);
   const [activeProductId, setActiveProductId] = useState(null);
 
-  const backend = getBillingBackend();
+  /**
+   * ⚠️ MEMOISED, AND ITS ABSENCE WAS THE ALL-NIGHT SPINNER ON A REAL DEVICE.
+   *
+   * This value sits in the dependency array of the catalogue effect below. On
+   * Android getBillingBackend() used to mint a new object per call, so the
+   * deps changed on every render, the effect re-ran, it set LOADING_PRODUCTS,
+   * that re-rendered, and the loop closed on itself. The screen sat on a
+   * spinning "בחר מסלול" overnight, re-querying Play the whole time.
+   *
+   * The real fix is in lib/billing: the Play backend is now a singleton, so
+   * identity is stable for every caller. This useMemo stays as the second
+   * layer, because a dependency array holding an object returned by a
+   * function call is fragile by construction, and the failure mode is
+   * invisible in a browser.
+   */
+  const backend = useMemo(() => getBillingBackend(), []);
   const aliveRef = useRef(true);
 
   /**
@@ -96,13 +132,33 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase }) {
     setState(PurchaseState.LOADING_PRODUCTS);
     (async () => {
       try {
-        const connected = await backend.connect();
-        const list = connected ? await backend.listProducts() : [];
+        // ⚠️ A CEILING, BECAUSE WITHOUT ONE THIS HUNG FOREVER ON A REAL
+        // DEVICE. connect() and getProducts() talk to the Play billing
+        // client, which can fail to call back at all rather than rejecting:
+        // newly created products take time to reach the device, and the
+        // client's own connection is not guaranteed to resolve. The first
+        // version awaited them bare, so the screen sat on a spinning
+        // "בחר מסלול" with nothing to press and no way out.
+        //
+        // CLAUDE.md states the rule outright: never a permanent spinner. The
+        // verification path already had a ceiling; this one did not, and the
+        // omission only showed up on hardware.
+        const list = await withCatalogueTimeout(async () => {
+          const connected = await backend.connect();
+          return connected ? await backend.listProducts() : null;
+        });
         if (cancelled) return;
-        setProducts(list);
-        safeSet(afterCatalogue({ connected, products: list }));
-      } catch {
-        if (!cancelled) safeSet(afterCatalogue({ connected: false, threw: true }));
+        setProducts(list || []);
+        safeSet(afterCatalogue({ connected: list !== null, products: list }));
+      } catch (err) {
+        if (cancelled) return;
+        // Reported rather than swallowed: a catalogue that never answers is
+        // indistinguishable on screen from one that answers empty, and the
+        // difference is what tells us whether Play is reachable at all.
+        try {
+          reportError('billing_catalogue', err, { where: 'usePurchaseFlow.catalogue' });
+        } catch { /* reporting must never be the thing that breaks the screen */ }
+        safeSet(afterCatalogue({ connected: false, threw: true }));
       }
     })();
     return () => { cancelled = true; };
@@ -118,20 +174,41 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase }) {
       settled = true;
       if (timer) { clearTimeout(timer); timersRef.current.delete(timer); }
       safeSet(afterVerification(outcome));
+      /**
+       * ⚠️ THE CACHE HAS TO BE TOLD, AND NOTHING USED TO TELL IT.
+       *
+       * The entitlement now exists in the database, but useAccountPlan holds
+       * a 60-second staleTime and React Query has no idea anything moved. So
+       * the card flipped to "המסלול שלך" while isCurrent() on the very same
+       * screen still pointed at the free plan, and /MyPlan still read free.
+       * Two contradictory answers to "which plan am I on", one screen apart,
+       * in the seconds right after someone paid us.
+       *
+       * Fires OUTSIDE the state write and guarded, because a refetch failing
+       * must not undo a purchase that already succeeded.
+       */
+      if (outcome === 'ok' && typeof onGranted === 'function') {
+        try { onGranted(); } catch { /* a stale cache is not worth a crash */ }
+      }
     };
 
     timer = setTimeout(() => finish('timeout'), VERIFY_TIMEOUT_MS);
     timersRef.current.add(timer);
     try {
+      // ⚠️ accountId TRAVELS WITH THE TOKEN. The server refuses a
+      // verification whose caller is not a member of the account being
+      // credited, which is what stops a signed-in user posting somebody
+      // else's account id alongside their own purchase.
       const ok = await verifyPurchase({
         purchaseToken: result.purchaseToken,
         productId: result.productId,
+        accountId,
       });
       finish(ok ? 'ok' : 'rejected');
     } catch {
       finish('threw');
     }
-  }, [verifyPurchase, safeSet]);
+  }, [verifyPurchase, accountId, safeSet, onGranted]);
 
   const buy = useCallback(async (productId) => {
     if (!backend) return;

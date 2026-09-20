@@ -35,6 +35,8 @@ import { Briefcase, Truck, Users, X, ArrowLeft, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { C } from '@/lib/designTokens';
 import { capWallAction } from '@/lib/billingGate';
+import { iapReady } from '@/lib/billing';
+import { useFeatureFlag } from '@/lib/featureFlags';
 
 const PERKS = [
   { Icon: Truck, t: 'בלי תקרת רכבים', d: 'נהלו צי שלם במקום אחד' },
@@ -59,6 +61,9 @@ const PLAN_PERKS = [
  */
 export default function VehicleCapReachedModal({ open, onClose, capacity, kind = 'personal', planCap = null }) {
   const navigate = useNavigate();
+  // ⚠️ ABOVE THE EARLY RETURN. `if (!open) return null` sits two lines down,
+  // so a hook placed after it would run on some renders and not others.
+  const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
   if (!open) return null;
 
   const isPlan = kind === 'plan';
@@ -67,7 +72,10 @@ export default function VehicleCapReachedModal({ open, onClose, capacity, kind =
   // plan_limits.max_vehicles. Reading the wrong one prints a number the
   // server did not refuse on.
   const cap = isPlan ? planCap : (capacity?.cap ?? 10);
-  const action = capWallAction(kind);
+  // ⚠️ iapReady, NOT JUST THE PLATFORM. Since Android became an 'iap' surface,
+  // capWallAction alone would answer "no CTA" there, stripping the upgrade
+  // button from the wall at the exact moment we finally have a sheet to open.
+  const action = capWallAction(kind, { iapReady: iapReady(billingFlag) });
   const perks = isPlan ? PLAN_PERKS : PERKS;
 
   const goBusiness = () => {
@@ -75,9 +83,13 @@ export default function VehicleCapReachedModal({ open, onClose, capacity, kind =
     navigate(createPageUrl('CreateBusinessWorkspace'));
   };
 
+  // ⚠️ THE DESTINATION FOLLOWS THE SHEET. /MyPlan states the limit the user
+  // just hit, which is the right landing place when nothing can be bought.
+  // Once a Play sheet exists, sending them there makes them hunt for the
+  // purchase one screen further on, so the wall leads to /Plans instead.
   const goPlan = () => {
     onClose?.();
-    navigate(createPageUrl('MyPlan'));
+    navigate(createPageUrl(action.cta === 'plan' && iapReady(billingFlag) ? 'Plans' : 'MyPlan'));
   };
 
   return (

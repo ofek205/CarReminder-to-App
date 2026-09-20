@@ -120,10 +120,15 @@ jobs:
 
           # Functions confirmed to require a real user JWT by reading their
           # own auth gate, not by inferring from silence:
-          #   ai-proxy           401 "Missing bearer token" + auth.getUser
-          #   send-email         401 "missing authorization" + auth.getUser
-          #   admin-impersonate  "the caller's own JWT must satisfy is_admin()"
-          elif printf '%s\n' ai-proxy send-email admin-impersonate | grep -qx "$FN"; then
+          #   ai-proxy              401 "Missing bearer token" + auth.getUser
+          #   send-email            401 "missing authorization" + auth.getUser
+          #   admin-impersonate     "the caller's own JWT must satisfy is_admin()"
+          #   verify-play-purchase  401 "not_authenticated" + auth.getUser, and
+          #                         it then requires the caller to be a member
+          #                         of the account being credited. Deployed OFF
+          #                         it would take an unauthenticated purchase
+          #                         token and grant a plan on it.
+          elif printf '%s\n' ai-proxy send-email admin-impersonate verify-play-purchase | grep -qx "$FN"; then
             NEEDS=on
 
           # Anything else has not been determined. Silence is NOT evidence of

@@ -1,7 +1,7 @@
 {
   "name": "car-reminders",
   "private": true,
-  "version": "6.5.8",
+  "version": "6.5.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -47,6 +47,7 @@
     "@capacitor/share": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
+    "@capgo/native-purchases": "^8.7.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

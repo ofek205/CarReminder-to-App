@@ -22,6 +22,7 @@ vi.mock('@/lib/capacitor', () => ({
 
 const {
   billingSurface, canReferToWeb, canMentionExternalPurchase, capWallAction,
+  mayMentionPaidPlans,
 } = await import('./billingGate');
 
 const asWeb = () => Object.assign(platform, { isNative: false, isIOS: false, isAndroid: false, isWeb: true });
@@ -44,9 +45,25 @@ describe('billingSurface', () => {
     expect(billingSurface()).toBe('iap');
   });
 
-  it('is none on Android native', () => {
+  // ⚠️ THIS CASE USED TO ASSERT 'none', AND THE ASSERTION OUTLIVED THE FACT.
+  //
+  // 'none' encoded Play's consumption-only exemption, which only covers an
+  // app that sells nothing in-app. The app stopped qualifying the moment the
+  // Billing library shipped inside the binary and three subscriptions went
+  // live in the console. Play forbids the hybrid outright.
+  it('is iap on Android native, because the app now ships Play Billing', () => {
     asAndroid();
-    expect(billingSurface()).toBe('none');
+    expect(billingSurface()).toBe('iap');
+  });
+
+  it('does not let the feature flag change the surface', () => {
+    // The exemption is lost by SHIPPING the Billing library, not by
+    // switching a flag on. billingSurface must therefore be flag-free, so
+    // that turning play_billing_enabled off can never resurrect the
+    // "המנוי מנוהל באתר" branch inside a build that carries Play Billing.
+    asAndroid();
+    expect(billingSurface()).toBe('iap');
+    expect(billingSurface.length).toBe(0);
   });
 
   it('never treats an unrecognised native platform as a browser', () => {
@@ -65,14 +82,43 @@ describe('canReferToWeb', () => {
     expect(canReferToWeb()).toBe(false);
   });
 
-  it('is false on Android too, which may mention but not link', () => {
+  it('is false on Android, and so is every reference to an outside purchase', () => {
+    // ⚠️ canMentionExternalPurchase USED TO BE TRUE HERE. That was the
+    // consumption-only middle ground, and shipping Play Billing ended it:
+    // Play Billing present AND an external purchase referred to is the
+    // hybrid Play forbids.
     asAndroid();
     expect(canReferToWeb()).toBe(false);
-    expect(canMentionExternalPurchase()).toBe(true);
+    expect(canMentionExternalPurchase()).toBe(false);
   });
 
   it('is true in a browser', () => {
     expect(canReferToWeb()).toBe(true);
+  });
+});
+
+describe('mayMentionPaidPlans', () => {
+  // The question canMentionExternalPurchase can no longer answer: naming our
+  // own paid plan is not the same act as pointing at a purchase elsewhere,
+  // and Android may now do the first while being forbidden the second.
+  it('lets Android name a paid plan', () => {
+    asAndroid();
+    expect(mayMentionPaidPlans()).toBe(true);
+    expect(canMentionExternalPurchase()).toBe(false);
+  });
+
+  it('still forbids it on iOS, where 3.1.1(a) covers prose', () => {
+    asIOS();
+    expect(mayMentionPaidPlans()).toBe(false);
+  });
+
+  it('allows it in a browser', () => {
+    expect(mayMentionPaidPlans()).toBe(true);
+  });
+
+  it('refuses it on an unrecognised native platform', () => {
+    asUnknownNative();
+    expect(mayMentionPaidPlans()).toBe(false);
   });
 });
 
@@ -90,11 +136,35 @@ describe('capWallAction', () => {
     expect(a.mayMentionPlans).toBe(false);
   });
 
-  it('lets Android mention a paid plan without linking to it', () => {
+  it('lets Android name a paid plan, and offers no button until a sheet exists', () => {
+    // ⚠️ THE REGRESSION THIS CASE GUARDS. Android is now an 'iap' surface,
+    // and the IAP branch was written for iOS, where there is genuinely
+    // nothing to press. Without the isAndroid split, flipping the surface
+    // would have silently deleted "במסלול בתשלום…" from four cap walls that
+    // were never in breach of anything.
     asAndroid();
     const a = capWallAction('plan');
-    expect(a.cta).toBeNull();          // no link
+    expect(a.cta).toBeNull();          // flag off: nothing to press
     expect(a.mayMentionPlans).toBe(true);
+  });
+
+  it('gives Android a real CTA once iapReady says a sheet can open', () => {
+    // The distinction billingSurface does not make: 'iap' says which store
+    // governs, iapReady says whether its sheet can actually open. They were
+    // identical everywhere until Play Billing shipped.
+    asAndroid();
+    const a = capWallAction('plan', { iapReady: true });
+    expect(a.cta).toBe('plan');
+    expect(a.mayMentionPlans).toBe(true);
+  });
+
+  it('never gives iOS a CTA, even if a caller claims iapReady', () => {
+    // Fail-closed: iOS has no StoreKit implementation, so a true here would
+    // be a caller bug. It must not become a 3.1.1(a) breach.
+    asIOS();
+    const a = capWallAction('plan', { iapReady: true });
+    expect(a.cta).toBeNull();
+    expect(a.mayMentionPlans).toBe(false);
   });
 
   it('gives the browser a real route to the plan screen', () => {

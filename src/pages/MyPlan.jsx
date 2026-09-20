@@ -41,7 +41,8 @@ import useFeatureUsage, { LIFETIME, MONTH, DAY } from '@/hooks/useFeatureUsage';
 import { AI_ADVISOR, AI_FORUM, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { canMentionExternalPurchase, canReferToWeb } from '@/lib/billingGate';
+import { canReferToWeb, mayMentionPaidPlans } from '@/lib/billingGate';
+import { openStoreSubscriptionManagement, canOpenStoreSubscriptionManagement } from '@/lib/billing';
 
 const UNLIMITED = 'ללא הגבלה';
 
@@ -297,6 +298,7 @@ export default function MyPlan() {
 
   // ── loaded ──────────────────────────────────────────────────────────────
   const isFree = plan.code === 'free';
+  const canOpenPlayManagement = canOpenStoreSubscriptionManagement();
 
   // The count comes from my_vehicle_capacity(); the CAP comes from the plan.
   // Two sources on purpose: the plan is what this screen is about, and the
@@ -536,6 +538,54 @@ export default function MyPlan() {
             </span>
             <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
           </Link>
+
+          {/**
+            * ⚠️ THE CANCEL ROUTE, AND UNTIL NOW THERE WAS NOT ONE.
+            *
+            * openStoreSubscriptionManagement() was written, named in the UX
+            * spec as this control, and then imported by nobody. A subscriber
+            * had no way to cancel or change payment method from inside the
+            * app at all. Play expects that route to exist, and a subscription
+            * with no visible exit gets charged back rather than cancelled.
+            *
+            * ⚠️ GATED ON THE SOURCE, NOT ON "is paid". An admin grant also
+            * shows a paid plan here, and sending that person to Play opens a
+            * subscriptions list their plan is not in.
+            */}
+          {subscription?.source === 'iap_google' && (
+            <div className="mt-1 pt-3 border-t" style={{ borderColor: C.gray100 }}>
+              {/* ⚠️ THE CONTROL IS ANDROID-ONLY, THE SENTENCE IS NOT, AND THE
+                  SPLIT IS THE WHOLE POINT. §7 of the UX doc requires this to
+                  key off `source` rather than platform, so somebody who
+                  bought on their phone and is reading in a browser still
+                  learns where the subscription lives. But the native sheet
+                  only exists on Android, so rendering the BUTTON everywhere
+                  would give that same person a control that silently does
+                  nothing, which is worse than not offering one. */}
+              {canOpenPlayManagement ? (
+                <button
+                  type="button"
+                  onClick={openStoreSubscriptionManagement}
+                  className="flex items-center justify-between w-full text-right"
+                  style={{ minHeight: 44 }}
+                >
+                  <span className="text-[13px] font-bold" style={{ color: C.primary }}>
+                    ניהול המנוי ב-Google Play
+                  </span>
+                  <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
+                </button>
+              ) : (
+                <p className="text-[13px] font-bold" style={{ color: C.gray700 }}>
+                  המנוי מנוהל דרך Google Play
+                </p>
+              )}
+              <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
+                {canOpenPlayManagement
+                  ? 'שם אפשר לבטל, לשנות אמצעי תשלום או לעבור למסלול אחר. ביטול נשאר בתוקף עד סוף התקופה ששולמה.'
+                  : 'ביטול ושינוי אמצעי תשלום נעשים באפליקציה במכשיר האנדרואיד שבו נרכש המנוי.'}
+              </p>
+            </div>
+          )}
         </Card>
 
         {/* ⚠️ The only platform-dependent copy on the screen, and the reason
@@ -543,7 +593,13 @@ export default function MyPlan() {
             domain, no "manage online". On Android it may say a paid plan
             exists but must not link (consumption-only exemption). In a
             browser it may say so and will gain a real CTA in phase 6. */}
-        {isFree && canMentionExternalPurchase() && (
+        {/* ⚠️ mayMentionPaidPlans, NOT canMentionExternalPurchase. The two
+            stopped agreeing when Android became an 'iap' surface: Android may
+            no longer refer to a purchase made ELSEWHERE, but naming our own
+            paid plans is both permitted and, now that Play sells them, true.
+            The old gate would have deleted this card on Android for a reason
+            that does not apply to a sentence pointing nowhere. */}
+        {isFree && mayMentionPaidPlans() && (
           <Card>
             <div className="flex items-start gap-2.5">
               <Info className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.gray400 }} />
