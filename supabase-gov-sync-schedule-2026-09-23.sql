@@ -1,0 +1,62 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- supabase-gov-sync-schedule-2026-09-23.sql
+--
+-- Reschedules the gov-sync cron from once a day to every 20 minutes during
+-- Israeli waking hours. Applied live by Ofek on 2026-09-23 and verified with
+-- a read-back of cron.job (schedule = '*/20 3-18 * * *', active = true).
+--
+-- ═══ WHY ═══════════════════════════════════════════════════════════════════
+--
+-- Users did a vehicle test and never saw the new date. The pipeline was
+-- healthy, it was just too slow. Measured live on 2026-09-23:
+--
+--   record_gov_sync_update stamps last_gov_sync_at on both paths
+--     (the 2026-06-26 heartbeat fix is live, the queue is not stuck)
+--   exactly 30 vehicles synced per day, 30 days in a row
+--   ~1,034 vehicles eligible, oldest sync 2026-08-19
+--
+-- MAX_VEHICLES_PER_RUN = 30 on a daily cron is a 35-day cycle. A test done
+-- today could take over a month to appear.
+--
+-- ═══ WHY MORE RUNS AND NOT A BIGGER BATCH ══════════════════════════════════
+--
+-- The Supabase gateway cuts a request at 150s. Each vehicle costs two
+-- data.gov.il calls with a 6s timeout each, so the worst case for the
+-- current 30 is already 180s. The batch cannot grow; the run count can.
+-- The 20h staleness clock in gov-sync-vehicles keeps extra runs from
+-- re-checking the same vehicle.
+--
+-- 48 runs x 30 = 1,440 checks a day against ~1,064 vehicles.
+--
+-- ═══ WHY 03:00-18:59 UTC ═══════════════════════════════════════════════════
+--
+-- Every app_notifications insert fires a push (trg_app_notifications_
+-- dispatch_push). The old '0 0 * * *' was 03:00 Israel time, so test-update
+-- pushes were already landing in the middle of the night. This window is
+-- 06:00-21:40 Israel summer time, 05:00-20:40 in winter, and still runs after
+-- the ministry's nightly dataset reload.
+--
+-- ═══ TRAPS ═════════════════════════════════════════════════════════════════
+--
+--   * The job keeps its old name 'gov-sync-vehicles-daily'. cron.alter_job
+--     cannot rename, so the name no longer describes the schedule.
+--   * supabase-gov-sync-detector.sql still shows '0 0 * * *' in its comments
+--     AND still defines the pre-fix record_gov_sync_update, which returns
+--     early without stamping last_gov_sync_at. Replaying that file re-freezes
+--     the queue. The live function is the one in
+--     scripts/supabase-gov-sync-heartbeat-fix-2026-06-26.sql.
+--   * jobid 3 is the live id as of this date. If the job is ever dropped and
+--     recreated it gets a new id, and this statement then targets nothing.
+--
+-- ═══ NEXT STEP, NOT DONE HERE ══════════════════════════════════════════════
+--
+-- data.gov.il datastore_search accepts an array in filters
+-- ({"mispar_rechev": [...]}), verified live on both datasets at 100 plates
+-- per request in ~0.6s. Batching the lookups in gov-sync-vehicles would cut
+-- ~2,070 requests per cycle to ~22 and remove the need to keep raising the
+-- run count as the fleet grows.
+--
+-- Rollback: select cron.alter_job(3, schedule := '0 0 * * *');
+-- ═══════════════════════════════════════════════════════════════════════════
+
+select cron.alter_job(3, schedule := '*/20 3-18 * * *');
