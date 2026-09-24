@@ -42,6 +42,16 @@
 //   6. Log a JSON summary (pg_net stops waiting long before we finish, so
 //      the response body never reaches net._http_response) and return it.
 //
+// A successful answer can still be wrong (2026-09-24): the ministry reloads
+// its datasets in place. That morning the test-dates CSV (4.1M rows) was
+// uploaded at 02:36 UTC and finished loading at 06:08, and every miss on a
+// car we had test data for fell inside that window, tapering 40, 22, 12, 0
+// per hour as the table filled up. The km dataset loaded in 8 minutes and
+// was fine. A half-loaded table answers "success" with some plates absent,
+// which looks exactly like "no such plate". So a plate that a dataset gave
+// us data for last time, and now lacks, is held for a retry instead of
+// being believed; see MISSING_GRACE_MS.
+//
 // Why failure and "not found" must never be the same value (2026-09-24):
 //   Both fetchers used to return nulls on a timeout, a non-2xx or a throw,
 //   exactly as they did for an unknown plate. A failed test-dates request
@@ -179,6 +189,15 @@ const MAX_VEHICLES_PER_RUN = 200;
 // Stop starting new chunks after this much wall time. Anything not reached
 // stays the oldest and leads the next run.
 const RUN_BUDGET_MS = 100_000;
+
+// How long a plate that vanished from a dataset is held for a retry before
+// we accept that it is really gone (a car taken off the road leaves the
+// active registry). Measured from the row's last sync, and that is why it
+// is long: the rows hit on 2026-09-24 had last synced 13 to 35 days before,
+// because of the 35-day backlog, and a short grace would have waved them
+// through. A car that really is gone costs nothing meanwhile; it has no new
+// tests to miss and is only re-asked inside a chunk we send anyway.
+const MISSING_GRACE_MS = 45 * 24 * 60 * 60 * 1000;
 
 // Pause between chunks. gov.il is a public open-data API with no
 // documented quota; a handful of requests per run spaced like this is far
@@ -413,7 +432,7 @@ serve(async (req: Request) => {
   const staleCutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
   const { data: vehicles, error: vehErr } = await supabaseAdmin
     .from('vehicles')
-    .select('id, license_plate, last_gov_sync_at')
+    .select('id, license_plate, last_gov_sync_at, last_gov_sync_test_date, last_gov_sync_km')
     .eq('auto_sync_enabled', true)
     .not('license_plate', 'is', null)
     .or(`last_gov_sync_at.is.null,last_gov_sync_at.lt.${staleCutoff}`)
@@ -435,6 +454,7 @@ serve(async (req: Request) => {
     notifications:  0,
     errors:         0,
     fetch_failed:   0,  // rows left untouched because a gov.il request failed
+    held_missing:   0,  // rows held because a dataset lost a plate it had before
     deferred:       0,  // rows not reached this run; they lead the next one
     started_at:     new Date().toISOString(),
     finished_at:    null as string | null,
@@ -448,7 +468,13 @@ serve(async (req: Request) => {
 
   // Plate-less rows first: they never reach gov.il, so they must not wait
   // behind a chunk that might fail.
-  const withPlate: Array<{ id: string; plate: string }> = [];
+  const withPlate: Array<{
+    id: string;
+    plate: string;
+    lastSyncMs: number;  // last successful sync, 0 if never
+    hadTest: boolean;    // the test-dates dataset gave us a date last time
+    hadKm: boolean;      // the km dataset gave us a reading last time
+  }> = [];
   for (const v of (vehicles || [])) {
     const plate = normalizePlate(v.license_plate);
     if (!plate) {
@@ -463,7 +489,13 @@ serve(async (req: Request) => {
         .eq('id', v.id);
       continue;
     }
-    withPlate.push({ id: v.id, plate });
+    withPlate.push({
+      id: v.id,
+      plate,
+      lastSyncMs: v.last_gov_sync_at ? Date.parse(v.last_gov_sync_at) || 0 : 0,
+      hadTest: v.last_gov_sync_test_date != null,
+      hadKm: v.last_gov_sync_km != null,
+    });
   }
 
   for (let i = 0; i < withPlate.length; i += GOV_CHUNK_SIZE) {
@@ -504,6 +536,19 @@ serve(async (req: Request) => {
       const key = plateKey(v.plate);
       const testData = tests.byPlate.get(key) ?? { test_due_date: null, last_test_date: null };
       const km = kms.byPlate.get(key) ?? null;
+
+      // A dataset that answered but no longer has a plate it gave us data
+      // for last time is most likely mid-reload (see the header), not a car
+      // that vanished. Hold the row: no stamp, no RPC, retried next run.
+      // Believing it would write a half-update and lose the rest for good,
+      // because the RPC applies a given test date only once. Presence is
+      // judged by the record, not its value, so a 0 km reading still counts.
+      const testGone = v.hadTest && !tests.byPlate.has(key);
+      const kmGone = v.hadKm && !kms.byPlate.has(key);
+      if ((testGone || kmGone) && Date.now() - v.lastSyncMs < MISSING_GRACE_MS) {
+        stats.held_missing++;
+        continue;
+      }
 
       // Both datasets answered and neither has anything we sync for this
       // plate. Stamp the sync-at so we don't re-ask every run, but don't
