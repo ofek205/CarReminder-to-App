@@ -116,6 +116,21 @@ function formatAlertMessage(
   return { title, body: lines.join('\n') };
 }
 
+// Constant-time compare for secrets, so response timing can't be used to
+// guess one byte by byte (security audit H-2, 2026-06-07: recorded as done in
+// every dispatch function, but it never reached git or the deployed code).
+// An empty value never matches, not even another empty value.
+function timingSafeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok');
   if (req.method !== 'POST')    return json({ error: 'Method not allowed' }, 405);
@@ -126,7 +141,7 @@ serve(async (req) => {
     return json({ error: 'server misconfigured' }, 500);
   }
   const provided = req.headers.get('x-dispatch-secret');
-  if (provided !== DISPATCH_SECRET) {
+  if (!timingSafeEqual(provided, DISPATCH_SECRET)) {
     return json({ error: 'unauthorized' }, 401);
   }
 
