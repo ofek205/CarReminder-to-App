@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getBillingBackend } from '@/lib/billing';
+import { getBillingBackend, PLAY_PRODUCT_IDS } from '@/lib/billing';
 import { reportError } from '@/lib/crashReporter';
 import {
   PurchaseState, afterSheet, afterVerification, afterCatalogue, mayOfferPurchase,
@@ -149,14 +149,36 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
         });
         if (cancelled) return;
         setProducts(list || []);
+        /**
+         * ⚠️ A CATALOGUE THAT ANSWERS WITH NOTHING IS ALSO A FAILURE, AND IT
+         * USED TO PASS IN SILENCE. Only a throw was reported, so "the store
+         * returned zero products" and "the store returned products we could
+         * not map" both reached the screen as the same blank card with no row
+         * in app_errors to say which. Diagnosing one of these cost two days.
+         */
+        if (Array.isArray(list) && list.length === 0) {
+          try {
+            reportError('billing_catalogue', new Error('play_catalogue_empty'), {
+              where: 'usePurchaseFlow.catalogue',
+              requested: PLAY_PRODUCT_IDS,
+            });
+          } catch { /* reporting must never break the screen */ }
+        }
         safeSet(afterCatalogue({ connected: list !== null, products: list }));
       } catch (err) {
         if (cancelled) return;
         // Reported rather than swallowed: a catalogue that never answers is
         // indistinguishable on screen from one that answers empty, and the
         // difference is what tells us whether Play is reachable at all.
+        //
+        // ⚠️ THE REQUESTED IDS TRAVEL WITH THE REPORT. "Product not found" on
+        // its own does not say WHICH ids were asked for, and that was the
+        // single most expensive missing fact in this whole integration.
         try {
-          reportError('billing_catalogue', err, { where: 'usePurchaseFlow.catalogue' });
+          reportError('billing_catalogue', err, {
+            where: 'usePurchaseFlow.catalogue',
+            requested: PLAY_PRODUCT_IDS,
+          });
         } catch { /* reporting must never be the thing that breaks the screen */ }
         safeSet(afterCatalogue({ connected: false, threw: true }));
       }
@@ -215,7 +237,12 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
     setActiveProductId(productId);
     safeSet(PurchaseState.SHEET_OPEN);
 
-    const result = await backend.purchase(productId, accountId);
+    // ⚠️ THE OFFER TOKEN TRAVELS WITH THE PURCHASE, AND IT USED NOT TO.
+    // It names the exact offer whose price we displayed. Without it Play
+    // picks one, and the sheet can charge something other than the number on
+    // the card the user just tapped.
+    const offerToken = products.find((x) => x.productId === productId)?.offerToken;
+    const result = await backend.purchase(productId, accountId, offerToken);
     const { state: next, verify } = afterSheet(result.outcome);
 
     if (verify) { await runVerification(result); return; }
@@ -223,7 +250,7 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
     // Only a cancellation clears the active product: every other terminal
     // state still describes the plan the user was acting on.
     if (next === PurchaseState.IDLE) setActiveProductId(null);
-  }, [backend, accountId, runVerification, safeSet]);
+  }, [backend, accountId, products, runVerification, safeSet]);
 
   /**
    * ⚠️ THE SAFETY NET, AND THE REASON IT RUNS AT MOUNT AND NOT ONLY ON A TAP.

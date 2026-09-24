@@ -27,7 +27,7 @@ export { PurchaseOutcome };
  * Play ids are permanent and cannot be reused, so these are effectively
  * immutable once the products exist in the console.
  */
-const PLAY_PRODUCT_IDS = Object.freeze(['plan_p9', 'plan_p19', 'plan_p49']);
+export const PLAY_PRODUCT_IDS = Object.freeze(['plan_p9', 'plan_p19', 'plan_p49']);
 
 /** plan_p9 -> p9. The table is the authority; this only labels the card. */
 const planCodeOf = (productId) => String(productId || '').replace(/^plan_/, '');
@@ -77,19 +77,70 @@ function buildPlayBackend() {
         productIdentifiers: [...PLAY_PRODUCT_IDS],
         productType: PURCHASE_TYPE.SUBS,
       });
-      return (products || []).map((p) => ({
-        productId: p.identifier,
-        planCode: planCodeOf(p.identifier),
-        // The store's own localised string. Never a number we format: the
-        // plugin's own docs warn that a hardcoded price is a store rejection,
-        // and a displayed price that differs from the charged one is a policy
-        // breach rather than a cosmetic bug.
-        priceFormatted: p.priceString,
-        priceCurrency: p.currencyCode,
-      }));
+
+      /**
+       * ⚠️ `planIdentifier` IS THE PRODUCT ID. `identifier` IS THE BASE PLAN.
+       * THE FIRST VERSION READ THE WRONG ONE, AND THE FIELDS SWAP MEANING
+       * BETWEEN PRODUCT TYPES, WHICH IS WHY IT LOOKED RIGHT.
+       *
+       * For a one-time product the plugin sets identifier = product id. For a
+       * SUBSCRIPTION it sets identifier = BASE PLAN id and planIdentifier =
+       * product id. Its own definitions.d.ts says so outright: "If you
+       * group/filter Android subscription results by `identifier`, you are
+       * grouping by base plan."
+       *
+       * Reading `identifier` therefore produced planCode 'p9-monthly' instead
+       * of 'p9'. Nothing matches that, so every card would have rendered
+       * UNAVAILABLE with no price and no button: the SAME screen as a store
+       * that returned nothing at all. And a purchase would have been started
+       * with a base plan id, which Play rejects, while the server compared
+       * our claim against Google's real product id and answered
+       * product_mismatch, leaving a charged user in PENDING for ever.
+       *
+       * ⚠️ AND THIS IS WHY THE SWAPPED BASE PLAN NAMES IN PLAY CONSOLE WERE
+       * NOT HARMLESS. plan_p9 carries a base plan named p49-monthly and
+       * plan_p49 carries p9-monthly. Under the old mapping those two cards
+       * would have traded places.
+       */
+      const mapped = (products || []).map((p) => {
+        const productId = p.planIdentifier || p.identifier;
+        return {
+          productId,
+          planCode: planCodeOf(productId),
+          // Kept for diagnostics: when a catalogue looks wrong, the base plan
+          // is the first thing worth seeing in the report.
+          basePlanId: p.identifier || null,
+          // null on the base plan itself, set on a promotional offer.
+          offerId: p.offerId ?? null,
+          // ⚠️ REQUIRED TO BUY THE RIGHT THING. purchaseProduct takes an
+          // offerToken, and without it Play picks an offer on our behalf.
+          offerToken: p.offerToken ?? null,
+          // The store's own localised string. Never a number we format: the
+          // plugin's own docs warn that a hardcoded price is a store rejection,
+          // and a displayed price that differs from the charged one is a policy
+          // breach rather than a cosmetic bug.
+          priceFormatted: p.priceString,
+          priceCurrency: p.currencyCode,
+        };
+      });
+
+      /**
+       * ⚠️ ONE ROW PER PRODUCT, BECAUSE THE PLUGIN RETURNS ONE PER OFFER.
+       * Its docs: "When multiple offers exist, getProducts() returns one entry
+       * per eligible offer." A plan with an introductory offer therefore
+       * arrives twice, and `products.find(...)` would take whichever came
+       * first. The base plan wins over a promotional offer so the card shows
+       * the recurring price rather than a first-month teaser.
+       */
+      const byProduct = new Map();
+      for (const m of mapped) {
+        const seen = byProduct.get(m.productId);
+        if (!seen || (seen.offerId && !m.offerId)) byProduct.set(m.productId, m);
+      }
+      return [...byProduct.values()];
     },
 
-    async purchase(productId, accountId) {
+    async purchase(productId, accountId, offerToken) {
       if (!accountId) {
         return { outcome: PurchaseOutcome.FAILED, productId, message: 'no accountId' };
       }
@@ -97,6 +148,14 @@ function buildPlayBackend() {
         const txn = await NativePurchases.purchaseProduct({
           productIdentifier: productId,
           productType: PURCHASE_TYPE.SUBS,
+          // ⚠️ NAMES THE EXACT OFFER, AND IT WAS MISSING. A subscription can
+          // carry several base plans and offers, and without a token Play
+          // chooses one for us. That choice decides what the user is charged,
+          // so leaving it implicit means the price on our card and the price
+          // on the sheet can disagree. Omitted only when the catalogue did
+          // not supply one, where Play's own default is still better than
+          // sending null.
+          ...(offerToken ? { offerToken } : {}),
           // The only link Play gives back. Our account_id is a uuid, which is
           // exactly what Android accepts here (uuid, max 64 chars).
           appAccountToken: accountId,
