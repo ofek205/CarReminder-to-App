@@ -277,6 +277,21 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+// Constant-time compare for secrets, so response timing can't be used to
+// guess one byte by byte (security audit H-2, 2026-06-07: recorded as done in
+// every dispatch function, but it never reached git or the deployed code).
+// An empty value never matches, not even another empty value.
+function timingSafeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: { 'access-control-allow-headers': 'authorization, content-type, apikey, x-dispatch-secret' } });
@@ -288,7 +303,7 @@ serve(async (req) => {
   // Auth — service role apikey OR shared dispatch secret. No public access.
   const apikey  = req.headers.get('apikey') || '';
   const secret  = req.headers.get('x-dispatch-secret') || '';
-  const authed = (apikey === SERVICE_ROLE) || (DISPATCH_SECRET && secret === DISPATCH_SECRET);
+  const authed = timingSafeEqual(apikey, SERVICE_ROLE) || timingSafeEqual(secret, DISPATCH_SECRET);
   if (!authed) return json({ error: 'unauthorized' }, 401);
 
   let body: PushRequest;

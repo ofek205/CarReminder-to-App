@@ -10,6 +10,11 @@
 //   TELEGRAM_BOT_TOKEN  — from BotFather
 //   TELEGRAM_CHAT_ID    — admin's private chat with the bot
 //   DISPATCH_SECRET     — shared secret for internal callers
+//
+// Deploy with Verify JWT = OFF: its callers (DB triggers, cron, other Edge
+//   Functions) send x-dispatch-secret or the service-role key, not a user
+//   JWT, and the function checks them itself. JWT verification ON would
+//   reject them at the gateway before the gate below ever runs.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -49,6 +54,21 @@ function logEdgeError(action: string, detail: unknown) {
   } catch {}
 }
 
+// Constant-time compare for secrets, so response timing can't be used to
+// guess one byte by byte (security audit H-2, 2026-06-07: recorded as done in
+// every dispatch function, but it never reached git or the deployed code).
+// An empty value never matches, not even another empty value.
+function timingSafeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 serve(async (req) => {
   try {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCors(req) });
@@ -73,9 +93,9 @@ serve(async (req) => {
       const headerSecret = req.headers.get('x-dispatch-secret') || '';
       const bearerToken = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
       const isAuthorized =
-        headerSecret === DISPATCH_SECRET ||
-        bearerToken === DISPATCH_SECRET ||
-        (SERVICE_ROLE && bearerToken === SERVICE_ROLE);
+        timingSafeEqual(headerSecret, DISPATCH_SECRET) ||
+        timingSafeEqual(bearerToken, DISPATCH_SECRET) ||
+        timingSafeEqual(bearerToken, SERVICE_ROLE);
       if (!isAuthorized) {
         logEdgeError('auth_rejected', new Error('invalid or missing dispatch secret'));
         return json({ error: 'Unauthorized' }, 401, req);
