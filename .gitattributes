@@ -4,3 +4,11 @@
 # core.autocrlf=true so GitHub Desktop on Windows can run them.
 .githooks/* text eol=lf
 *.sh text eol=lf
+
+# patch-package patches are applied byte-for-byte against files inside
+# node_modules, which are LF. Measured 2026-09-24: a CRLF checkout of the patch
+# still APPLIES (patch-package tolerates it), but it injects CRLF lines into an
+# LF Java file, so a Windows install compiled mixed line endings while CI
+# compiled clean LF. Nothing broke. This keeps the patched source identical on
+# every platform, which is what you want when diagnosing a native build.
+patches/** text eol=lf
