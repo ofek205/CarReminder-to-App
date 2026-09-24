@@ -35,6 +35,8 @@
 //      personal-import and public-vehicle registries (see
 //      PERSONAL_IMPORT_RESOURCE_ID). A failure there only holds back
 //      the rows that needed it.
+//      צמ"ה vehicles (by type, with a 3-6 digit number) go to the צמ"ה
+//      registry instead, in chunks of their own; see lookupRoute.
 //   4. If EITHER request failed, the whole chunk is left untouched: no
 //      stamp, no RPC, no notification. Those rows are still the oldest, so
 //      the next run retries them first. The run moves on to its next chunk
@@ -183,14 +185,35 @@ const GOV_API_BASE        = 'https://data.gov.il/api/3/action/datastore_search';
 // Motorcycles and heavy vehicles registered the normal way, trailers, and
 // the km dataset outside private cars: the ministry publishes no test date
 // or km for them anywhere (every vehicle dataset was checked that day).
-//
-// About 1% of personal imports (281 of 27,456) have 5 or 6 digit plates,
-// and normalizePlate still drops them. That is deliberate for now: צמ"ה
-// numbers use the same range (up to 999,202), so a forklift's number could
-// match an imported car's plate. Once lookups are routed by vehicle type,
-// short plates can be let through for everything that isn't צמ"ה.
 const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';  // יבוא אישי
 const PUBLIC_RESOURCE_ID          = 'cf29862d-ca25-4691-84f6-1be60dcb4a1e';  // רכב ציבורי: מוניות, אוטובוסים
+
+// צמ"ה registry: keyed by mispar_tzama, not a licence plate, and it only
+// publishes a licence expiry (tokef_date). Checked 2026-09-24: numbers run
+// from 145 to 999,202 (3 to 6 digits), one row per number across 32,000
+// rows, and tokef_date is always present as YYYY-MM-DD.
+const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
+
+// Which vehicles are צמ"ה. This is the app's CME_TYPES
+// (src/components/shared/DateStatusUtils.jsx), plus three labels found on
+// real vehicles on 2026-09-24 that the app's list lacks: 'כלי צמ"ה',
+// 'מכבש גלילי ממונע' and 'מכבש גליל ידני'. Keep the two lists in step, and
+// the copy in record_gov_sync_update too (it picks the "תוקף הרישוי" wording
+// from it; supabase-gov-sync-cme-2026-09-24.sql is generated from this one).
+const CME_VEHICLE_TYPES = new Set([
+  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
+  'דחפור', 'דחפור זחלי',
+  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
+  'בובקט',
+  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
+  'מפלסת',
+  'מכבש', 'מכבש אספלט', 'מכבש קרקע', 'מכבש גלילי ממונע', 'מכבש גליל ידני',
+  'מערבל בטון', 'משאבת בטון',
+  'מנוף', 'מנוף נייד', 'מנוף זחלי',
+  'מקדח קרקע', 'ציוד קידוח',
+  'רכב צמ"ה', 'כלי צמ"ה',
+  'טרקטור', 'מחרשה',
+]);
 
 // Plates per data.gov.il request. Measured 2026-09-24 against both
 // datasets: 100 plates answer in 1-2s, the URL is ~1.3KB, and neither
@@ -313,11 +336,27 @@ async function authorizeCaller(
   return { ok: true };
 }
 
-function normalizePlate(raw: string | null | undefined): string | null {
+type Registry = 'plate' | 'cme';
+
+// Which registry a vehicle's number belongs to. צמ"ה numbers (3 to 6
+// digits) and licence plates (5 to 8: the private dataset starts at 7, but
+// ~1% of personal imports have 5 or 6) overlap in the 5-6 digit range, so
+// the vehicle type decides, never the number alone. A צמ"ה-typed vehicle
+// with a 7-8 digit number carries an ordinary plate (some tractors do), so
+// it takes the plate route.
+function lookupRoute(
+  raw: string | null | undefined,
+  vehicleType: string | null | undefined,
+): { registry: Registry; number: string } | null {
   if (!raw) return null;
   const digits = String(raw).replace(/\D/g, '');
-  if (digits.length < 7 || digits.length > 8) return null;
-  return digits;
+  // Gershayim (U+05F4) and a plain quote both appear in labels like צמ"ה.
+  const type = String(vehicleType ?? '').trim().replace(/״/g, '"');
+  if (CME_VEHICLE_TYPES.has(type) && digits.length >= 3 && digits.length <= 6) {
+    return { registry: 'cme', number: digits };
+  }
+  if (digits.length >= 5 && digits.length <= 8) return { registry: 'plate', number: digits };
+  return null;
 }
 
 function toDate(govDate: any): string | null {
@@ -354,8 +393,9 @@ async function fetchGovBatch(
   resourceId: string,
   plates: string[],
   fields?: string[],
+  keyField = 'mispar_rechev',
 ): Promise<GovBatch<Record<string, unknown>>> {
-  const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: plates.map(Number) }));
+  const filters = encodeURIComponent(JSON.stringify({ [keyField]: plates.map(Number) }));
   // Twice the plate count leaves room for an unexpected duplicate row, and
   // a cut-off answer is caught below instead of being trusted.
   const limit = plates.length * 2;
@@ -379,7 +419,7 @@ async function fetchGovBatch(
     }
     const byPlate = new Map<string, Record<string, unknown>>();
     for (const rec of records) {
-      const key = plateKey(rec?.mispar_rechev);
+      const key = plateKey(rec?.[keyField]);
       // First row wins, the same as the old one-plate query with limit=1.
       if (!byPlate.has(key)) byPlate.set(key, rec);
     }
@@ -446,6 +486,19 @@ async function fetchPublicBatch(plates: string[]): Promise<GovBatch<GovTestData>
 
 const NO_FALLBACK: GovBatch<GovTestData> = { ok: true, byPlate: new Map() };
 
+async function fetchCmeBatch(numbers: string[]): Promise<GovBatch<GovTestData>> {
+  const raw = await fetchGovBatch(CME_RESOURCE_ID, numbers, ['mispar_tzama', 'tokef_date'], 'mispar_tzama');
+  if (!raw.ok) return raw;
+  const byPlate = new Map<string, GovTestData>();
+  for (const [key, rec] of raw.byPlate) {
+    byPlate.set(key, {
+      test_due_date:  toDate(rec.tokef_date),
+      last_test_date: null,  // the צמ"ה registry has only the expiry
+    });
+  }
+  return { ok: true, byPlate };
+}
+
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
@@ -477,7 +530,7 @@ serve(async (req: Request) => {
   const staleCutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
   const { data: vehicles, error: vehErr } = await supabaseAdmin
     .from('vehicles')
-    .select('id, license_plate, last_gov_sync_at, last_gov_sync_test_date, last_gov_sync_km')
+    .select('id, license_plate, vehicle_type, last_gov_sync_at, last_gov_sync_test_date, last_gov_sync_km')
     .eq('auto_sync_enabled', true)
     .not('license_plate', 'is', null)
     .or(`last_gov_sync_at.is.null,last_gov_sync_at.lt.${staleCutoff}`)
@@ -502,6 +555,7 @@ serve(async (req: Request) => {
     held_missing:   0,  // rows held because a dataset lost a plate it had before
     found_personal_import: 0,  // test dates from the personal-import registry
     found_public:   0,  // test dates from the public-vehicle registry
+    found_cme:      0,  // licence expiries from the צמ"ה registry
     deferred:       0,  // rows not reached this run; they lead the next one
     started_at:     new Date().toISOString(),
     finished_at:    null as string | null,
@@ -513,18 +567,21 @@ serve(async (req: Request) => {
     }>,
   };
 
-  // Plate-less rows first: they never reach gov.il, so they must not wait
-  // behind a chunk that might fail.
-  const withPlate: Array<{
+  type Row = {
     id: string;
-    plate: string;
+    number: string;      // plate or צמ"ה number, digits only
+    registry: Registry;
     lastSyncMs: number;  // last successful sync, 0 if never
-    hadTest: boolean;    // the test-dates dataset gave us a date last time
+    hadTest: boolean;    // a registry gave us a test date last time
     hadKm: boolean;      // the km dataset gave us a reading last time
-  }> = [];
+  };
+
+  // Rows with no usable number first: they never reach gov.il, so they
+  // must not wait behind a chunk that might fail.
+  const rows: Row[] = [];
   for (const v of (vehicles || [])) {
-    const plate = normalizePlate(v.license_plate);
-    if (!plate) {
+    const route = lookupRoute(v.license_plate, v.vehicle_type);
+    if (!route) {
       stats.checked++;
       stats.no_plate++;
       // Still stamp last_gov_sync_at so we don't keep retrying this
@@ -536,39 +593,147 @@ serve(async (req: Request) => {
         .eq('id', v.id);
       continue;
     }
-    withPlate.push({
+    rows.push({
       id: v.id,
-      plate,
+      number: route.number,
+      registry: route.registry,
       lastSyncMs: v.last_gov_sync_at ? Date.parse(v.last_gov_sync_at) || 0 : 0,
       hadTest: v.last_gov_sync_test_date != null,
       hadKm: v.last_gov_sync_km != null,
     });
   }
 
-  for (let i = 0; i < withPlate.length; i += GOV_CHUNK_SIZE) {
+  // Everything that happens to one row once its lookups are in. testRec is
+  // undefined when no registry had the number; kmPresent is whether the km
+  // dataset had a record (a 0 reading still counts as a record).
+  const settle = async (
+    v: Row,
+    testRec: GovTestData | undefined,
+    km: number | null,
+    kmPresent: boolean,
+  ): Promise<void> => {
+    stats.checked++;
+    const testData = testRec ?? { test_due_date: null, last_test_date: null };
+
+    // A dataset that answered but no longer has a plate it gave us data
+    // for last time is most likely mid-reload (see the header), not a car
+    // that vanished. Hold the row: no stamp, no RPC, retried next run.
+    // Believing it would write a half-update and lose the rest for good,
+    // because the RPC applies a given test date only once.
+    const testGone = v.hadTest && testRec === undefined;
+    const kmGone = v.hadKm && !kmPresent;
+    if ((testGone || kmGone) && Date.now() - v.lastSyncMs < MISSING_GRACE_MS) {
+      stats.held_missing++;
+      return;
+    }
+
+    // The registries answered and none has anything we sync for this
+    // number. Stamp the sync-at so we don't re-ask every run, but don't
+    // touch any other field.
+    if (!testData.test_due_date && !testData.last_test_date && km == null) {
+      stats.no_api_hit++;
+      await supabaseAdmin
+        .from('vehicles')
+        .update({ last_gov_sync_at: new Date().toISOString() })
+        .eq('id', v.id);
+      return;
+    }
+
+    // Hand off to the RPC. The RPC does the compare + write +
+    // notify + idempotency journal atomically. We pass everything
+    // we know and let it decide what to actually apply.
+    const { data: rpcData, error: rpcErr } = await supabaseAdmin
+      .rpc('record_gov_sync_update', {
+        p_vehicle_id:        v.id,
+        p_gov_km:            km,
+        p_gov_test_date:     testData.last_test_date,
+        p_gov_test_due_date: testData.test_due_date,
+      });
+
+    if (rpcErr) {
+      stats.errors++;
+      // Don't stamp last_gov_sync_at on RPC failure: the next run should
+      // retry this vehicle. Surface the error in logs for debugging.
+      console.error('record_gov_sync_update failed', v.id, rpcErr.message);
+      await reportEdgeError('record_gov_sync_update_rpc', rpcErr, { vehicle_id: v.id });
+      return;
+    }
+
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    if (!row || row.was_new === false) {
+      stats.no_change++;
+      return;
+    }
+
+    if (row.km_updated) stats.km_updated++;
+    if (row.test_updated) stats.test_updated++;
+    if (row.notification_id) stats.notifications++;
+
+    if (stats.samples.length < 10) {
+      stats.samples.push({
+        vehicle_id:      v.id,
+        km_updated:      !!row.km_updated,
+        test_updated:    !!row.test_updated,
+        notification_id: row.notification_id || null,
+      });
+    }
+  };
+
+  // Plate chunks first, then צמ"ה chunks. Each chunk goes to its own
+  // registries, so a number is never asked of a registry it can't belong to.
+  const chunks: Array<{ registry: Registry; rows: Row[] }> = [];
+  for (const registry of ['plate', 'cme'] as const) {
+    const ofKind = rows.filter((r) => r.registry === registry);
+    for (let i = 0; i < ofKind.length; i += GOV_CHUNK_SIZE) {
+      chunks.push({ registry, rows: ofKind.slice(i, i + GOV_CHUNK_SIZE) });
+    }
+  }
+
+  for (let c = 0; c < chunks.length; c++) {
     if (Date.now() - runStartedMs > RUN_BUDGET_MS) {
-      stats.deferred += withPlate.length - i;
+      stats.deferred += chunks.slice(c).reduce((n, ch) => n + ch.rows.length, 0);
       break;
     }
-    if (i > 0) await sleep(INTER_CHUNK_DELAY_MS);
+    if (c > 0) await sleep(INTER_CHUNK_DELAY_MS);
 
-    const chunk = withPlate.slice(i, i + GOV_CHUNK_SIZE);
+    const chunk = chunks[c].rows;
     // One car can sit in several accounts, one row each. Ask about it once.
-    const plates = [...new Set(chunk.map((c) => c.plate))];
+    const numbers = [...new Set(chunk.map((r) => r.number))];
+
+    if (chunks[c].registry === 'cme') {
+      const cme = await fetchCmeBatch(numbers);
+      if (!cme.ok) {
+        // Same rule as a failed plate chunk below: leave the rows exactly
+        // as they are and let the next run retry them first.
+        stats.fetch_failed += chunk.length;
+        await reportEdgeError('gov_cme_fetch_failed', new Error('data.gov.il צמ"ה request failed'), {
+          cme: cme.reason,
+          chunk_size: chunk.length,
+        });
+        continue;
+      }
+      for (const v of chunk) {
+        const testRec = cme.byPlate.get(plateKey(v.number));
+        if (testRec !== undefined) stats.found_cme++;
+        // No km registry exists for צמ"ה, so there is nothing to be absent.
+        await settle(v, testRec, null, false);
+      }
+      continue;
+    }
 
     // Parallel: two distinct datasets, no need to serialise.
     const [tests, kms] = await Promise.all([
-      fetchTestDatesFrom(PRIVATE_RESOURCE_ID, plates),
-      fetchKmBatch(plates),
+      fetchTestDatesFrom(PRIVATE_RESOURCE_ID, numbers),
+      fetchKmBatch(numbers),
     ]);
 
     if (!tests.ok || !kms.ok) {
       // Leave every row of this chunk exactly as it is: no stamp, no RPC,
       // no notification. They are still the oldest, so the next run
       // retries them first. Carry on with the next chunk instead of
-      // stopping: with MAX_VEHICLES_PER_RUN / GOV_CHUNK_SIZE = 2 that costs
-      // at most two more requests, and a chunk that fails every time (a
-      // data shape we don't expect, say) can't freeze everything behind it.
+      // stopping: a run has only a few chunks, so that costs a request or
+      // two, and a chunk that fails every time (a data shape we don't
+      // expect, say) can't freeze everything behind it.
       stats.fetch_failed += chunk.length;
       await reportEdgeError('gov_fetch_failed', new Error('data.gov.il batch request failed'), {
         test_dates: tests.ok ? 'ok' : tests.reason,
@@ -580,7 +745,7 @@ serve(async (req: Request) => {
 
     // Plates the private-cars dataset doesn't know may be personal imports
     // or public vehicles. Ask those two registries about them only.
-    const missing = plates.filter((p) => !tests.byPlate.has(plateKey(p)));
+    const missing = numbers.filter((p) => !tests.byPlate.has(plateKey(p)));
     const [imports, publics] = missing.length > 0
       ? await Promise.all([
           fetchTestDatesFrom(PERSONAL_IMPORT_RESOURCE_ID, missing),
@@ -596,7 +761,7 @@ serve(async (req: Request) => {
     }
 
     for (const v of chunk) {
-      const key = plateKey(v.plate);
+      const key = plateKey(v.number);
       let testRec = tests.byPlate.get(key);
       if (testRec === undefined) {
         // Only rows the private dataset didn't know depend on the
@@ -615,74 +780,7 @@ serve(async (req: Request) => {
           if (testRec !== undefined) stats.found_public++;
         }
       }
-      stats.checked++;
-      const testPresent = testRec !== undefined;
-      const testData = testRec ?? { test_due_date: null, last_test_date: null };
-      const km = kms.byPlate.get(key) ?? null;
-
-      // A dataset that answered but no longer has a plate it gave us data
-      // for last time is most likely mid-reload (see the header), not a car
-      // that vanished. Hold the row: no stamp, no RPC, retried next run.
-      // Believing it would write a half-update and lose the rest for good,
-      // because the RPC applies a given test date only once. Presence is
-      // judged by the record, not its value, so a 0 km reading still counts.
-      const testGone = v.hadTest && !testPresent;
-      const kmGone = v.hadKm && !kms.byPlate.has(key);
-      if ((testGone || kmGone) && Date.now() - v.lastSyncMs < MISSING_GRACE_MS) {
-        stats.held_missing++;
-        continue;
-      }
-
-      // Both datasets answered and neither has anything we sync for this
-      // plate. Stamp the sync-at so we don't re-ask every run, but don't
-      // touch any other field.
-      if (!testData.test_due_date && !testData.last_test_date && km == null) {
-        stats.no_api_hit++;
-        await supabaseAdmin
-          .from('vehicles')
-          .update({ last_gov_sync_at: new Date().toISOString() })
-          .eq('id', v.id);
-        continue;
-      }
-
-      // Hand off to the RPC. The RPC does the compare + write +
-      // notify + idempotency journal atomically. We pass everything
-      // we know and let it decide what to actually apply.
-      const { data: rpcData, error: rpcErr } = await supabaseAdmin
-        .rpc('record_gov_sync_update', {
-          p_vehicle_id:        v.id,
-          p_gov_km:            km,
-          p_gov_test_date:     testData.last_test_date,
-          p_gov_test_due_date: testData.test_due_date,
-        });
-
-      if (rpcErr) {
-        stats.errors++;
-        // Don't stamp last_gov_sync_at on RPC failure: the next run should
-        // retry this vehicle. Surface the error in logs for debugging.
-        console.error('record_gov_sync_update failed', v.id, rpcErr.message);
-        await reportEdgeError('record_gov_sync_update_rpc', rpcErr, { vehicle_id: v.id });
-        continue;
-      }
-
-      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-      if (!row || row.was_new === false) {
-        stats.no_change++;
-        continue;
-      }
-
-      if (row.km_updated) stats.km_updated++;
-      if (row.test_updated) stats.test_updated++;
-      if (row.notification_id) stats.notifications++;
-
-      if (stats.samples.length < 10) {
-        stats.samples.push({
-          vehicle_id:      v.id,
-          km_updated:      !!row.km_updated,
-          test_updated:    !!row.test_updated,
-          notification_id: row.notification_id || null,
-        });
-      }
+      await settle(v, testRec, kms.byPlate.get(key) ?? null, kms.byPlate.has(key));
     }
   }
 
