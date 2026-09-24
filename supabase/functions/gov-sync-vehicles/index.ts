@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // gov-sync-vehicles — Supabase Edge Function that mirrors fresh
 // data.gov.il vehicle data back onto our `vehicles` table. The cron fires
-// every 20 minutes in Israeli daytime (supabase-gov-sync-schedule-2026-09-23.sql);
-// the 20h staleness clock below keeps each vehicle at roughly once a day.
+// every 20 minutes from 07:00 to 18:59 UTC, after the ministry's overnight
+// reload (supabase-gov-sync-schedule-2026-09-24.sql); the 20h staleness
+// clock below keeps each vehicle at roughly once a day.
 //
 // What it syncs:
 //   • current_km           — but only when the user hasn't manually
@@ -27,8 +28,13 @@
 //      Sorted oldest-synced-first, capped at MAX_VEHICLES_PER_RUN.
 //   3. In chunks of GOV_CHUNK_SIZE plates, two requests per chunk, in
 //      parallel (data.gov.il accepts an array in `filters`):
-//         a. fetchTestDatesBatch(plates)   → test_due_date / last_test_date
+//         a. fetchTestDatesFrom(PRIVATE_RESOURCE_ID, plates)
+//                                          → test_due_date / last_test_date
 //         b. fetchKmBatch(plates)          → current_km
+//      Plates the private dataset doesn't have are then asked of the
+//      personal-import and public-vehicle registries (see
+//      PERSONAL_IMPORT_RESOURCE_ID). A failure there only holds back
+//      the rows that needed it.
 //   4. If EITHER request failed, the whole chunk is left untouched: no
 //      stamp, no RPC, no notification. Those rows are still the oldest, so
 //      the next run retries them first. The run moves on to its next chunk
@@ -168,6 +174,23 @@ const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
 const PRIVATE_RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
 const LAST_KM_RESOURCE_ID = '56063a99-8a3e-4ff4-912e-5966c0279bad';
 const GOV_API_BASE        = 'https://data.gov.il/api/3/action/datastore_search';
+
+// Registries asked only about plates the private-cars dataset doesn't have.
+// Both publish a test due date. Checked 2026-09-24: of 100 random plates
+// from each, none was in the private dataset, so one plate can't be found
+// in two registries and pick up another car's dates. Personal imports are
+// 61% motorcycles, which is how some motorcycles get a date at all.
+// Motorcycles and heavy vehicles registered the normal way, trailers, and
+// the km dataset outside private cars: the ministry publishes no test date
+// or km for them anywhere (every vehicle dataset was checked that day).
+//
+// About 1% of personal imports (281 of 27,456) have 5 or 6 digit plates,
+// and normalizePlate still drops them. That is deliberate for now: צמ"ה
+// numbers use the same range (up to 999,202), so a forklift's number could
+// match an imported car's plate. Once lookups are routed by vehicle type,
+// short plates can be let through for everything that isn't צמ"ה.
+const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';  // יבוא אישי
+const PUBLIC_RESOURCE_ID          = 'cf29862d-ca25-4691-84f6-1be60dcb4a1e';  // רכב ציבורי: מוניות, אוטובוסים
 
 // Plates per data.gov.il request. Measured 2026-09-24 against both
 // datasets: 100 plates answer in 1-2s, the URL is ~1.3KB, and neither
@@ -369,8 +392,9 @@ async function fetchGovBatch(
   }
 }
 
-async function fetchTestDatesBatch(plates: string[]): Promise<GovBatch<GovTestData>> {
-  const raw = await fetchGovBatch(PRIVATE_RESOURCE_ID, plates, ['mispar_rechev', 'tokef_dt', 'mivchan_acharon_dt']);
+// The private-cars and personal-import datasets share these column names.
+async function fetchTestDatesFrom(resourceId: string, plates: string[]): Promise<GovBatch<GovTestData>> {
+  const raw = await fetchGovBatch(resourceId, plates, ['mispar_rechev', 'tokef_dt', 'mivchan_acharon_dt']);
   if (!raw.ok) return raw;
   const byPlate = new Map<string, GovTestData>();
   for (const [key, rec] of raw.byPlate) {
@@ -400,6 +424,27 @@ async function fetchKmBatch(plates: string[]): Promise<GovBatch<number | null>> 
   }
   return { ok: true, byPlate };
 }
+
+async function fetchPublicBatch(plates: string[]): Promise<GovBatch<GovTestData>> {
+  const raw = await fetchGovBatch(PUBLIC_RESOURCE_ID, plates, ['mispar_rechev', 'tokef_dt', 'bitul_cd', 'bitul_dt']);
+  if (!raw.ok) return raw;
+  const byPlate = new Map<string, GovTestData>();
+  for (const [key, rec] of raw.byPlate) {
+    // bitul_cd '0' is "not cancelled" and never has a bitul_dt; every real
+    // cancellation (total loss, dismantled, deposited...) has both, checked
+    // on 2,000 rows. A cancelled vehicle's due date means nothing, so its
+    // record stays in the map as present-without-data: it neither updates
+    // the car nor trips the mid-reload hold.
+    const active = String(rec.bitul_cd ?? '') === '0' && !rec.bitul_dt;
+    byPlate.set(key, {
+      test_due_date:  active ? toDate(rec.tokef_dt) : null,
+      last_test_date: null,  // this dataset has no last-test date
+    });
+  }
+  return { ok: true, byPlate };
+}
+
+const NO_FALLBACK: GovBatch<GovTestData> = { ok: true, byPlate: new Map() };
 
 function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
@@ -455,6 +500,8 @@ serve(async (req: Request) => {
     errors:         0,
     fetch_failed:   0,  // rows left untouched because a gov.il request failed
     held_missing:   0,  // rows held because a dataset lost a plate it had before
+    found_personal_import: 0,  // test dates from the personal-import registry
+    found_public:   0,  // test dates from the public-vehicle registry
     deferred:       0,  // rows not reached this run; they lead the next one
     started_at:     new Date().toISOString(),
     finished_at:    null as string | null,
@@ -511,7 +558,7 @@ serve(async (req: Request) => {
 
     // Parallel: two distinct datasets, no need to serialise.
     const [tests, kms] = await Promise.all([
-      fetchTestDatesBatch(plates),
+      fetchTestDatesFrom(PRIVATE_RESOURCE_ID, plates),
       fetchKmBatch(plates),
     ]);
 
@@ -531,10 +578,46 @@ serve(async (req: Request) => {
       continue;
     }
 
+    // Plates the private-cars dataset doesn't know may be personal imports
+    // or public vehicles. Ask those two registries about them only.
+    const missing = plates.filter((p) => !tests.byPlate.has(plateKey(p)));
+    const [imports, publics] = missing.length > 0
+      ? await Promise.all([
+          fetchTestDatesFrom(PERSONAL_IMPORT_RESOURCE_ID, missing),
+          fetchPublicBatch(missing),
+        ])
+      : [NO_FALLBACK, NO_FALLBACK] as const;
+    if (!imports.ok || !publics.ok) {
+      await reportEdgeError('gov_fallback_fetch_failed', new Error('data.gov.il fallback request failed'), {
+        personal_import: imports.ok ? 'ok' : imports.reason,
+        public:          publics.ok ? 'ok' : publics.reason,
+        plates:          missing.length,
+      });
+    }
+
     for (const v of chunk) {
-      stats.checked++;
       const key = plateKey(v.plate);
-      const testData = tests.byPlate.get(key) ?? { test_due_date: null, last_test_date: null };
+      let testRec = tests.byPlate.get(key);
+      if (testRec === undefined) {
+        // Only rows the private dataset didn't know depend on the
+        // fallbacks. If one of those requests failed we can't tell "not a
+        // personal import" from "didn't hear back", so leave the row for
+        // the next run, exactly as a failed main request would.
+        if (!imports.ok || !publics.ok) {
+          stats.fetch_failed++;
+          continue;
+        }
+        testRec = imports.byPlate.get(key);
+        if (testRec !== undefined) {
+          stats.found_personal_import++;
+        } else {
+          testRec = publics.byPlate.get(key);
+          if (testRec !== undefined) stats.found_public++;
+        }
+      }
+      stats.checked++;
+      const testPresent = testRec !== undefined;
+      const testData = testRec ?? { test_due_date: null, last_test_date: null };
       const km = kms.byPlate.get(key) ?? null;
 
       // A dataset that answered but no longer has a plate it gave us data
@@ -543,7 +626,7 @@ serve(async (req: Request) => {
       // Believing it would write a half-update and lose the rest for good,
       // because the RPC applies a given test date only once. Presence is
       // judged by the record, not its value, so a 0 km reading still counts.
-      const testGone = v.hadTest && !tests.byPlate.has(key);
+      const testGone = v.hadTest && !testPresent;
       const kmGone = v.hadKm && !kms.byPlate.has(key);
       if ((testGone || kmGone) && Date.now() - v.lastSyncMs < MISSING_GRACE_MS) {
         stats.held_missing++;
