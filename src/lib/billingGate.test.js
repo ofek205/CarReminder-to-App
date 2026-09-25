@@ -22,7 +22,7 @@ vi.mock('@/lib/capacitor', () => ({
 
 const {
   billingSurface, canReferToWeb, canMentionExternalPurchase, capWallAction,
-  mayMentionPaidPlans,
+  mayMentionPaidPlans, planEntryPage,
 } = await import('./billingGate');
 
 const asWeb = () => Object.assign(platform, { isNative: false, isIOS: false, isAndroid: false, isWeb: true });
@@ -119,6 +119,25 @@ describe('mayMentionPaidPlans', () => {
   it('refuses it on an unrecognised native platform', () => {
     asUnknownNative();
     expect(mayMentionPaidPlans()).toBe(false);
+  });
+});
+
+describe('planEntryPage', () => {
+  it('opens the plans directly on Android and in a browser', () => {
+    // Ofek, 2026-09-25: one tap to the plans, not a detour through /MyPlan.
+    asAndroid();
+    expect(planEntryPage()).toBe('Plans');
+    asWeb();
+    expect(planEntryPage()).toBe('Plans');
+  });
+
+  it('keeps /MyPlan as the plan screen on iOS, where paid plans may not be named', () => {
+    // ⚠️ /Plans lists paid plans by name. On iOS before StoreKit that is a
+    // plan nothing in the app can buy, which 3.1.1 treats as steering.
+    asIOS();
+    expect(planEntryPage()).toBe('MyPlan');
+    asUnknownNative();
+    expect(planEntryPage()).toBe('MyPlan');
   });
 });
 

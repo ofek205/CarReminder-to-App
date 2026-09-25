@@ -34,7 +34,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Car, FileText, Sparkles, CornerDownLeft } from 'lucide-react';
+import { Car, FileText, Sparkles, CornerDownLeft, ChevronLeft } from 'lucide-react';
 import PageShell from '@/components/business/system/PageShell';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { createPageUrl } from '@/utils';
@@ -469,9 +469,18 @@ function Meter({ label, meter }) {
 }
 
 /** "Where you stand": the plan, and how full it is. The screen's first read. */
+/**
+ * "Where you stand": the plan, how full it is, and the way to the details.
+ *
+ * ⚠️ THE LINK TO /MyPlan LIVES HERE SINCE 2026-09-25. Settings used to open
+ * /MyPlan, which linked here; Ofek asked for the plans in one tap, so the
+ * order flipped. /MyPlan keeps what this strip leaves out (renewal date,
+ * today's AI questions, this month's vehicle checks, which account), and
+ * this is the one door to it.
+ */
 function StatusStrip({ plan, meters }) {
   return (
-    <section className="rounded-2xl px-3.5 pt-3 pb-3.5 space-y-2.5" style={{ background: C.light }} aria-label="המסלול שלך">
+    <section className="rounded-2xl px-3.5 pt-3 pb-1 space-y-2.5" style={{ background: C.light }} aria-label="המסלול שלך">
       <p className="text-[14px]" style={{ color: C.gray800 }}>
         המסלול שלך: <span className="font-bold" style={{ color: C.primary }}>{plan.labelHe}</span>
       </p>
@@ -480,6 +489,14 @@ function StatusStrip({ plan, meters }) {
           {meters.map((m) => <Meter key={m.label} label={m.label} meter={m.meter} />)}
         </div>
       )}
+      <Link
+        to={createPageUrl('MyPlan')}
+        className="flex items-center justify-between min-h-[44px] border-t text-[13px] font-bold"
+        style={{ borderColor: C.border, color: C.primary }}
+      >
+        <span>פרטי המנוי והניצול</span>
+        <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+      </Link>
     </section>
   );
 }
@@ -720,7 +737,7 @@ export default function Plans() {
 
   if (catalog.isLoading) {
     return (
-      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="MyPlan">
+      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="Settings">
         <SkeletonScreen />
       </PageShell>
     );
@@ -731,7 +748,7 @@ export default function Plans() {
   // and treating it as "still loading" is how a screen spins forever.
   if (catalog.isError || !free) {
     return (
-      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="MyPlan">
+      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="Settings">
         <SystemErrorBanner
           message="לא הצלחנו לטעון את המסלולים. בדוק את החיבור לאינטרנט ונסה שוב."
           onRetry={catalog.refetch}
@@ -833,7 +850,7 @@ export default function Plans() {
     <PageShell
       title="המסלולים"
       subtitle={isGuest ? 'מצב אורח' : offering ? 'בחר את המסלול שמתאים לך' : 'מה כל מסלול כולל'}
-      backTo="MyPlan"
+      backTo="Settings"
     >
       <div className="space-y-3.5">
 

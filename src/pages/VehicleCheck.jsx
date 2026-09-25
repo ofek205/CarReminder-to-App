@@ -1230,16 +1230,18 @@ function PlateQuotaCard({ verdict }) {
       <LockKeyhole className="h-9 w-9 text-yellow-700 mx-auto mb-3" />
       <h2 className="text-lg font-bold text-gray-900 mb-1">{title}</h2>
       <p className="text-sm text-gray-500 mb-4">{body}</p>
-      {/* Web only. The label points at what the screen actually does: /MyPlan
-          shows the plan and its limits, it does not take a payment, and a
-          button reading "שדרג" would promise a checkout that is not there. */}
+      {/* Only where plateQuotaCopy allows a plan CTA. Straight to /Plans since
+          2026-09-25: it shows where the account stands AND the plans with
+          more checks, where /MyPlan showed only the first half. The label
+          still says "view" rather than "שדרג", because not every surface
+          that may mention a plan can also sell one. */}
       {cta === 'plan' && (
         <Link
-          to={createPageUrl('MyPlan')}
+          to={createPageUrl('Plans')}
           className="inline-flex items-center justify-center px-4 py-2 rounded-2xl font-bold text-white min-h-[44px]"
           style={{ background: C.primary }}
         >
-          המסלול והמגבלות שלי
+          לצפייה במסלולים
         </Link>
       )}
     </section>

@@ -24,6 +24,7 @@ import { useFeatureFlag } from '@/lib/featureFlags';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
 import { isNative, isIOS } from '@/lib/capacitor';
+import { planEntryPage } from '@/lib/billingGate';
 
 export default function Settings() {
   const { isBusiness, isOwner, isManager } = useWorkspaceRole();
@@ -61,8 +62,15 @@ export default function Settings() {
   // "subscription" implies they are paying for something.
   const { enabled: planUiEnabled } = useFeatureFlag('monetization_ui_enabled');
 
+  // ⚠️ STRAIGHT TO /Plans WHERE PAID PLANS MAY BE MENTIONED, AND ONLY THERE.
+  // Ofek, 2026-09-25: the row used to land on /MyPlan, whose main job had
+  // become a link to /Plans, one extra tap for the screen people came for.
+  // On iOS before StoreKit it still opens /MyPlan; the reason is at
+  // planEntryPage in billingGate, which /MyPlan asks too.
   const planRow = planUiEnabled
-    ? { to: 'MyPlan', icon: CreditCard, label: 'המסלול והחיוב', sub: 'המסלול הנוכחי, המגבלות והניצול' }
+    ? planEntryPage() === 'Plans'
+      ? { to: 'Plans', icon: CreditCard, label: 'המסלול והחיוב', sub: 'המסלול שלך, הניצול וכל המסלולים' }
+      : { to: 'MyPlan', icon: CreditCard, label: 'המסלול והחיוב', sub: 'המסלול הנוכחי, המגבלות והניצול' }
     : null;
 
   const personalRows = [

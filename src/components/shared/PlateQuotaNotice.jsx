@@ -38,10 +38,10 @@ export default function PlateQuotaNotice({ verdict, tail }) {
         <p className="mt-1">{body}{tail ? ` ${tail}` : ''}</p>
         {cta === 'plan' && (
           <Link
-            to={createPageUrl('MyPlan')}
+            to={createPageUrl('Plans')}
             className="inline-block mt-2 font-bold underline underline-offset-2 hover:no-underline"
           >
-            המסלול והמגבלות שלי
+            לצפייה במסלולים
           </Link>
         )}
       </div>

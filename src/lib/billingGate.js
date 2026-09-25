@@ -200,3 +200,21 @@ export function mayMentionPaidPlans() {
   if (surface === IAP) return isAndroid;
   return false;
 }
+
+/**
+ * Which screen "המסלול והחיוב" opens: 'Plans' or 'MyPlan'.
+ *
+ * ⚠️ /Plans ONLY WHERE PAID PLANS MAY BE MENTIONED. Ofek, 2026-09-25: the
+ * entry used to land on /MyPlan, whose main job had become a link to /Plans.
+ * But /Plans lists paid plans by name, and on iOS before StoreKit that is a
+ * plan nothing in the app can buy, which App Review reads as a purchase
+ * elsewhere (3.1.1). So the order flips only where mayMentionPaidPlans says
+ * so, and /MyPlan keeps being the plan screen everywhere else. Settings and
+ * /MyPlan both ask this one function, so they cannot disagree about which
+ * screen is the parent.
+ *
+ * @param {object} [opts]  passed through to mayMentionPaidPlans
+ */
+export function planEntryPage(opts) {
+  return mayMentionPaidPlans(opts) ? 'Plans' : 'MyPlan';
+}
