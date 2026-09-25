@@ -1,6 +1,6 @@
 # Apple / StoreKit subscriptions: plan
 
-Status 2026-09-25: slice 1 merged (`feat/apple-iap`, PR #67). Slice 2a on `feat/apple-iap-wiring` (PR #68). **Slice 2b on `feat/apple-iap-plans`**, stacked on the approved `/Plans` redesign + 2a: iOS is wired. Merge order: redesign, then 2a, then 2b. Everything stays behind `apple_billing_enabled` (off), so only an admin on an iOS build sees a purchase. See §5.
+Status 2026-09-25: **merged** (PR #75, af4cf91d, main == staging). All client and server code is in; still inert: functions not deployed, SQL not applied, no native build, apple_billing_enabled absent. Remaining work is Apple setup, deploy, a TestFlight build and the device test (runbook). Terms section waits on feat/terms-subscriptions.
 Companion: [runbook-app-store-connect-iap.md](runbook-app-store-connect-iap.md) (Ofek's App Store Connect checklist, in Hebrew).
 Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux-play-billing-purchase.md`.
 
