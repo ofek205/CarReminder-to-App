@@ -6,6 +6,7 @@ import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server.js';
 import { marketingRoutes, marketingMetadata } from '../src/lib/marketingContent.js';
+import { SITE_GTAG_SNIPPET } from '../src/lib/siteGtagSnippet.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 
@@ -26,11 +27,23 @@ const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;
  */
 const GA4_SNIPPET = `<script async src="https://www.googletagmanager.com/gtag/js?id=G-6Q6XS6C8B0"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-6Q6XS6C8B0');</script>`;
 
+// The SPA shell gets SITE_GTAG_SNIPPET during the same build, via
+// transformIndexHtml below. Prerender copies dist/index.html, so every
+// /website page inherits that script. The snippet bails out when this
+// head tag is already present, and it must not contain the contiguous
+// gtag URL or each marketing page would show two of them. The config
+// call in GA4_SNIPPET stays exactly as it is.
+
 export function marketingPrerender() {
   let config;
   return {
     name: 'carreminder-marketing-html',
     apply: 'build',
+    transformIndexHtml(html) {
+      if (html.includes('__crStoreClicks')) return html;
+      if (!html.includes('</body>')) throw new Error('index.html has no </body> for the site gtag snippet');
+      return html.replace('</body>', `<script>${SITE_GTAG_SNIPPET}</script>\n</body>`);
+    },
     configResolved(value) { config = value; },
     async closeBundle() {
       const output = path.resolve(config.root, config.build.outDir);
