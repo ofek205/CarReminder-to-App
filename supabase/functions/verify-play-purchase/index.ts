@@ -33,7 +33,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
-import { willRenewFrom } from '../_shared/googlePlay.ts';
+import { willRenewFrom, externalAccountIdFrom } from '../_shared/googlePlay.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -216,6 +216,21 @@ serve(async (req) => {
   const lineItems = ((sub as any)?.lineItems || []) as Array<Record<string, unknown>>;
   const googleProductId = String(lineItems[0]?.productId || '');
   const expiry = String(lineItems[0]?.expiryTime || '') || null;
+
+  // ⚠️ THE ACCOUNT THE PURCHASE WAS MADE FOR WINS OVER THE ACCOUNT CLAIMED.
+  // The membership check above proves the caller belongs to accountId; it
+  // does not prove this purchase does. Play's owned-purchases query returns
+  // every subscription on the device's GOOGLE account, so one person with a
+  // personal and a business workspace sent account A's token with account
+  // B's id on the mount restore, and B got A's plan for free. The token then
+  // sat on two rows, play-rtdn's token lookup errored on both, and renewals
+  // reached neither. The purchase carries the account it was bought for
+  // (appAccountToken, which Play returns as obfuscatedExternalAccountId).
+  // A purchase with no id predates that and is let through.
+  const boughtFor = externalAccountIdFrom(sub as Record<string, unknown>);
+  if (boughtFor && boughtFor !== accountId) {
+    return json({ granted: false, reason: 'account_mismatch' }, 200, cors);
+  }
 
   // The product Google reports wins over the product the client claimed.
   if (googleProductId && productId && googleProductId !== productId) {

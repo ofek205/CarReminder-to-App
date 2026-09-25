@@ -282,11 +282,13 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
    */
   const restore = useCallback(async () => {
     if (!backend) return;
-    const owned = await backend.queryOwnedPurchases();
+    // accountId goes along so the backend returns only this account's
+    // purchases; see queryOwnedPurchases in lib/billing.
+    const owned = await backend.queryOwnedPurchases(accountId);
     if (owned.length === 0) { safeSet(PurchaseState.IDLE); return; }
     setActiveProductId(owned[0].productId);
     await runVerification(owned[0]);
-  }, [backend, runVerification, safeSet]);
+  }, [backend, accountId, runVerification, safeSet]);
 
   /**
    * ⚠️ AND THIS IS THE PART THAT WAS MISSING ENTIRELY.
