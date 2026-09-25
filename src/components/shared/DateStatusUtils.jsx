@@ -1,4 +1,5 @@
 import { differenceInDays, parseISO, format } from 'date-fns';
+import { CME_EXACT } from '@/lib/designTokens';
 
 export function getDateStatus(dateStr) {
   if (!dateStr) return { status: 'neutral', label: 'לא הוזן', daysLeft: null };
@@ -52,23 +53,13 @@ const OFFROAD_TYPES = new Set([
 // cranes, drillers, telehandlers) — heavy equipment is hour-metered
 // even on wheeled chassis. Tractors are agricultural equipment that
 // also use engine hours operationally.
-const OFFROAD_HOURS_TYPES = new Set([
-  'RZR', 'מיול',
-  // CME (כלי צמ"ה) — every subtype from CME_SUBCATEGORIES
-  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
-  'דחפור', 'דחפור זחלי',
-  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
-  'בובקט',
-  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
-  'מפלסת',
-  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
-  'מערבל בטון', 'משאבת בטון',
-  'מנוף', 'מנוף נייד', 'מנוף זחלי',
-  'מקדח קרקע', 'ציוד קידוח',
-  'רכב צמ"ה',
-  // Tractors & similar agri equipment
-  'טרקטור', 'מחרשה',
-]);
+//
+// Both sets are built from CME_EXACT (designTokens.js) rather than kept as
+// copies: three hand-kept copies of one list had drifted by 2026-09-24.
+// Tractors are here but not in CME_EXACT on purpose: they hour-meter and
+// count as צמ"ה for labels and dates, yet sit on the "special" tab.
+export const CME_TYPES = new Set([...CME_EXACT, 'טרקטור', 'מחרשה']);
+const OFFROAD_HOURS_TYPES = new Set(['RZR', 'מיול', ...CME_TYPES]);
 
 /** Returns true if this vehicle type is an off-road vehicle. */
 export function isOffroad(vehicleType) {
@@ -402,26 +393,18 @@ export function computeFallbackTestDate(fields) {
 
 // Heavy / industrial equipment subtypes (forklifts, excavators, telehandlers,
 // graders, etc.) — they all hour-meter and the user thinks of them as
-// "כלי הנדסי" / "כלי צמ"ה" not "רכב". Reuses the OFFROAD_HOURS_TYPES set so
-// adding a new CME subtype in one place propagates everywhere.
-const CME_TYPES = new Set([
-  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
-  'דחפור', 'דחפור זחלי',
-  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
-  'בובקט',
-  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
-  'מפלסת',
-  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
-  'מערבל בטון', 'משאבת בטון',
-  'מנוף', 'מנוף נייד', 'מנוף זחלי',
-  'מקדח קרקע', 'ציוד קידוח',
-  'רכב צמ"ה',
-  'טרקטור', 'מחרשה',
-]);
-
+// "כלי הנדסי" / "כלי צמ"ה" not "רכב". CME_TYPES is defined with
+// OFFROAD_HOURS_TYPES near the top of this file, from the one shared list.
 export function isCme(vehicleType) {
   return CME_TYPES.has(vehicleType);
 }
+
+// What a צמ"ה vehicle's test_due_date is called. צמ"ה has an annual licence,
+// not a test, so everywhere a car says "טסט" a צמ"ה vehicle says this
+// (Ofek, 2026-09-25; the ministry-sync push already says "תוקף הרישוי").
+// No ה' הידיעה on purpose: it has to read in "X:", "X פג לפני 3 ימים" and
+// "חסר: X" alike. Screens that don't go through getVehicleLabels import it.
+export const CME_LICENCE_WORD = 'תוקף רישוי';
 
 /**
  * Returns context-aware labels based on vehicle type.
@@ -457,10 +440,10 @@ export function getVehicleLabels(vehicleType, nickname) {
     // Subtype itself reads natural ("מלגזה", "טרקטור") so use it directly.
     return {
       vehicleWord:    vehicleType,
-      testWord:       'טסט',
-      testDateLabel:  'תאריך טסט',
-      testNextLabel:  'תאריך טסט הבא',
-      testExpiredMsg: 'הטסט עבר את תאריך התוקף',
+      testWord:       CME_LICENCE_WORD,
+      testDateLabel:  CME_LICENCE_WORD,
+      testNextLabel:  `${CME_LICENCE_WORD} עד`,
+      testExpiredMsg: 'תוקף הרישוי פג',
       insuranceWord:  'ביטוח',
       vehicleFallback: vehicleType,
     };
