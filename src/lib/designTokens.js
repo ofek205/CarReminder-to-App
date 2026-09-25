@@ -188,7 +188,14 @@ const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטור�
 // כלי צמ"ה (Construction Machinery). Mirrors CME_SUBCATEGORIES dbName
 // list in VehicleTypeSelector.jsx + the legacy 'רכב צמ"ה' that pre-CME
 // rows might still carry. Anything in this set categorises as 'cme'.
-const CME_EXACT = new Set([
+//
+// This is the ONE list. Vehicles.jsx (tabs) and DateStatusUtils.jsx
+// (isCme, engine hours) build on it instead of keeping copies; the copies
+// had drifted, which is how the three labels at the end went unrecognised.
+// The server keeps its own copy (it can't import from src): CME_VEHICLE_TYPES
+// in supabase/functions/gov-sync-vehicles/index.ts, and cmeTypes.test.js
+// fails if the two ever differ.
+export const CME_EXACT = new Set([
   'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
   'דחפור', 'דחפור זחלי',
   'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
@@ -200,6 +207,10 @@ const CME_EXACT = new Set([
   'מנוף', 'מנוף נייד', 'מנוף זחלי',
   'מקדח קרקע', 'ציוד קידוח',
   'רכב צמ"ה',  // legacy umbrella label
+  // Found on real vehicles 2026-09-24 and recognised nowhere until then:
+  // the category name itself saved as the type (7 vehicles), and two roller
+  // labels that never came from the type picker (1 each).
+  'כלי צמ"ה', 'מכבש גלילי ממונע', 'מכבש גליל ידני',
 ]);
 // Special / catch-all bucket: items that don't fit any precise category.
 const SPECIAL_EXACT = new Set([

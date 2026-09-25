@@ -21,6 +21,7 @@
 import { supabase } from './supabase';
 import { buildEmailHtml, escapeHtml, EMAIL_BRAND } from './emailTemplates';
 import { renderPlaceholders } from './emailValidate';
+import { isCme, CME_LICENCE_WORD } from '@/components/shared/DateStatusUtils';
 
 export const DB_TEMPLATES_ENABLED =
   String(import.meta.env.VITE_USE_DB_TEMPLATES || '').toLowerCase() === 'true';
@@ -51,14 +52,31 @@ function plainVars(vars = {}) {
   return out;
 }
 
+// What the reminder is about. Mirror of dueNouns() in the dispatcher: a
+// צמ"ה vehicle's test reminder says "תוקף רישוי", and the hero reads
+// "ימים לחידוש הרישוי" because "ימים לתוקף רישוי" isn't Hebrew.
+// A '<key>_cme' template is the צמ"ה version of a test reminder, which the
+// dispatcher sends to צמ"ה vehicles only, so its preview is always צמ"ה.
+// KEEP IN SYNC with the dispatcher.
+export function dueNouns(notificationKey, vehicleType) {
+  const key = String(notificationKey || '');
+  if (key.includes('insurance')) return { dueNoun: 'ביטוח', dueNounDef: 'הביטוח', subNoun: 'ביטוח' };
+  if (key.startsWith('reminder_test') && (key.endsWith('_cme') || isCme(vehicleType))) {
+    return { dueNoun: CME_LICENCE_WORD, dueNounDef: 'תוקף הרישוי', subNoun: 'חידוש הרישוי' };
+  }
+  return { dueNoun: 'טסט', dueNounDef: 'הטסט', subNoun: 'טסט' };
+}
+
 // Mirror of the urgency/grammar derivation in the dispatcher
 // (supabase/functions/dispatch-reminder-emails/index.ts). Reminder template
 // bodies reference {{heroBg}}, {{heroTop}}, {{heroBig}}, {{heroSub}},
-// {{daysPhrase}}, {{heroFg}}, {{heroNum}}, {{pillBorder}} — the dispatcher
-// computes them per real send; this client copy lets the EmailCenter
-// preview/test render identically instead of showing literal {{placeholders}}.
+// {{daysPhrase}}, {{heroFg}}, {{heroNum}}, {{pillBorder}}, {{dueNoun}},
+// {{dueNounDef}} — the dispatcher computes them per real send; this client
+// copy lets the EmailCenter preview/test render identically instead of
+// showing literal {{placeholders}}. vehicleType is optional: the preview has
+// no vehicle, so it shows the car wording unless the admin puts one in vars.
 // KEEP IN SYNC with the dispatcher's vars block.
-function deriveReminderHeroVars(daysLeftRaw, notificationKey) {
+export function deriveReminderHeroVars(daysLeftRaw, notificationKey, vehicleType) {
   const key = String(notificationKey || '');
   const overdue = key.includes('_overdue');
   // Guard junk/missing input (the test dialog stubs daysLeft) so the preview
@@ -69,13 +87,13 @@ function deriveReminderHeroVars(daysLeftRaw, notificationKey) {
   // Overdue templates always render the past-due (red) hero; the test dialog
   // stubs a positive daysLeft, so coerce it negative for these keys.
   if (overdue && dl >= 0) dl = -(dl || 7);
-  const noun    = key.includes('insurance') ? 'ביטוח' : 'טסט';
-  const nounDef = key.includes('insurance') ? 'הביטוח' : 'הטסט';
+  const { dueNoun, dueNounDef, subNoun } = dueNouns(key, vehicleType);
   let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
   if (dl < 0) {
     // OVERDUE — always red; hero counts days SINCE expiry.
     const od = Math.abs(dl);
     return {
+      dueNoun, dueNounDef,
       heroTop: 'באיחור',
       heroBig: String(od),
       heroSub: od === 1 ? 'יום מאז הפקיעה' : 'ימים מאז הפקיעה',
@@ -86,9 +104,10 @@ function deriveReminderHeroVars(daysLeftRaw, notificationKey) {
   if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
   else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
   return {
-    heroTop:    dl === 0 ? `${nounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו',
+    dueNoun, dueNounDef,
+    heroTop:    dl === 0 ? `${dueNounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו',
     heroBig:    dl === 0 ? 'היום' : String(dl),
-    heroSub:    dl === 0 ? '' : dl === 1 ? `יום ל${noun}` : `ימים ל${noun}`,
+    heroSub:    dl === 0 ? '' : dl === 1 ? `יום ל${subNoun}` : `ימים ל${subNoun}`,
     daysPhrase: dl === 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`,
     heroBg, heroFg, heroNum, pillBorder,
   };
@@ -138,7 +157,10 @@ export function renderFromTemplateObject(template, vars = {}, options = {}) {
   // Caller still controls the real inputs (daysLeft, vehicleName, ...).
   let effectiveVars = vars;
   if (template.notification_key && String(template.notification_key).startsWith('reminder_')) {
-    effectiveVars = { ...vars, ...deriveReminderHeroVars(vars.daysLeft, template.notification_key) };
+    effectiveVars = {
+      ...vars,
+      ...deriveReminderHeroVars(vars.daysLeft, template.notification_key, vars.vehicleType),
+    };
   }
 
   const htmlVars = escapeValuesForHtml(effectiveVars, rawVars);

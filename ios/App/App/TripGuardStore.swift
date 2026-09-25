@@ -1,3 +1,9 @@
+// ⚠️ EXCLUDED FROM THE BUILD SINCE 2026-09-25 (Ofek's decision: no child-safety
+// reminder on iPhone for now, Android keeps it). TRIPGUARD_IOS is never
+// defined, so nothing below is compiled. Kept, not deleted, so it can come
+// back: define TRIPGUARD_IOS (Build Settings, Active Compilation Conditions),
+// and lift the iOS gates in Settings.jsx and SafetyReminder.jsx together.
+#if TRIPGUARD_IOS
 import Foundation
 
 /// TripGuard config/state store (UserDefaults-backed), the Swift twin of
@@ -37,18 +43,17 @@ enum TripGuardStore {
     // MARK: - Config
 
     /// Safety-first defaults, matching DEFAULT_CONFIG in
-    /// src/lib/tripGuard/definitions.js. `iosDetectionMode` defaults to
-    /// "both": a forgetful parent is better served by the strongest available
-    /// protection than by the smallest permission ask.
+    /// src/lib/tripGuard/definitions.js. `iosDetectionMode` is "bluetooth":
+    /// location mode is switched off for now, see detectionMode().
     static func defaultConfig() -> [String: Any] {
         [
             "enabled": false,
-            "carDeviceIds": [],
+            "carDeviceIds": [String](),
             "activeDays": [0, 1, 2, 3, 4, 5, 6],
             "minTripMinutes": 2,
             "alertDelaySeconds": 0,
             "escalateAfterSeconds": 30,
-            "iosDetectionMode": "both",
+            "iosDetectionMode": "bluetooth",
         ]
     }
 
@@ -71,8 +76,20 @@ enum TripGuardStore {
         saveConfig(["enabled": enabled])
     }
 
+    /// ⚠️ LOCKED TO "bluetooth" ON PURPOSE (2026-09-25, Ofek's decision).
+    ///
+    /// Location mode needs "Always" location, which the app does not ask for
+    /// for now. Locking it HERE, and not only in the screen, is what makes
+    /// that a guarantee: every path to requestAlwaysAuthorization() and to
+    /// the significant-change monitor goes through wantsLocation(), which
+    /// reads this. A stored config from an older build, or a JS caller that
+    /// still sends "both", cannot bring the prompt back.
+    ///
+    /// To bring location mode back, return the stored value again:
+    ///   (getConfig()["iosDetectionMode"] as? String) ?? "bluetooth"
+    /// and set IOS_LOCATION_MODE_AVAILABLE in definitions.js to true.
     static func detectionMode() -> String {
-        (getConfig()["iosDetectionMode"] as? String) ?? "both"
+        "bluetooth"
     }
 
     static func wantsBluetooth() -> Bool {
@@ -177,3 +194,5 @@ enum TripGuardStore {
         return arr
     }
 }
+
+#endif

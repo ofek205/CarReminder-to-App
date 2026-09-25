@@ -1,0 +1,47 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- supabase-gov-sync-schedule-2026-09-24.sql
+--
+-- Moves the gov-sync window from 03:00-18:59 UTC to 07:00-18:59 UTC, so
+-- the day's first runs no longer land inside the ministry's overnight
+-- reload. Supersedes supabase-gov-sync-schedule-2026-09-23.sql.
+--
+-- ═══ WHY THE FIRST RUN OF THE DAY MATTERS ═════════════════════════════════
+--
+-- A vehicle synced at time T becomes eligible again at T + 20h, which is
+-- T - 4h the next day. So anything synced between 03:00 and 07:00 comes
+-- back at the 03:00 run, and every other vehicle drifts four hours earlier
+-- each day until it lands there too. With ~1,100 vehicles at up to 200 per
+-- run, the whole fleet converges on the first half dozen runs of the day.
+--
+-- On 2026-09-24 the ministry's test-dates dataset was uploaded at 02:36 UTC
+-- and finished loading at 06:08 (resource_show last_modified /
+-- metadata_modified). Known-car misses were 0 all of 09-23 and 40 / 22 / 12
+-- / 0 per hour from 03:00 to 06:00 on 09-24. A 03:00 start put the entire
+-- fleet inside that window every day.
+--
+-- gov-sync-vehicles already holds a plate that a dataset had last time and
+-- now lacks, so cars with history survive a reload. That doesn't cover a car
+-- with no history yet (new, or wiped by the 09-24 misses), and it turns the
+-- first runs into retries. Starting after the reload fixes it at the source;
+-- the hold stays as the net for a reload that runs late.
+--
+-- ═══ CAPACITY ══════════════════════════════════════════════════════════════
+--
+-- 12 hours x 3 runs x 200 vehicles = 7,200 checks a day against ~1,100.
+-- 07:00-18:40 UTC is 10:00-21:40 Israel summer time, 09:00-20:40 in
+-- winter, so pushes still land in waking hours.
+--
+-- Only one reload has been observed. If later ones run past 07:00, the
+-- hold absorbs it; if they turn out to be at another hour entirely, move
+-- the window again rather than widening it.
+--
+-- ═══ VERIFY AFTER RUNNING ══════════════════════════════════════════════════
+--
+--   select schedule, active from cron.job where jobid = 3;
+--   Expected: */20 7-18 * * *, true
+--
+-- Rollback: select cron.alter_job(3, schedule := '*/20 3-18 * * *');
+-- jobid 3 is 'gov-sync-vehicles-daily' (the name predates the schedule).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+select cron.alter_job(3, schedule := '*/20 7-18 * * *');

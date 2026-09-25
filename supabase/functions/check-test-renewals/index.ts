@@ -109,7 +109,7 @@ async function reportEdgeError(action: string, error: unknown, extra?: Record<st
 
 async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: boolean; reason?: string }> {
   const headerSecret = req.headers.get('x-dispatch-secret');
-  if (DISPATCH_SECRET && headerSecret && headerSecret === DISPATCH_SECRET) {
+  if (timingSafeEqual(headerSecret, DISPATCH_SECRET)) {
     return { ok: true };
   }
   const authHeader = req.headers.get('authorization') || '';
@@ -182,6 +182,21 @@ async function fetchTokefDt(plate: string): Promise<string | null> {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
+
+// Constant-time compare for secrets, so response timing can't be used to
+// guess one byte by byte (security audit H-2, 2026-06-07: recorded as done in
+// every dispatch function, but it never reached git or the deployed code).
+// An empty value never matches, not even another empty value.
+function timingSafeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {

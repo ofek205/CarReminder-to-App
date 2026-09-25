@@ -57,13 +57,28 @@ async function reportEdgeError(action: string, error: unknown, extra?: Record<st
   } catch { /* best-effort */ }
 }
 
+// Constant-time compare for secrets, so response timing can't be used to
+// guess one byte by byte (security audit H-2, 2026-06-07: recorded as done in
+// every dispatch function, but it never reached git or the deployed code).
+// An empty value never matches, not even another empty value.
+function timingSafeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
   if (req.method !== 'POST')   return json({ error: 'Method not allowed' }, 405);
 
   // Auth: shared secret only (cron caller).
   const secret = req.headers.get('x-dispatch-secret');
-  if (!DISPATCH_SECRET || secret !== DISPATCH_SECRET) {
+  if (!timingSafeEqual(secret, DISPATCH_SECRET)) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
