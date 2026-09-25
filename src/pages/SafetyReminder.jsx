@@ -21,6 +21,7 @@ import {
   getTripLog,
   DEFAULT_CONFIG,
   TRIP_GUARD_REASONS,
+  IOS_LOCATION_MODE_AVAILABLE,
   __tripGuardPluginRaw,
 } from '@/lib/tripGuard';
 
@@ -370,11 +371,15 @@ export default function SafetyReminder() {
   // must not be reported as "you never paired anything".
   const btPermMissing = reasons.includes(TRIP_GUARD_REASONS.BT_PERM);
 
-  const iosMode = config.iosDetectionMode || 'both';
+  // Location mode is off for now (IOS_LOCATION_MODE_AVAILABLE), and the
+  // native side is locked to Bluetooth regardless of what is stored. So the
+  // screen reads 'bluetooth' too, or a config saved as 'both' by an older
+  // build would show a limitation text for protection that is not running.
+  const iosMode = IOS_LOCATION_MODE_AVAILABLE ? (config.iosDetectionMode || 'bluetooth') : 'bluetooth';
   // No Bluetooth device concept at all when iOS is location-only, showing
   // the picker anyway would dangle a setting that does nothing.
   const showDevicePicker = !isIOS || iosMode !== 'location';
-  const activeIosModeMeta = IOS_MODES.find((m) => m.id === iosMode) || IOS_MODES[2];
+  const activeIosModeMeta = IOS_MODES.find((m) => m.id === iosMode) || IOS_MODES[0];
 
   return (
     <div className="max-w-xl mx-auto p-4 pb-24" dir="rtl">
@@ -454,6 +459,9 @@ export default function SafetyReminder() {
           the Bluetooth receiver there just always works, force-quit or not. ── */}
       {isIOS && (
         <Section title="איך לזהות סיום נסיעה" icon={ShieldCheck}>
+          {/* With one mode there is nothing to choose, so no picker: a
+              single pre-selected button reads as a setting that does nothing. */}
+          {IOS_LOCATION_MODE_AVAILABLE && (
           <div className="space-y-2 mb-3">
             {IOS_MODES.map((m) => {
               const Icon = m.icon;
@@ -481,6 +489,7 @@ export default function SafetyReminder() {
               );
             })}
           </div>
+          )}
           {/* Honest, always-visible limitation for whichever mode is selected:
               this is exactly the fact a forgetful parent must not miss, so it
               doesn't hide behind a one-time onboarding step. */}
