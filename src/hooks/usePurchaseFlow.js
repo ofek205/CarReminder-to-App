@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getBillingBackend, PLAY_PRODUCT_IDS } from '@/lib/billing';
+import { getBillingBackend, PLAY_PRODUCT_IDS, PurchaseOutcome } from '@/lib/billing';
 import { reportError } from '@/lib/crashReporter';
 import {
   PurchaseState, afterSheet, afterVerification, afterCatalogue, mayOfferPurchase,
@@ -237,12 +237,33 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
     setActiveProductId(productId);
     safeSet(PurchaseState.SHEET_OPEN);
 
-    // ⚠️ THE OFFER TOKEN TRAVELS WITH THE PURCHASE, AND IT USED NOT TO.
-    // It names the exact offer whose price we displayed. Without it Play
-    // picks one, and the sheet can charge something other than the number on
-    // the card the user just tapped.
-    const offerToken = products.find((x) => x.productId === productId)?.offerToken;
-    const result = await backend.purchase(productId, accountId, offerToken);
+    // ⚠️ THE BASE PLAN TRAVELS WITH THE PURCHASE. The plugin refuses every
+    // subscription purchase without it, before the Play sheet ever opens.
+    // (An earlier version passed the offerToken here instead, which the
+    // plugin ignores for subscriptions; see lib/billing purchase().)
+    const basePlanId = products.find((x) => x.productId === productId)?.basePlanId;
+    const result = await backend.purchase(productId, accountId, basePlanId);
+
+    /**
+     * ⚠️ A FAILED PURCHASE IS NOW REPORTED, AND ITS SILENCE IS WHAT HID THIS.
+     * The rejection said exactly what was wrong ("planIdentifier cannot be
+     * empty if productType is subs"), and the message reached our code and
+     * went nowhere: FAILED rendered a sentence and discarded the reason. The
+     * catalogue had the same blind spot and it cost two days; the purchase
+     * path is where a real customer's money is, so it gets the same fix.
+     *
+     * Only FAILED. A cancellation is somebody changing their mind, and
+     * filling app_errors with those would bury the failures that matter.
+     */
+    if (result.outcome === PurchaseOutcome.FAILED) {
+      try {
+        reportError('billing_purchase', new Error(result.message || 'purchase_failed'), {
+          where: 'usePurchaseFlow.buy',
+          productId,
+          basePlanId: basePlanId ?? null,
+        });
+      } catch { /* reporting must never break the screen */ }
+    }
     const { state: next, verify } = afterSheet(result.outcome);
 
     if (verify) { await runVerification(result); return; }

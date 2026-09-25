@@ -107,13 +107,15 @@ function buildPlayBackend() {
         return {
           productId,
           planCode: planCodeOf(productId),
-          // Kept for diagnostics: when a catalogue looks wrong, the base plan
-          // is the first thing worth seeing in the report.
+          // ⚠️ REQUIRED TO BUY A SUBSCRIPTION AT ALL, NOT A DIAGNOSTIC. It was
+          // first kept "for diagnostics" and never sent, and the plugin refuses
+          // every subscription purchase without it (see purchase() below).
           basePlanId: p.identifier || null,
           // null on the base plan itself, set on a promotional offer.
           offerId: p.offerId ?? null,
-          // ⚠️ REQUIRED TO BUY THE RIGHT THING. purchaseProduct takes an
-          // offerToken, and without it Play picks an offer on our behalf.
+          // Kept for diagnostics ONLY. ⚠️ An earlier comment here claimed the
+          // purchase needed it, and that was false for subscriptions: the
+          // plugin reads offerToken solely in its one-time-product branch.
           offerToken: p.offerToken ?? null,
           // The store's own localised string. Never a number we format: the
           // plugin's own docs warn that a hardcoded price is a store rejection,
@@ -140,22 +142,47 @@ function buildPlayBackend() {
       return [...byProduct.values()];
     },
 
-    async purchase(productId, accountId, offerToken) {
+    async purchase(productId, accountId, basePlanId) {
       if (!accountId) {
         return { outcome: PurchaseOutcome.FAILED, productId, message: 'no accountId' };
+      }
+      if (!basePlanId) {
+        // Refused here, with a message that names the cause, rather than
+        // handed to a plugin that refuses it anyway with a message nobody
+        // was reporting.
+        return { outcome: PurchaseOutcome.FAILED, productId, message: 'no basePlanId for subscription' };
       }
       try {
         const txn = await NativePurchases.purchaseProduct({
           productIdentifier: productId,
           productType: PURCHASE_TYPE.SUBS,
-          // ⚠️ NAMES THE EXACT OFFER, AND IT WAS MISSING. A subscription can
-          // carry several base plans and offers, and without a token Play
-          // chooses one for us. That choice decides what the user is charged,
-          // so leaving it implicit means the price on our card and the price
-          // on the sheet can disagree. Omitted only when the catalogue did
-          // not supply one, where Play's own default is still better than
-          // sending null.
-          ...(offerToken ? { offerToken } : {}),
+          /**
+           * ⚠️ REQUIRED FOR EVERY SUBSCRIPTION, AND FROM THE DAY THIS BACKEND
+           * WAS WRITTEN WE NEVER SENT IT, SO NOT ONE PURCHASE COULD HAVE WORKED.
+           *
+           * The plugin's Java opens purchaseProduct with:
+           *
+           *   if (productType.equals("subs") && planIdentifier is empty)
+           *       call.reject("planIdentifier cannot be empty if productType is subs");
+           *
+           * so the Play sheet never opened. The rejection surfaced as
+           * FAILED, which renders "התשלום לא הושלם ולא חויבת", accurately as
+           * it happens, because nothing was charged: nothing was even asked.
+           *
+           * ⚠️ AND THE NAME IS A TRAP. Here `planIdentifier` means the BASE
+           * PLAN id, which the plugin matches against getBasePlanId(). In the
+           * getProducts() RESULT, the field of the same name holds the PRODUCT
+           * id. One word, two meanings, one call apart. Our catalogue row
+           * carries the base plan as `basePlanId` precisely so this line
+           * cannot confuse the two.
+           *
+           * ⚠️ AND offerToken IS NOT SENT, ON PURPOSE. An earlier version
+           * sent it, with a comment claiming it chose the charged offer. For
+           * subscriptions the plugin ignores it entirely; it is read only in
+           * the one-time-product branch. The base plan chooses the offer, and
+           * the plugin takes that base plan's first offer.
+           */
+          planIdentifier: basePlanId,
           // The only link Play gives back. Our account_id is a uuid, which is
           // exactly what Android accepts here (uuid, max 64 chars).
           appAccountToken: accountId,

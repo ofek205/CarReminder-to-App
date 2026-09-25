@@ -71,7 +71,7 @@ function buildCors(req: Request): HeadersInit {
 
 async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: boolean; reason?: string }> {
   const headerSecret = req.headers.get('x-dispatch-secret');
-  if (DISPATCH_SECRET && headerSecret && headerSecret === DISPATCH_SECRET) return { ok: true };
+  if (timingSafeEqual(headerSecret, DISPATCH_SECRET)) return { ok: true };
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   if (!token) {
     logSecurityEvent('dispatch-broadcast', 'auth_failed', { reason: 'missing_authorization' });
@@ -232,6 +232,21 @@ function renderTemplate(template: any, rawVars: Record<string, unknown>) {
 }
 
 // ── Entry ──────────────────────────────────────────────────────────────────
+
+// Constant-time compare for secrets, so response timing can't be used to
+// guess one byte by byte (security audit H-2, 2026-06-07: recorded as done in
+// every dispatch function, but it never reached git or the deployed code).
+// An empty value never matches, not even another empty value.
+function timingSafeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCors(req) });
