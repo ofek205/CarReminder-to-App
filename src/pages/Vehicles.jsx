@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
 import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Wrench, Search, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown } from 'lucide-react';
-import { C, getTheme, getVehicleCategory } from '@/lib/designTokens';
+import { C, getTheme, getVehicleCategory, CME_EXACT } from '@/lib/designTokens';
 import { isVessel, isOffroad } from '../components/shared/DateStatusUtils';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -42,22 +42,10 @@ const DUAL_CATEGORY_TYPES = {
   'אופנוע שטח': ['motorcycle', 'offroad'],
 };
 
-// CME (כלי צמ"ה) types — must be checked BEFORE the legacy "special"
-// fallback so מלגזה / טליהנדלר / מחפר variants land on the right tab
-// instead of the catch-all. Mirrors CME_EXACT in designTokens.js.
-const CME_TYPES = new Set([
-  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
-  'דחפור', 'דחפור זחלי',
-  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
-  'בובקט',
-  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
-  'מפלסת',
-  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
-  'מערבל בטון', 'משאבת בטון',
-  'מנוף', 'מנוף נייד', 'מנוף זחלי',
-  'מקדח קרקע', 'ציוד קידוח',
-  'רכב צמ"ה',
-]);
+// CME (כלי צמ"ה) types are checked BEFORE the legacy "special" fallback
+// so מלגזה / טליהנדלר / מחפר variants land on the right tab instead of the
+// catch-all. The list is CME_EXACT from designTokens.js; this file used to
+// keep its own copy, and the copies drifted.
 
 function getCategory(vehicle) {
   // Check for dual-category types first. primary category is the first one
@@ -67,7 +55,7 @@ function getCategory(vehicle) {
   // CME check before generic getVehicleCategory so "מלגזה" / "טליהנדלר"
   // (which the keyword-based truck check would otherwise grab via the
   // legacy 'מלגזה' truck keyword) end up on the כלי צמ"ה tab.
-  if (CME_TYPES.has(vehicle.vehicle_type)) return 'cme';
+  if (CME_EXACT.has(vehicle.vehicle_type)) return 'cme';
   const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   if (cat === 'motorcycle') return 'motorcycle';
   if (cat === 'truck') return 'truck';
