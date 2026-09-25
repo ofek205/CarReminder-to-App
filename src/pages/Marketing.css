@@ -460,3 +460,7 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 .cm-a11y-list{margin:14px 0 0;padding-inline-start:22px;list-style:disc}
 .cm-a11y-list li{margin-bottom:10px;line-height:1.8}
 .cm-a11y-contact{display:flex;align-items:center;gap:8px;margin-top:12px}
+
+.cm-site .cm-context-follow{margin-top:14px}
+.cm-site .cm-context-link{text-decoration:underline;text-underline-offset:3px}
+.cm-category-art picture{display:block;width:100%;height:100%}
