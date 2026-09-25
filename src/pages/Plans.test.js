@@ -1,88 +1,87 @@
 /**
  * The pure helpers behind /Plans.
  *
- * Two of these carry consequences that no other check can see:
+ * Four of these carry consequences no other check can see:
  *
- *   personalNote is what stops the screen contradicting the app for the 21
- *   grandfathered accounts. Their plan advertises 5 while their account
- *   allows the 17 they hold, and a wrong answer here is a screen that lies
- *   to exactly the users most likely to read it carefully.
+ *   actionKind is the double-purchase guard. Our plugin has no replacement
+ *   mode, so a subscriber handed "בחר מסלול" on another plan opens a SECOND
+ *   Play subscription and pays twice.
  *
- *   unavailableCopy is anti-steering. Guideline 3.1.1(a) covers PROSE, so an
- *   iOS string that hints a purchase exists elsewhere is a review rejection,
- *   and nothing in the build or the linter can see a sentence.
+ *   recommendPlan puts a badge on a payment screen. A wrong answer is a
+ *   recommendation the data cannot back, at the one moment trust matters.
+ *
+ *   personalNote stops the screen contradicting the app for the
+ *   grandfathered accounts.
+ *
+ *   unavailableCopy is anti-steering. Guideline 3.1.1(a) covers PROSE, and
+ *   nothing in the build or the linter can see a sentence.
  */
 import { describe, it, expect, vi } from 'vitest';
 
-// The page pulls in the Supabase client through usePlanCatalog. The helpers
-// under test touch none of it, so the client is stubbed rather than built.
+// The page pulls in the Supabase client through its hooks. The helpers under
+// test touch none of it, so the client is stubbed rather than built.
 vi.mock('@/lib/supabase', () => ({ supabase: { from: () => ({}) } }));
 
 const {
-  capLabel, monthlyLabel, advisorLabel, includedLabel,
-  personalNote, unavailableCopy, rowOrder, rowValue, higherTiers,
-  labelStatesPrice,
+  capLabel, advisorLabel, personalNote, unavailableCopy, labelStatesPrice,
+  catalogPriceAllowed, COLUMNS, cellValue, detailValue, deltaNote, extrasLine,
+  NEAR_FULL, usageMeter, recommendPlan, defaultOpenCode, actionKind,
+  manageNote, currentNote, isStoreManaged,
 } = await import('./Plans');
+
+// The live catalogue as of 2026-09-25, after supabase-plans-redesign.
+const FREE = {
+  code: 'free', labelHe: 'חינם', priceIlsMonth: 0, maxVehicles: 5, maxDocuments: 5,
+  aiDailyCap: null, aiLifetimeTeaser: 1, plateChecksPerMonth: 3, maxShares: 2, businessUi: false,
+};
+const P9 = {
+  code: 'p9', labelHe: 'מורחב', priceIlsMonth: 9, maxVehicles: 15, maxDocuments: 15,
+  aiDailyCap: 50, aiLifetimeTeaser: null, plateChecksPerMonth: null, maxShares: null, businessUi: true,
+};
+const P19 = { ...P9, code: 'p19', labelHe: 'מקצועי', priceIlsMonth: 19, maxVehicles: 30, maxDocuments: 40, aiDailyCap: 200 };
+const P49 = { ...P9, code: 'p49', labelHe: 'ללא הגבלה', priceIlsMonth: 49, maxVehicles: null, maxDocuments: null, aiDailyCap: 500 };
+const ALL = [FREE, P9, P19, P49];
+
+/**
+ * ⚠️ OFEK'S RULE: THE SCREEN MAY NEVER SAY THE PLANS ARE THE SAME.
+ * "אותם פיצ׳רים בדיוק" was live copy and was both false (documents and AI
+ * differ) and a reason not to upgrade.
+ */
+const FORBIDDEN = ['אותם', 'אותו', 'זהים', 'זהה', 'בדיוק'];
 
 describe('capLabel', () => {
   it('renders a number as a ceiling', () => {
     expect(capLabel(5)).toBe('עד 5');
-    expect(capLabel(30)).toBe('עד 30');
   });
 
   it('renders NULL as unlimited, never as zero', () => {
-    // NULL means unlimited everywhere in plan_limits. Coercing it to 0 would
-    // flip the meaning to "none allowed", which is the opposite.
     expect(capLabel(null)).toBe('ללא הגבלה');
     expect(capLabel(undefined)).toBe('ללא הגבלה');
   });
 
   it('keeps a real zero distinct from unlimited', () => {
-    // 0 is a legitimate value meaning none, and it must not read as ∞.
     expect(capLabel(0)).toBe('עד 0');
-  });
-});
-
-describe('monthlyLabel', () => {
-  it('carries the period, since the number alone is ambiguous', () => {
-    expect(monthlyLabel(3)).toBe('3 בחודש');
-  });
-
-  it('renders NULL as unlimited', () => {
-    expect(monthlyLabel(null)).toBe('ללא הגבלה');
   });
 });
 
 describe('advisorLabel', () => {
   it('says "להתרשמות", because the free allowance is a lifetime one', () => {
-    // ⚠️ "שאלה אחת" alone reads as a MONTHLY quota. The free plan grants one
-    // question for the life of the account, and this word is what carries
-    // "one off" without a sentence of explanation.
-    expect(advisorLabel({ aiLifetimeTeaser: 1 })).toBe('שאלה אחת להתרשמות');
-  });
-
-  it('pluralises if the teaser is ever raised', () => {
+    // ⚠️ "שאלה אחת" alone reads as a MONTHLY quota.
+    expect(advisorLabel(FREE)).toBe('שאלה אחת להתרשמות');
     expect(advisorLabel({ aiLifetimeTeaser: 3 })).toBe('3 שאלות להתרשמות');
   });
 
-  it('is open when there is no lifetime teaser', () => {
-    // Paid plans bound the advisor by a daily fair-use ceiling instead, which
-    // is not a product promise and does not belong on this screen.
-    expect(advisorLabel({ aiLifetimeTeaser: null, aiDailyCap: 50 })).toBe('פתוח');
+  it('shows the daily cap on paid plans, where it used to say "פתוח"', () => {
+    // ⚠️ THE REGRESSION THIS EXISTS FOR. "פתוח" hid 50 against 500, one of
+    // only three things that separate the paid plans at all.
+    expect(advisorLabel(P9)).toBe('50 שאלות ביום');
+    expect(advisorLabel(P19)).toBe('200 שאלות ביום');
+    expect(advisorLabel(P49)).toBe('500 שאלות ביום');
   });
 
-  it('does not throw on a missing plan', () => {
+  it('is unlimited only when neither bound exists, and never throws', () => {
+    expect(advisorLabel({ aiLifetimeTeaser: null, aiDailyCap: null })).toBe('ללא הגבלה');
     expect(() => advisorLabel(null)).not.toThrow();
-    expect(advisorLabel(null)).toBe('פתוח');
-  });
-});
-
-describe('includedLabel', () => {
-  it('uses words, never a cross', () => {
-    // The design forbids marking the free column as broken. "לא כלול" is a
-    // fact; a red ✗ is a verdict.
-    expect(includedLabel(true)).toBe('כלול');
-    expect(includedLabel(false)).toBe('לא כלול');
   });
 });
 
@@ -90,24 +89,16 @@ describe('includedLabel', () => {
 
 describe('personalNote', () => {
   it('is silent when the account matches its plan', () => {
-    // The overwhelming majority. A note on every row would be noise.
     expect(personalNote(5, 5)).toBeNull();
     expect(personalNote(null, null)).toBeNull();
   });
 
   it('names the real ceiling AND why, for a grandfathered account', () => {
-    // The live case: a business account frozen at 17 sitting on a plan that
-    // advertises 5. Without the reason clause, a user reading both numbers
-    // concludes one of them is a bug.
     expect(personalNote(17, 5)).toBe('אצלך עד 17, נשמר מהמצב הקודם');
-    expect(personalNote(8, 5)).toBe('אצלך עד 8, נשמר מהמצב הקודם');
   });
 
-  it('handles an unlimited override against a bounded plan', () => {
+  it('handles unlimited on either side', () => {
     expect(personalNote(null, 5)).toBe('אצלך ללא הגבלה');
-  });
-
-  it('handles a bounded override against an unlimited plan', () => {
     expect(personalNote(10, null)).toBe('אצלך עד 10');
   });
 
@@ -118,202 +109,298 @@ describe('personalNote', () => {
 });
 
 // ── anti-steering ───────────────────────────────────────────────────────
-//
-// The highest-consequence strings in the file. Getting the iOS one wrong is
-// an App Store rejection, and it cannot be caught by any other check.
 
 describe('unavailableCopy', () => {
-  it('says nothing about a website on iOS', () => {
-    const s = unavailableCopy('iap');
-    expect(s).not.toContain('אתר');
-    expect(s).not.toContain('http');
-    expect(s).toBeTruthy();
-  });
-
-  it('names no website on ANY surface, because Android now ships Play Billing', () => {
-    // ⚠️ THIS CASE USED TO ASSERT THE OPPOSITE, AND THE ASSERTION WAS THE BUG.
-    //
-    // It required unavailableCopy('none') to CONTAIN 'אתר', on the strength
-    // of Play's consumption-only exemption. That exemption only covers an app
-    // that sells nothing in-app, and the app stopped qualifying when the
-    // Billing library shipped inside the binary. Play Billing present AND an
-    // external purchase referred to is the hybrid Play forbids outright, and
-    // "המנוי מנוהל באתר" was live on the internal track for exactly that
-    // reason: a green test was holding it in place.
-    //
-    // Android is now an 'iap' surface and never reaches the 'none' branch at
-    // all; 'none' means an unrecognised native platform, which is the last
-    // place that should be handed a website.
+  it('names no website on ANY surface, because Android ships Play Billing', () => {
     for (const surface of ['iap', 'none', 'web', 'something-else']) {
       expect(unavailableCopy(surface), surface).not.toContain('אתר');
       expect(unavailableCopy(surface), surface).not.toContain('http');
+      expect(unavailableCopy(surface), surface).toBeTruthy();
     }
   });
 
-  it('is plain on the web, where no store rule applies', () => {
-    expect(unavailableCopy('web')).toBeTruthy();
-  });
-
   it('never promises a date', () => {
-    // "בקרוב" is a commitment nobody has made, and it costs more when it is
-    // missed than it buys now.
     for (const surface of ['iap', 'none', 'web']) {
       expect(unavailableCopy(surface), surface).not.toContain('בקרוב');
     }
   });
-
-  it('falls back to the safest wording for an unknown surface', () => {
-    // billingSurface only returns three values, but a fallback that leaked
-    // the website string onto an unrecognised native platform would be the
-    // expensive direction to be wrong in.
-    expect(unavailableCopy('something-else')).not.toContain('אתר');
-  });
 });
 
-// ── the card layout ─────────────────────────────────────────────────────
-
-describe('rowOrder', () => {
-  it('keeps the business row last for a personal account', () => {
-    expect(rowOrder(false)[0]).toBe('vehicles');
-    expect(rowOrder(false)[5]).toBe('business');
-  });
-
-  it('lifts the business row to the top for a business account', () => {
-    // For a business account sitting on free, "ממשק עסקי: לא כלול" is the
-    // single most consequential line on the screen. As the last row it is the
-    // last thing read.
-    expect(rowOrder(true)[0]).toBe('business');
-  });
-
-  it('never drops or invents a row', () => {
-    // The two orders must be permutations of each other. A typo in one
-    // branch would silently delete a whole dimension from the card for one
-    // class of account, and nothing else would catch it.
-    expect([...rowOrder(true)].sort()).toEqual([...rowOrder(false)].sort());
-    expect(rowOrder(false)).toHaveLength(6);
-    expect(new Set(rowOrder(true)).size).toBe(6);
-  });
-});
-
-describe('rowOrder, documents', () => {
-  it('puts documents directly after vehicles in both orders', () => {
-    // They answer the same question, "how much may I keep", so reading one
-    // straight after the other is what makes the card scannable.
-    const personal = rowOrder(false);
-    const business = rowOrder(true);
-    expect(personal[personal.indexOf('vehicles') + 1]).toBe('documents');
-    expect(business[business.indexOf('vehicles') + 1]).toBe('documents');
-  });
-});
-
-describe('rowValue', () => {
-  const plan = {
-    maxVehicles: 15, maxDocuments: 16, aiLifetimeTeaser: null, plateChecksPerMonth: null,
-    maxShares: null, businessUi: true,
-  };
-
-  it('routes each dimension through its own helper', () => {
-    expect(rowValue('vehicles', plan)).toBe('עד 15');
-    expect(rowValue('documents', plan)).toBe('עד 16');
-    expect(rowValue('ai', plan)).toBe('פתוח');
-    expect(rowValue('plate', plan)).toBe('ללא הגבלה');
-    expect(rowValue('shares', plan)).toBe('ללא הגבלה');
-    expect(rowValue('business', plan)).toBe('כלול');
-  });
-
-  it('preserves NULL as unlimited rather than zero', () => {
-    const freeish = { maxVehicles: null, maxShares: 2, plateChecksPerMonth: 3, aiLifetimeTeaser: 1, businessUi: false };
-    expect(rowValue('vehicles', freeish)).toBe('ללא הגבלה');
-    expect(rowValue('shares', freeish)).toBe('עד 2');
-    expect(rowValue('plate', freeish)).toBe('3 בחודש');
-    expect(rowValue('ai', freeish)).toBe('שאלה אחת להתרשמות');
-    expect(rowValue('business', freeish)).toBe('לא כלול');
-  });
-
-  it('renders nothing rather than throwing on missing data', () => {
-    // A card must never crash the screen because one field is absent.
-    expect(rowValue('vehicles', null)).toBe('');
-    expect(rowValue('nope', plan)).toBe('');
+describe('catalogPriceAllowed', () => {
+  it('lets only the web print a price from plan_limits', () => {
+    // ⚠️ On iOS no price may appear at all (3.1.1(a)), and on Android the
+    // price must be Play's. Our number there is a policy violation.
+    expect(catalogPriceAllowed('web')).toBe(true);
+    expect(catalogPriceAllowed('iap')).toBe(false);
+    expect(catalogPriceAllowed('none')).toBe(false);
+    expect(catalogPriceAllowed(undefined)).toBe(false);
   });
 });
 
 describe('labelStatesPrice', () => {
-  it('is true for the seeded paid labels, which already carry the price', () => {
-    // ⚠️ THE REGRESSION THIS EXISTS FOR. label_he is seeded as "₪9 לחודש",
-    // so a card printing the label plus a price built from price_ils_month
-    // rendered "₪9 לחודש" twice, one line under the other. Caught in the
-    // preview, not by reading the code.
-    expect(labelStatesPrice({ labelHe: '₪9 לחודש',  priceIlsMonth: 9 })).toBe(true);
-    expect(labelStatesPrice({ labelHe: '₪19 לחודש', priceIlsMonth: 19 })).toBe(true);
-    expect(labelStatesPrice({ labelHe: '₪49 לחודש', priceIlsMonth: 49 })).toBe(true);
+  it('is true for the old seeded labels, which ARE the price', () => {
+    expect(labelStatesPrice({ labelHe: '₪9 לחודש', priceIlsMonth: 9 })).toBe(true);
   });
 
-  it('is true for free, because "חינם" states the price in words', () => {
-    expect(labelStatesPrice({ labelHe: 'חינם', priceIlsMonth: 0 })).toBe(true);
+  it('is false once a plan has a name, so the price line returns', () => {
+    expect(labelStatesPrice(P9)).toBe(false);
+    expect(labelStatesPrice({ labelHe: null, priceIlsMonth: 9 })).toBe(false);
   });
 
-  it('is false when a rename drops the price, so the price line returns', () => {
-    // The failure to avoid is the opposite one: a plan renamed in the
-    // database to a word with no number, leaving the screen with no price
-    // anywhere. This is what makes the check dynamic instead of hardcoded.
-    expect(labelStatesPrice({ labelHe: 'בסיסי',   priceIlsMonth: 9 })).toBe(false);
-    expect(labelStatesPrice({ labelHe: '',        priceIlsMonth: 9 })).toBe(false);
-    expect(labelStatesPrice({ labelHe: null,      priceIlsMonth: 9 })).toBe(false);
-  });
-
-  it('does not throw on a missing plan', () => {
-    expect(() => labelStatesPrice(null)).not.toThrow();
+  it('is true for free, which says its price in words', () => {
+    expect(labelStatesPrice(FREE)).toBe(true);
     expect(labelStatesPrice(null)).toBe(false);
   });
 });
 
-describe('higherTiers', () => {
-  const P9  = { code: 'p9',  maxVehicles: 15 };
-  const P19 = { code: 'p19', maxVehicles: 30 };
-  const P49 = { code: 'p49', maxVehicles: null };  // unlimited
-  const ALL = [P9, P19, P49];
+// ── the closed rows are the comparison ──────────────────────────────────
 
-  it('offers only what is strictly above the featured tier', () => {
-    expect(higherTiers(ALL, P9).map((p) => p.code)).toEqual(['p19', 'p49']);
-    expect(higherTiers(ALL, P19).map((p) => p.code)).toEqual(['p49']);
+describe('cellValue', () => {
+  it('prints the three columns that actually differ, in legend order', () => {
+    expect(COLUMNS).toEqual(['vehicles', 'documents', 'ai']);
+    expect(ALL.map((p) => cellValue('vehicles', p))).toEqual(['5', '15', '30', 'ללא']);
+    expect(ALL.map((p) => cellValue('documents', p))).toEqual(['5', '15', '40', 'ללא']);
   });
 
-  it('offers nothing above the unlimited tier, with no special case', () => {
-    // ⚠️ This is what makes the top-tier account work. NULL is unlimited, so
-    // nothing outranks it, the group renders empty, and the "more vehicles"
-    // heading disappears on its own instead of needing a separate branch.
-    expect(higherTiers(ALL, P49)).toEqual([]);
+  it('writes the AI unit in every cell, because free and paid use different units', () => {
+    // ⚠️ A shared "ליום" in the legend would print the free teaser as one
+    // question a day.
+    expect(ALL.map((p) => cellValue('ai', p))).toEqual(['1 בסה״כ', '50 ביום', '200 ביום', '500 ביום']);
   });
 
-  it('never offers a downgrade', () => {
-    // A screen with no purchase button offering a smaller plan is pure noise.
-    // NULL is unlimited, so it outranks every number and nothing outranks it.
-    const outranks = (a, b) => {
-      if (a.maxVehicles === null) return b.maxVehicles !== null;
-      if (b.maxVehicles === null) return false;
-      return a.maxVehicles > b.maxVehicles;
-    };
+  it('renders nothing rather than throwing on missing data', () => {
+    expect(cellValue('vehicles', null)).toBe('');
+    expect(cellValue('nope', P9)).toBe('');
+  });
+});
 
+describe('detailValue', () => {
+  it('writes the open row in full', () => {
+    expect(detailValue('vehicles', P49)).toBe('ללא הגבלה');
+    expect(detailValue('documents', P9)).toBe('עד 15');
+    expect(detailValue('ai', FREE)).toBe('שאלה אחת להתרשמות');
+  });
+});
+
+describe('deltaNote', () => {
+  it('states what the account has today beside each value that changes', () => {
+    expect(deltaNote('vehicles', P9, FREE)).toBe('(במקום 5)');
+    expect(deltaNote('documents', P19, P9)).toBe('(במקום 15)');
+    expect(deltaNote('ai', P9, FREE)).toBe('(במקום שאלה אחת)');
+    expect(deltaNote('ai', P19, P9)).toBe('(במקום 50 ביום)');
+  });
+
+  it('works downward too, so a subscriber reads what a smaller plan takes away', () => {
+    expect(deltaNote('vehicles', P9, P49)).toBe('(במקום ללא הגבלה)');
+  });
+
+  it('is silent on the plan itself, without a reference, and on a value that does not change', () => {
+    expect(deltaNote('vehicles', P9, P9)).toBeNull();
+    expect(deltaNote('vehicles', P9, null)).toBeNull();
+    expect(deltaNote('vehicles', { ...P19, maxVehicles: 15 }, P9)).toBeNull();
+  });
+});
+
+describe('extrasLine', () => {
+  it('says the three shared features once, on one line', () => {
+    expect(extrasLine(P9)).toBe('בנוסף: בדיקות רכב ושיתופים ללא הגבלה, וממשק עסקי.');
+    expect(extrasLine(FREE)).toBe('3 בדיקות רכב בחודש, 2 שיתופי רכב, בלי ממשק עסקי.');
+  });
+
+  it('leads with the business interface for a business account', () => {
+    // ⚠️ For a business account on free, "בלי ממשק עסקי" is the most
+    // consequential phrase on the screen. Last in the line is read last.
+    expect(extrasLine(FREE, true).startsWith('בלי ממשק עסקי')).toBe(true);
+    expect(extrasLine(P9, true).startsWith('בנוסף: ממשק עסקי')).toBe(true);
+  });
+
+  it('reads every number from the plan rather than assuming today\'s values', () => {
+    expect(extrasLine({ ...P9, plateChecksPerMonth: 20 })).toBe('בנוסף: 20 בדיקות רכב בחודש, שיתופים ללא הגבלה, וממשק עסקי.');
+    expect(extrasLine(null)).toBe('');
+  });
+});
+
+// ── usage, and the badge it earns ───────────────────────────────────────
+
+describe('usageMeter', () => {
+  it('turns amber at 80% and not before', () => {
+    expect(NEAR_FULL).toBe(0.8);
+    expect(usageMeter(4, 5)).toEqual({ used: 4, limit: 5, pct: 80, near: true });
+    expect(usageMeter(3, 5).near).toBe(false);
+  });
+
+  it('draws no bar against an unlimited cap', () => {
+    expect(usageMeter(11, null)).toEqual({ used: 11, limit: null, pct: 0, near: false });
+  });
+
+  it('is null when the count is not known, so no meter is invented', () => {
+    // ⚠️ Before my_document_usage() exists the documents count is null, and
+    // "0 מתוך 5" would be a fabricated number.
+    expect(usageMeter(null, 5)).toBeNull();
+    expect(usageMeter(undefined, 5)).toBeNull();
+  });
+
+  it('caps the bar at 100% for a grandfathered account above its plan', () => {
+    expect(usageMeter(17, 5).pct).toBe(100);
+  });
+});
+
+describe('recommendPlan', () => {
+  const rec = (vehicles, documents = null, current = FREE) =>
+    recommendPlan(ALL, current, { vehicles, documents });
+
+  it('follows the table in the UX doc, §2.5', () => {
+    expect(rec(3)).toBeNull();        // 60%: under the threshold, no badge
+    expect(rec(4)).toBe('p9');        // 4 of 15 on ₪9 is roomy
+    expect(rec(12)).toBe('p19');      // 12 of 15 is already 80%, so ₪19
+    expect(rec(35)).toBe('p49');      // only the unlimited plan fits
+  });
+
+  it('applies the headroom rule to the target, which was the first bug', () => {
+    // "The cheapest plan whose cap exceeds usage" would say ₪9 for 12
+    // vehicles, and then tell the same person to upgrade again a week later.
+    expect(rec(12)).not.toBe('p9');
+  });
+
+  it('is driven by documents as well as vehicles', () => {
+    expect(rec(1, 4)).toBe('p9');
+    // 13 documents is 87% of ₪9's 15, so ₪9 is not roomy enough.
+    expect(rec(1, 13)).toBe('p19');
+  });
+
+  it('treats an unknown document count as neither full nor blocking', () => {
+    expect(rec(4, null)).toBe('p9');
+    expect(rec(1, null)).toBeNull();
+  });
+
+  it('recommends upward only, and nothing to the top plan', () => {
+    expect(rec(28, null, P19)).toBe('p49');
+    expect(rec(1000, 1000, P49)).toBeNull();
+  });
+
+  it('says nothing without an account or a catalogue', () => {
+    expect(recommendPlan(ALL, null, { vehicles: 5 })).toBeNull();
+    expect(recommendPlan(undefined, FREE, { vehicles: 5 })).toBeNull();
+    expect(recommendPlan(ALL, { ...FREE, code: 'retired' }, { vehicles: 5 })).toBeNull();
+  });
+});
+
+describe('defaultOpenCode', () => {
+  it('opens the recommendation when there is one', () => {
+    expect(defaultOpenCode(ALL, 'free', 'p19')).toBe('p19');
+  });
+
+  it('otherwise opens the next step up', () => {
+    expect(defaultOpenCode(ALL, 'free', null)).toBe('p9');
+    expect(defaultOpenCode(ALL, 'p9', null)).toBe('p19');
+  });
+
+  it('opens its own row on the top plan, and the entry plan for a guest', () => {
+    expect(defaultOpenCode(ALL, 'p49', null)).toBe('p49');
+    expect(defaultOpenCode(ALL, null, null)).toBe('p9');
+  });
+
+  it('ignores a recommendation that is not in the catalogue', () => {
+    expect(defaultOpenCode(ALL, 'free', 'p99')).toBe('p9');
+    expect(defaultOpenCode([], 'free', null)).toBeNull();
+  });
+});
+
+// ── the double-purchase guard ───────────────────────────────────────────
+
+describe('actionKind', () => {
+  const base = { isCurrent: false, isGuest: false, offering: true, storeManaged: false, isActive: false };
+
+  it('NEVER offers a purchase to a subscriber on another plan', () => {
+    // ⚠️ No replacement mode in our plugin: a second purchase is a second
+    // live subscription and a second charge.
     let checked = 0;
-    for (const featured of ALL) {
-      for (const p of higherTiers(ALL, featured)) {
-        expect(outranks(p, featured), `${p.code} vs ${featured.code}`).toBe(true);
+    for (const plan of ALL) {
+      for (const offering of [true, false]) {
+        const kind = actionKind({ ...base, plan, offering, storeManaged: true });
+        expect(kind, `${plan.code} offering=${offering}`).not.toBe('purchase');
         checked++;
       }
     }
-    // Positive control. Without it this test passes just as happily if
-    // higherTiers returns an empty array for every input, which is the one
-    // bug that would make the loop above prove nothing.
-    expect(checked).toBe(3);
+    // Positive control: the loop really ran over every plan.
+    expect(checked).toBe(8);
+    // And the same inputs without a subscription do reach a purchase, so the
+    // loop above is not passing on a function that never returns one.
+    expect(actionKind({ ...base, plan: P19 })).toBe('purchase');
   });
 
-  it('excludes the featured plan itself', () => {
-    expect(higherTiers(ALL, P9).some((p) => p.code === 'p9')).toBe(false);
+  it('keeps the row being bought on PurchaseAction, even once it becomes current', () => {
+    // ⚠️ Otherwise the success state is replaced mid-sentence the moment the
+    // grant lands.
+    expect(actionKind({ ...base, plan: P9, isCurrent: true, isActive: true })).toBe('purchase');
   });
 
-  it('survives an empty or missing catalogue', () => {
-    expect(higherTiers([], P9)).toEqual([]);
-    expect(higherTiers(ALL, null)).toEqual([]);
-    expect(higherTiers(undefined, P9)).toEqual([]);
+  it('offers nothing to buy with purchase off, and nothing on the free plan', () => {
+    expect(actionKind({ ...base, plan: P9, offering: false })).toBe('none');
+    expect(actionKind({ ...base, plan: FREE })).toBe('none');
+  });
+
+  it('routes a guest to signing up and the account\'s own row to its note', () => {
+    expect(actionKind({ ...base, plan: P9, isGuest: true })).toBe('guest');
+    expect(actionKind({ ...base, plan: FREE, isCurrent: true })).toBe('current');
+  });
+});
+
+describe('isStoreManaged', () => {
+  const google = { source: 'iap_google' };
+
+  it('is true for a live Google subscription', () => {
+    expect(isStoreManaged(google, P9)).toBe(true);
+  });
+
+  it('is false once the subscription has lapsed, so the person can buy again', () => {
+    // ⚠️ The row keeps source 'iap_google' after the period ends, while
+    // account_plan() drops the account to free. Keyed on source alone, an
+    // expired subscriber would be refused a purchase for ever.
+    expect(isStoreManaged(google, FREE)).toBe(false);
+  });
+
+  it('is false for an admin grant or a grandfathered account on a paid plan', () => {
+    expect(isStoreManaged({ source: 'admin_grant' }, P19)).toBe(false);
+    expect(isStoreManaged({ source: 'grandfather' }, P9)).toBe(false);
+    expect(isStoreManaged(null, P9)).toBe(false);
+    expect(isStoreManaged(google, null)).toBe(false);
+  });
+});
+
+describe('manageNote and currentNote', () => {
+  it('never promises a switch that Play does not allow', () => {
+    // ⚠️ Two earlier strings said plans could be switched in Google Play.
+    // Play's subscription centre cannot move between products.
+    for (const s of [manageNote(P19), manageNote(FREE), currentNote(P9, true)]) {
+      expect(s).not.toContain('לעבור למסלול אחר');
+      expect(s).not.toContain('מחושב ההפרש');
+    }
+    expect(manageNote(P19)).toContain('עדיין אי אפשר');
+  });
+
+  it('tells a subscriber going back to free that nothing ends early', () => {
+    expect(manageNote(FREE)).toContain('עד סוף התקופה ששולמה');
+  });
+
+  it('mentions Google Play on the account\'s own row only for a store subscription', () => {
+    expect(currentNote(P9, true)).toContain('Google Play');
+    expect(currentNote(P9, false)).not.toContain('Google Play');
+    expect(currentNote(FREE, true)).not.toContain('Google Play');
+  });
+});
+
+describe('Ofek\'s rule: no copy says two plans are the same', () => {
+  it('holds for every string the helpers can produce', () => {
+    const strings = [
+      ...ALL.flatMap((p) => [extrasLine(p), extrasLine(p, true), manageNote(p), currentNote(p, true), currentNote(p, false)]),
+      ...ALL.flatMap((p) => COLUMNS.flatMap((k) => [cellValue(k, p), detailValue(k, p), deltaNote(k, p, FREE) || ''])),
+      unavailableCopy('iap'), unavailableCopy('none'), unavailableCopy('web'),
+    ];
+    // Positive control: the list is not empty, so the loop proves something.
+    expect(strings.length).toBeGreaterThan(40);
+    for (const s of strings) {
+      for (const word of FORBIDDEN) expect(s, s).not.toContain(word);
+    }
   });
 });

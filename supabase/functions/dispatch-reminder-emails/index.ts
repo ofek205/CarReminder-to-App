@@ -30,6 +30,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
 import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { isCmeVehicleType } from '../_shared/cmeTypes.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL');
@@ -167,6 +168,24 @@ function buildShell(opts: {
 </html>`;
 }
 
+// What the reminder is about, in the three forms the email needs.
+//   dueNoun / dueNounDef  exposed to templates as {{dueNoun}} / {{dueNounDef}}
+//   subNoun               the tail of the hero line: "נשארו 5 ימים ל{subNoun}"
+// צמ"ה has an annual licence, not a test (Ofek, 2026-09-25), so a צמ"ה
+// vehicle's test reminder says "תוקף רישוי", like the app and the
+// ministry-sync push. "ימים לתוקף רישוי" isn't Hebrew, hence
+// "לחידוש הרישוי" in the hero. KEEP IN SYNC with dueNouns() in
+// src/lib/emailRender.js, which renders the admin preview.
+function dueNouns(notificationKey: string, isCme: boolean) {
+  if (notificationKey.includes('insurance')) {
+    return { dueNoun: 'ביטוח', dueNounDef: 'הביטוח', subNoun: 'ביטוח' };
+  }
+  if (isCme) {
+    return { dueNoun: 'תוקף רישוי', dueNounDef: 'תוקף הרישוי', subNoun: 'חידוש הרישוי' };
+  }
+  return { dueNoun: 'טסט', dueNounDef: 'הטסט', subNoun: 'טסט' };
+}
+
 function renderTemplate(template: any, rawVars: Record<string, unknown>) {
   // Escape variable values before they reach the HTML body.
   const htmlVars: Record<string, string> = {};
@@ -281,6 +300,50 @@ async function processTrigger(
     }
   }
 
+  // ── Which vehicles are צמ"ה ─────────────────────────────────────
+  // Only test reminders (reminder_test, reminder_test_overdue) change wording
+  // by vehicle type; every other key keeps its wording, so the set stays
+  // empty for them. The candidates RPC doesn't return the type (it is
+  // redefined in six SQL files; better not to touch it for a word), so read
+  // it here. In batches, because every id goes into the request URL. If this
+  // fails, fall back to the ordinary test wording: a reminder that says
+  // "טסט" beats a reminder that isn't sent.
+  const cmeVehicleIds = new Set<string>();
+  if (reminderType === 'test' && candidates?.length) {
+    const ids = [...new Set((candidates as any[]).map((c) => c.vehicle_id).filter(Boolean))];
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data: vRows, error: vErr } = await supabase
+        .from('vehicles')
+        .select('id, vehicle_type')
+        .in('id', ids.slice(i, i + 100));
+      if (vErr) {
+        stats.errorDetails.push(`vehicle types (wording falls back to טסט): ${vErr.message}`);
+        break;
+      }
+      for (const r of vRows || []) {
+        if (isCmeVehicleType(r.vehicle_type)) cmeVehicleIds.add(r.id);
+      }
+    }
+  }
+
+  // A צמ"ה vehicle's reminder goes out from its own template, '<key>_cme',
+  // when there is one and the admin hasn't switched it off in EmailCenter:
+  // its licence is renewed by paying a fee, not by a test at a station, and
+  // its gov.il page is a different one. Otherwise the regular template is
+  // used, with the צמ"ה hero line. No such template is an expected state
+  // (not an error); a failed read is noted and falls back the same way.
+  let cmeTemplate: any = null;
+  if (cmeVehicleIds.size) {
+    const { data: cmeRows, error: cmeErr } = await supabase.rpc('get_email_template', {
+      p_key: `${notificationKey}_cme`,
+    });
+    if (cmeErr) {
+      stats.errorDetails.push(`צמ"ה template (falls back to the regular one): ${cmeErr.message}`);
+    } else if (cmeRows?.length && cmeRows[0].enabled !== false) {
+      cmeTemplate = cmeRows[0];
+    }
+  }
+
   // Defense-in-depth email format check. The RPC `email_dispatch_candidates`
   // is the canonical source of recipient addresses, but a misconfigured
   // RPC or corrupted user_profile row could return malformed values. A
@@ -306,9 +369,11 @@ async function processTrigger(
       // test body template reads {{heroTop/Big/Sub}}, {{heroBg/Fg/Num}},
       // {{pillBorder}}, {{daysPhrase}}; other templates ignore the extras.
       const dl = Number(c.days_left ?? 0);
-      // Per-type noun (handles the *_overdue keys too via includes()).
-      const heroNoun    = notificationKey.includes('insurance') ? 'ביטוח' : 'טסט';
-      const heroNounDef = notificationKey.includes('insurance') ? 'הביטוח' : 'הטסט';
+      // Per-type noun (handles the *_overdue keys too via includes()), and
+      // "תוקף רישוי" for a צמ"ה vehicle's test reminder.
+      const isCmeVehicle = !!c.vehicle_id && cmeVehicleIds.has(c.vehicle_id);
+      const useTemplate = isCmeVehicle && cmeTemplate ? cmeTemplate : template;
+      const { dueNoun, dueNounDef, subNoun } = dueNouns(notificationKey, isCmeVehicle);
       let heroTop, heroBig, heroSub, daysPhrase;
       let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
       if (dl < 0) {
@@ -322,9 +387,9 @@ async function processTrigger(
         heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA';
       } else {
         // UPCOMING: urgency tier by days-left (green > 14d · amber 4-14d · red <= 3d).
-        heroTop = dl === 0 ? `${heroNounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו';
+        heroTop = dl === 0 ? `${dueNounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו';
         heroBig = dl === 0 ? 'היום' : String(dl);
-        heroSub = dl === 0 ? '' : dl === 1 ? `יום ל${heroNoun}` : `ימים ל${heroNoun}`;
+        heroSub = dl === 0 ? '' : dl === 1 ? `יום ל${subNoun}` : `ימים ל${subNoun}`;
         daysPhrase = dl === 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`;
         if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
         else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
@@ -334,6 +399,7 @@ async function processTrigger(
         licensePlate: c.license_plate || '',
         daysLeft:     String(dl),
         daysPhrase,
+        dueNoun, dueNounDef,
         heroTop, heroBig, heroSub,
         heroBg, heroFg, heroNum, pillBorder,
         expiryDate:   fmtDateDMY(c.reference_date),
@@ -350,13 +416,13 @@ async function processTrigger(
           p_reference_date: c.reference_date,
           p_status:         'queued',
           p_message_id:     null,
-          p_metadata:       { vars, days_before: c.days_left },
+          p_metadata:       { vars, days_before: c.days_left, template_key: useTemplate.notification_key },
         });
         if (claimErr) { stats.errors++; stats.errorDetails.push(claimErr.message); continue; }
         if (claimed === false) { stats.skipped++; continue; }   // duplicate
       }
 
-      const rendered = renderTemplate(template, vars);
+      const rendered = renderTemplate(useTemplate, vars);
 
       if (dryRun) { stats.sent++; continue; }
 

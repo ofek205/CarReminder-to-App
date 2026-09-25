@@ -62,6 +62,13 @@ describe('the server agrees with the app', () => {
     expect(quoted(block[1])).toEqual(CME_TYPES);
   });
 
+  it('the shared Edge list (used by the reminder emails) is the same list', () => {
+    const src = read('supabase/functions/_shared/cmeTypes.ts');
+    const block = /export const CME_VEHICLE_TYPES = new Set\(\[([\s\S]*?)\]\);/.exec(src);
+    expect(block).not.toBeNull();
+    expect(quoted(block[1])).toEqual(CME_TYPES);
+  });
+
   it('record_gov_sync_update says "תוקף הרישוי" for exactly these types', () => {
     const sql = read('supabase-gov-sync-cme-2026-09-24.sql');
     const block = /any \(array\[([\s\S]*?)\]::text\[\]\)/.exec(sql);

@@ -66,6 +66,8 @@ const SAMPLE_VARS = {
   welcome:              { firstName: 'אופק' },
   reminder_insurance:   { vehicleName: 'מאזדה 3', licensePlate: '12-345-67', daysLeft: '14', expiryDate: '10/06/2026', vehicleId: 'abc' },
   reminder_test:        { vehicleName: 'מאזדה 3', licensePlate: '12-345-67', daysLeft: '7',  expiryDate: '27/05/2026', vehicleId: 'abc' },
+  reminder_test_cme:         { vehicleName: 'מלגזה', licensePlate: '123456', daysLeft: '7',  expiryDate: '27/05/2026', vehicleId: 'abc' },
+  reminder_test_overdue_cme: { vehicleName: 'מלגזה', licensePlate: '123456', daysLeft: '-7', expiryDate: '20/05/2026', vehicleId: 'abc' },
   reminder_maintenance: { vehicleName: 'מאזדה 3', licensePlate: '12-345-67', reminderText: 'טיפול 10,000 ק"מ', vehicleId: 'abc' },
   reminder_license:     { vehicleName: 'מאזדה 3', licensePlate: '12-345-67', daysLeft: '21', expiryDate: '15/06/2026', vehicleId: 'abc' },
   system_alert:         { title: 'תחזוקה מתוזמנת', preheader: 'השירות ירד לכמה דקות', message: 'ב-23:00 הערב השירות ירד לעדכון. נחזור עד 23:30.', ctaLabel: 'לפרטים', ctaUrl: 'https://car-reminder.app' },
