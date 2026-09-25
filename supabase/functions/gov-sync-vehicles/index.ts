@@ -13,6 +13,7 @@
 //   • last_gov_sync_at     — always (heartbeat)
 //   • last_gov_sync_km     — always (sync-snapshot)
 //   • last_gov_sync_test_date — always (sync-snapshot)
+//   • last_gov_sync_attempt_at — every row a run takes on (queue position)
 //
 // What it does NOT sync:
 //   • Anything for vehicles whose owner toggled `auto_sync_enabled` off
@@ -25,7 +26,9 @@
 //         - auto_sync_enabled = true
 //         - license_plate IS NOT NULL
 //         - last_gov_sync_at IS NULL OR < now() - 20 hours
-//      Sorted oldest-synced-first, capped at MAX_VEHICLES_PER_RUN.
+//      Sorted least-recently-attempted first, then oldest-synced first,
+//      capped at MAX_VEHICLES_PER_RUN. Every row taken on is stamped
+//      last_gov_sync_attempt_at, so no row can keep the front of the queue.
 //   3. In chunks of GOV_CHUNK_SIZE plates, two requests per chunk, in
 //      parallel (data.gov.il accepts an array in `filters`):
 //         a. fetchTestDatesFrom(PRIVATE_RESOURCE_ID, plates)
@@ -38,10 +41,10 @@
 //      צמ"ה vehicles (by type, with a 3-6 digit number) go to the צמ"ה
 //      registry instead, in chunks of their own; see lookupRoute.
 //   4. If EITHER request failed, the whole chunk is left untouched: no
-//      stamp, no RPC, no notification. Those rows are still the oldest, so
-//      the next run retries them first. The run moves on to its next chunk
-//      rather than stopping, so a chunk that keeps failing can't freeze the
-//      whole queue behind it. A plate the ministry simply doesn't have is a
+//      sync stamp, no RPC, no notification. Those rows stay due, and go
+//      behind the rows not yet attempted, so they are retried once the rest
+//      of the queue has had a turn. The run moves on to its next chunk
+//      rather than stopping. A plate the ministry simply doesn't have is a
 //      different thing (a successful response without that plate) and is
 //      stamped as before.
 //   5. Call record_gov_sync_update(vehicle_id, gov_km, gov_test_date,
@@ -344,6 +347,16 @@ type Registry = 'plate' | 'cme';
 // the vehicle type decides, never the number alone. A צמ"ה-typed vehicle
 // with a 7-8 digit number carries an ordinary plate (some tractors do), so
 // it takes the plate route.
+// The candidates query orders by last_gov_sync_attempt_at, which exists only
+// once supabase-gov-sync-attempt-at-2026-09-25.sql has run. Postgres answers
+// an unknown column with 42703, PostgREST's schema cache with its own PGRST
+// codes; both name the column. Keyed on the name rather than one code, so a
+// deploy that beats the SQL keeps syncing in the old order instead of
+// failing every run. Any other error is real and is not papered over.
+function isMissingAttemptColumn(err: { code?: string; message?: string }): boolean {
+  return /last_gov_sync_attempt_at/.test(err.message ?? '');
+}
+
 function lookupRoute(
   raw: string | null | undefined,
   vehicleType: string | null | undefined,
@@ -526,16 +539,39 @@ serve(async (req: Request) => {
   // Pull candidates. The partial index
   // (idx_vehicles_gov_sync_candidates) covers this filter pattern so
   // the LIMIT scan is cheap even at 10k+ vehicles.
+  //
+  // Queue order is by when a vehicle was last TAKEN ON, then by when it last
+  // synced (2026-09-25). A held row, or one whose chunk failed, keeps its old
+  // last_gov_sync_at on purpose: the 45-day hold grace counts from it. Ordered
+  // by that alone, such rows stayed the oldest and every run took the same
+  // ones again. On 2026-09-25 the private registry sat empty from 02:37 UTC
+  // to past 10:45; ~350 cars with a test history were held, and from 07:20
+  // every run took the same 200 of them, so nothing behind them (צמ"ה,
+  // trucks) was ever reached. markAttempted() stamps each row a run takes on,
+  // whatever the outcome, which sends it to the back of the stale queue:
+  // everyone gets a turn, and held rows are retried once the rest have had
+  // theirs. The column comes from supabase-gov-sync-attempt-at-2026-09-25.sql;
+  // until that has run, the old order is used and nothing is stamped.
   const runStartedMs = Date.now();
   const staleCutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
-  const { data: vehicles, error: vehErr } = await supabaseAdmin
-    .from('vehicles')
-    .select('id, license_plate, vehicle_type, last_gov_sync_at, last_gov_sync_test_date, last_gov_sync_km')
-    .eq('auto_sync_enabled', true)
-    .not('license_plate', 'is', null)
-    .or(`last_gov_sync_at.is.null,last_gov_sync_at.lt.${staleCutoff}`)
-    .order('last_gov_sync_at', { ascending: true, nullsFirst: true })
-    .limit(MAX_VEHICLES_PER_RUN);
+  const selectCandidates = (byAttempt: boolean) => {
+    let q = supabaseAdmin
+      .from('vehicles')
+      .select('id, license_plate, vehicle_type, last_gov_sync_at, last_gov_sync_test_date, last_gov_sync_km')
+      .eq('auto_sync_enabled', true)
+      .not('license_plate', 'is', null)
+      .or(`last_gov_sync_at.is.null,last_gov_sync_at.lt.${staleCutoff}`);
+    if (byAttempt) q = q.order('last_gov_sync_attempt_at', { ascending: true, nullsFirst: true });
+    return q
+      .order('last_gov_sync_at', { ascending: true, nullsFirst: true })
+      .limit(MAX_VEHICLES_PER_RUN);
+  };
+  let attemptOrder = true;
+  let { data: vehicles, error: vehErr } = await selectCandidates(true);
+  if (vehErr && isMissingAttemptColumn(vehErr)) {
+    attemptOrder = false;
+    ({ data: vehicles, error: vehErr } = await selectCandidates(false));
+  }
 
   if (vehErr) {
     await reportEdgeError('list_vehicles', vehErr);
@@ -557,6 +593,7 @@ serve(async (req: Request) => {
     found_public:   0,  // test dates from the public-vehicle registry
     found_cme:      0,  // licence expiries from the צמ"ה registry
     deferred:       0,  // rows not reached this run; they lead the next one
+    attempt_order:  attemptOrder,  // false = the attempt column doesn't exist yet
     started_at:     new Date().toISOString(),
     finished_at:    null as string | null,
     samples:        [] as Array<{
@@ -576,6 +613,20 @@ serve(async (req: Request) => {
     hadKm: boolean;      // the km dataset gave us a reading last time
   };
 
+  // Sends the rows a run takes on to the back of the queue; see
+  // selectCandidates above. One statement per chunk, before its requests, so
+  // even a chunk that crashes the run can't keep the front of the queue.
+  // Note: vehicles.updated_at moves with it (set_updated_at trigger), as it
+  // already does on every sync; nothing reads it for vehicles today.
+  const markAttempted = async (ids: string[]) => {
+    if (!attemptOrder || ids.length === 0) return;
+    const { error } = await supabaseAdmin
+      .from('vehicles')
+      .update({ last_gov_sync_attempt_at: new Date().toISOString() })
+      .in('id', ids);
+    if (error) await reportEdgeError('mark_attempted', error, { rows: ids.length });
+  };
+
   // Rows with no usable number first: they never reach gov.il, so they
   // must not wait behind a chunk that might fail.
   const rows: Row[] = [];
@@ -587,9 +638,12 @@ serve(async (req: Request) => {
       // Still stamp last_gov_sync_at so we don't keep retrying this
       // row forever — the user can fix the plate and the next sweep
       // will pick it up via the 20h staleness clock.
+      const now = new Date().toISOString();
       await supabaseAdmin
         .from('vehicles')
-        .update({ last_gov_sync_at: new Date().toISOString() })
+        .update(attemptOrder
+          ? { last_gov_sync_at: now, last_gov_sync_attempt_at: now }
+          : { last_gov_sync_at: now })
         .eq('id', v.id);
       continue;
     }
@@ -617,7 +671,8 @@ serve(async (req: Request) => {
 
     // A dataset that answered but no longer has a plate it gave us data
     // for last time is most likely mid-reload (see the header), not a car
-    // that vanished. Hold the row: no stamp, no RPC, retried next run.
+    // that vanished. Hold the row: no sync stamp, no RPC; it is retried
+    // after the rest of the queue (it was already stamped as attempted).
     // Believing it would write a half-update and lose the rest for good,
     // because the RPC applies a given test date only once.
     const testGone = v.hadTest && testRec === undefined;
@@ -697,6 +752,7 @@ serve(async (req: Request) => {
     if (c > 0) await sleep(INTER_CHUNK_DELAY_MS);
 
     const chunk = chunks[c].rows;
+    await markAttempted(chunk.map((r) => r.id));
     // One car can sit in several accounts, one row each. Ask about it once.
     const numbers = [...new Set(chunk.map((r) => r.number))];
 
@@ -704,7 +760,7 @@ serve(async (req: Request) => {
       const cme = await fetchCmeBatch(numbers);
       if (!cme.ok) {
         // Same rule as a failed plate chunk below: leave the rows exactly
-        // as they are and let the next run retry them first.
+        // as they are; they are retried after the rest of the queue.
         stats.fetch_failed += chunk.length;
         await reportEdgeError('gov_cme_fetch_failed', new Error('data.gov.il צמ"ה request failed'), {
           cme: cme.reason,
@@ -728,12 +784,12 @@ serve(async (req: Request) => {
     ]);
 
     if (!tests.ok || !kms.ok) {
-      // Leave every row of this chunk exactly as it is: no stamp, no RPC,
-      // no notification. They are still the oldest, so the next run
-      // retries them first. Carry on with the next chunk instead of
-      // stopping: a run has only a few chunks, so that costs a request or
-      // two, and a chunk that fails every time (a data shape we don't
-      // expect, say) can't freeze everything behind it.
+      // Leave every row of this chunk exactly as it is: no sync stamp, no
+      // RPC, no notification. They stay due and are retried after the rest
+      // of the queue. Carry on with the next chunk instead of stopping: a
+      // run has only a few chunks, so that costs a request or two, and a
+      // chunk that fails every time (a data shape we don't expect, say)
+      // can't freeze everything behind it.
       stats.fetch_failed += chunk.length;
       await reportEdgeError('gov_fetch_failed', new Error('data.gov.il batch request failed'), {
         test_dates: tests.ok ? 'ok' : tests.reason,
