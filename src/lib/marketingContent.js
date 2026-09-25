@@ -195,13 +195,54 @@ export const productPages = [
   },
 ];
 
+// Search-result copy only. Prerender and applyMarketingSeo both read
+// marketingMetadata(), which also feeds og:title, og:description, and the
+// WebPage JSON-LD name/description. Visible headings, guide cards and article
+// text stay on title, heading and text, so those fields are not edited here.
+const seoCopy = {
+  '/website': {
+    title: 'Car Reminder | ניהול רכב, אופנוע וכלי שיט ותזכורות טסט',
+    description: 'אפליקציית Car Reminder לניהול רכב, אופנוע וכלי שיט: תזכורת לפני טסט, ביטוח וטיפול, ומסמכים והוצאות במקום אחד. הורדה חינם לאייפון ולאנדרואיד.',
+  },
+  '/website/heavy-equipment': {
+    title: 'ניהול טרקטורים וכלי צמ״ה: שעות מנוע ותסקיר | Car Reminder',
+    description: 'תיק לכל טרקטור, מחפר, שופל או מלגזה: שעות מנוע, מסמכים ותזכורת לתוקף התסקיר. אפליקציה לאייפון ולאנדרואיד, הורדה חינם.',
+  },
+  '/website/guides/engine-hours': {
+    title: 'שעות מנוע או קילומטרים? מעקב שימוש בכלי שטח | Car Reminder',
+    description: 'מתי עוקבים לפי שעות מנוע ומתי לפי קילומטרים, ואיך שומרים על אותו מדד לאורך הטיפולים. ב-Car Reminder אפשר להחליף בין השניים בכלי שטח. הורדה חינם.',
+  },
+  '/website/guides/equipment-documents': {
+    title: 'רישיונות ותסקירים לציוד הנדסי: איך מרכזים | Car Reminder',
+    description: 'רישיון, תסקיר וביטוח הם מסמכים נפרדים. כך פותחים תיק לכל כלי הנדסי, מזינים את תוקף התסקיר ובודקים את ההתראות. הורדה חינם לאייפון ולאנדרואיד.',
+  },
+  '/website/classic-cars': {
+    description: 'תיק לכל רכב אספנות: מסמכי רישוי, מועדים, קבלות על חלקים ותיעוד טיפולים ושיקום, עם סיווג אספנות נפרד. הורדה חינם לאייפון ולאנדרואיד.',
+  },
+  '/website/vessels': {
+    description: 'אופנוע ים, סירת מנוע או מפרשית: תוקף כושר שיט וביטוח, ציוד בטיחות, שעות מנוע ותחזוקה לצד כל כלי, עם תזכורת לפני המועד. הורדה חינם.',
+  },
+  '/website/guides/maintenance-log': {
+    // "יומן" is not on the page. The visible heading says "מעקב טיפולים".
+    description: 'מה לרשום בכל טיפול: תאריך, קילומטראז׳, מה בוצע ועלות, עם קבלה מצורפת. כך מנהלים מעקב טיפולים והוצאות באפליקציה. הורדה חינם לאייפון ולאנדרואיד.',
+  },
+  '/website/guides/vehicle-documents': {
+    description: 'איך מסדרים את רישיון הרכב, הביטוח וקבלות הטיפולים תחת הרכב הנכון, עם שם ותאריך, ומוצאים את המסמך העדכני מהטלפון. הורדה חינם לאייפון ולאנדרואיד.',
+  },
+  '/website/guides/vessel-records': {
+    // "כמה עונות" is only in the old meta description, not in the visible article.
+    description: 'מה כדאי לשמור בתיק של כלי שיט: מסמכים, מועדים, תיעוד טיפולים ושעות מנוע, כדי שהמידע יישאר זמין לאורך השימוש בכלי. הורדה חינם.',
+  },
+};
+
 export function marketingMetadata(path) {
   const article = guides.find(item => path === `/website/guides/${item.slug}`);
   const product = productPages.find(item => path === `/website/${item.slug}`);
   const page = article || product;
+  const copy = seoCopy[path];
   return {
-    title: `${page?.title || (path === '/website/business' ? 'ניהול צי רכב, נהגים ומשימות לעסקים' : path === '/website/vehicle-check' ? 'בדיקת רכב לפי מספר רישוי' : 'ניהול רכב, אופנוע וכלי שיט: תזכורות')} | Car Reminder`,
-    description: page?.description || page?.text || (path === '/website/business' ? 'מרכזים את רכבי העסק, מחברים נהגים ומקצים משימות לפי תפקיד, ועוקבים אחרי הוצאות ופעילות. פתיחת חשבון עסקי כפופה לבקשה ואישור.' : path === '/website/vehicle-check' ? 'מזינים מספר רישוי ומקבלים את פרטי הרכב שנמצאו במקורות הזמינים: יצרן, דגם, שנת ייצור ונתוני רישוי. אפשר להוריד את הנתונים כדוח PDF.' : 'תזכורות לטסט, לביטוח ולטיפולים, ומסמכים והוצאות שנשמרים לצד כל כלי: רכב, אופנוע, משאית או כלי שיט. אפשר גם לבדוק רכב לפי מספר רישוי.'),
+    title: copy?.title || `${page?.title || (path === '/website/business' ? 'ניהול צי רכב, נהגים ומשימות לעסקים' : path === '/website/vehicle-check' ? 'בדיקת רכב לפי מספר רישוי' : 'ניהול רכב, אופנוע וכלי שיט: תזכורות')} | Car Reminder`,
+    description: copy?.description || page?.description || page?.text || (path === '/website/business' ? 'מרכזים את רכבי העסק, מחברים נהגים ומקצים משימות לפי תפקיד, ועוקבים אחרי הוצאות ופעילות. פתיחת חשבון עסקי כפופה לבקשה ואישור.' : path === '/website/vehicle-check' ? 'מזינים מספר רישוי ומקבלים את פרטי הרכב שנמצאו במקורות הזמינים: יצרן, דגם, שנת ייצור ונתוני רישוי. אפשר להוריד את הנתונים כדוח PDF.' : 'תזכורות לטסט, לביטוח ולטיפולים, ומסמכים והוצאות שנשמרים לצד כל כלי: רכב, אופנוע, משאית או כלי שיט. אפשר גם לבדוק רכב לפי מספר רישוי.'),
   };
 }
 
