@@ -17,7 +17,7 @@ import MarketingAccessibilityPage from '@/components/MarketingAccessibilityPage'
 const logo = '/marketing/logo.webp';
 import './Marketing.css';
 import { applyMarketingSeo } from '@/lib/marketingSeo';
-import { marketingEvent, trackStoreClickGA4 } from '@/lib/marketingEvents';
+import { marketingEvent } from '@/lib/marketingEvents';
 import { DEMO_HOME_ID } from '@/lib/demoScreens';
 import { onDemoMessage, DEMO_MSG_SCREEN } from '@/lib/demoBridge';
 import MarketingDemoEmbed from '@/components/MarketingDemoEmbed';
@@ -102,10 +102,10 @@ const businessFaqs = [
 // first page already consumed" needs.
 let gaAutoPageviewConsumed = false;
 
-function StoreLinks() {
+function StoreLinks({ linkLocation }) {
   const appleHref = 'https://apps.apple.com/app/carreminder/id6764073107';
   const googleHref = 'https://play.google.com/store/apps/details?id=com.carreminder.app';
-  return <div className="cm-stores" onClick={() => marketingEvent('store_click', 'download')}><a href={appleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('apple', appleHref)}><img src="/marketing/apple.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>App Store</strong></span></a><a href={googleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('google', googleHref)}><img src="/marketing/google-play.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>Google Play</strong></span></a></div>;
+  return <div className="cm-stores" data-link-location={linkLocation} onClick={() => marketingEvent('store_click', 'download')}><a href={appleHref} target="_blank" rel="noopener noreferrer"><img src="/marketing/apple.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>App Store</strong></span></a><a href={googleHref} target="_blank" rel="noopener noreferrer"><img src="/marketing/google-play.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>Google Play</strong></span></a></div>;
 }
 
 export default function Marketing() {
@@ -292,7 +292,7 @@ export default function Marketing() {
       {childReminderPage && <MarketingChildReminderPage />}
       {landingPage && <MarketingSeoLandingPage product={product} />}
       {product && !childReminderPage && !accessibilityPage && !landingPage && <MarketingProductPage product={product} />}
-      {!checkPage && !childReminderPage && <section id="download" className="cm-download"><div className="cm-wrap cm-download-simple"><span className="cm-kicker">הצעד הבא שלכם</span><p className="cm-download-lead">מורידים את Car Reminder, מוסיפים כלי ומרכזים את המועד הבא במקום אחד.</p><StoreLinks /><Link className="cm-text-link" to="/Auth">מעדיפים דפדפן? לכניסה באתר <ArrowLeft size={17} /></Link></div></section>}
+      {!checkPage && !childReminderPage && <section id="download" className="cm-download"><div className="cm-wrap cm-download-simple"><span className="cm-kicker">הצעד הבא שלכם</span><p className="cm-download-lead">מורידים את Car Reminder, מוסיפים כלי ומרכזים את המועד הבא במקום אחד.</p><StoreLinks linkLocation={article ? 'guide_cta' : 'download'} /><Link className="cm-text-link" to="/Auth">מעדיפים דפדפן? לכניסה באתר <ArrowLeft size={17} /></Link></div></section>}
     </main>
     <footer className="cm-footer"><div className="cm-wrap"><Link className="cm-brand" to="/website"><img src={logo} width="35" height="35" alt="" />Car Reminder</Link><nav aria-label="מידע וקשר"><Link to="/Contact">יצירת קשר</Link><Link to="/PrivacyPolicy">מדיניות פרטיות</Link><Link to="/TermsOfService">תנאי שימוש</Link><Link to="/website/accessibility">הצהרת נגישות</Link><Link to="/Auth">כניסה לחשבון</Link></nav><span>תזכורות, מסמכים ותחזוקה לכל כלי תחבורה.</span></div></footer>
     <dialog ref={dialog} className="cm-lightbox" aria-label="צילום מסך מהאפליקציה"><button autoFocus onClick={() => dialog.current?.close()} aria-label="סגירת צילום המסך"><X /></button><MarketingPhone src={`/marketing/${activeScreen.image}.${activeScreen.extension || 'webp'}`} alt={`${activeScreen.name} באפליקציה, במסגרת להמחשה`} /></dialog>

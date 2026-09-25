@@ -111,6 +111,9 @@ const NativePurchasesFake = {
 
   getStorefront: vi.fn(async () => ({ countryCode: fake.storefront })),
 
+  // restorePurchases: `try await AppStore.sync()`, then resolve() with nothing.
+  restorePurchases: vi.fn(async () => undefined),
+
   acknowledgePurchase: vi.fn(async ({ purchaseToken }) => {
     if (!/^\d+$/.test(String(purchaseToken))) throw new Error('Invalid purchaseToken format');
   }),
@@ -257,6 +260,19 @@ describe('purchase()', () => {
     expect(r.message).toBe('Cannot find product for id plan_p9');
   });
 
+  it('refuses, as not charged, a transaction that belongs to ANOTHER account', async () => {
+    // StoreKit hands back the existing subscription when this Apple ID already
+    // holds one, and ours would carry OUR token if it were new.
+    NativePurchasesFake.purchaseProduct.mockImplementationOnce(async () => ({
+      transactionId: '2000000000000002', productIdentifier: 'plan_p9', appAccountToken: OTHER_ACCOUNT.toUpperCase(),
+    }));
+    const r = await buildAppleBackend().purchase('plan_p9', ACCOUNT);
+    expect(r.outcome).toBe(PurchaseOutcome.FAILED);
+    expect(r.message).toBe('apple_subscription_owned_by_other_account');
+    expect(r).not.toHaveProperty('purchaseToken');
+    expect(reportError.mock.calls[0][1].message).toBe('apple_subscription_owned_by_other_account');
+  });
+
   it('reports a completed purchase that lost its account link', async () => {
     NativePurchasesFake.purchaseProduct.mockImplementationOnce(async () => ({
       transactionId: '2000000000000001', productIdentifier: 'plan_p9',
@@ -350,6 +366,31 @@ describe('queryOwnedPurchases()', () => {
     expect(reportError.mock.calls[0][1].message).toBe('apple_restore_without_account_id');
   });
 
+  it('asks Apple to sync first only when the user tapped restore', async () => {
+    fake.entitlements = [{ transactionId: '11', productIdentifier: 'plan_p9', appAccountToken: ACCOUNT.toUpperCase() }];
+    await buildAppleBackend().queryOwnedPurchases(ACCOUNT);
+    expect(NativePurchasesFake.restorePurchases).not.toHaveBeenCalled();
+
+    const owned = await buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true });
+    expect(NativePurchasesFake.restorePurchases).toHaveBeenCalledTimes(1);
+    // Synced first, then read.
+    expect(NativePurchasesFake.restorePurchases.mock.invocationCallOrder[0])
+      .toBeLessThan(NativePurchasesFake.getPurchases.mock.invocationCallOrder.at(-1));
+    expect(owned).toHaveLength(1);
+  });
+
+  it('still reads the phone when the sync fails, so a held subscription is not lost', async () => {
+    fake.entitlements = [{ transactionId: '11', productIdentifier: 'plan_p9', appAccountToken: ACCOUNT.toUpperCase() }];
+    NativePurchasesFake.restorePurchases.mockRejectedValueOnce(new Error('sign-in cancelled'));
+    await expect(buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true }))
+      .resolves.toHaveLength(1);
+  });
+
+  it('lets a failed sync throw when nothing is found either, so the screen can say it could not check', async () => {
+    NativePurchasesFake.restorePurchases.mockRejectedValueOnce(new Error('The operation couldn’t be completed.'));
+    await expect(buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true })).rejects.toThrow();
+  });
+
   it('ignores products that are not ours', async () => {
     fake.entitlements = [{ transactionId: '44', productIdentifier: 'old_thing', appAccountToken: ACCOUNT.toUpperCase() }];
     await expect(buildAppleBackend().queryOwnedPurchases(ACCOUNT)).resolves.toEqual([]);
@@ -370,6 +411,9 @@ describe('appleBackend() identity', () => {
       expect(typeof b[m], m).toBe('function');
     }
     expect(b.store).toBe('apple');
+    expect(b.productIds).toEqual(APPLE_PRODUCT_IDS);
+    // It files its own gap report, so the hook must stay quiet.
+    expect(b.reportsCatalogueGaps).toBe(true);
   });
 
   it('connects, because the Swift always answers yes', async () => {

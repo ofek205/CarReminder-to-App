@@ -41,14 +41,14 @@ describe('marketing JSON-LD', () => {
       expect(types).toEqual(['BreadcrumbList', 'Article']);
       const crumbs = data['@graph'][0].itemListElement;
       expect(crumbs.map(item => item.position)).toEqual([1, 2, 3]);
-      expect(crumbs[0].item).toBe('/website');
-      expect(crumbs[1].item).toBe('/website#guides');
+      expect(crumbs[0].item).toBe('https://car-reminder.app/website');
+      expect(crumbs[1].item).toBe('https://car-reminder.app/website#guides');
       expect(crumbs[2].name).toBe(article.heading || article.title);
       const story = data['@graph'][1];
       expect(story.headline).toBe(article.heading || article.title);
       expect(story.description).toBe(article.description || article.text);
       expect(story.inLanguage).toBe('he');
-      expect(story.mainEntityOfPage).toBe(`/website/guides/${article.slug}`);
+      expect(story.mainEntityOfPage).toBe(`https://car-reminder.app/website/guides/${article.slug}`);
       expect(story.publisher).toEqual({ '@type': 'Organization', name: 'Car Reminder' });
       expect(keys(data)).not.toContain('aggregateRating');
     }

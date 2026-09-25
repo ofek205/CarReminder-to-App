@@ -10,8 +10,9 @@
  */
 
 import { NativePurchases, PURCHASE_TYPE } from '@capgo/native-purchases';
-import { isAndroid, isNative } from '@/lib/capacitor';
+import { isAndroid, isIOS, isNative } from '@/lib/capacitor';
 import { mockBackend } from './mockBackend';
+import { appleBackend } from './appleBackend';
 import { PurchaseOutcome } from './types';
 
 export { PurchaseOutcome };
@@ -304,11 +305,44 @@ export async function openStoreSubscriptionManagement() {
  * rather than rendering one that returns false in silence. /MyPlan shows the
  * manage button by subscription SOURCE, which is right: someone who bought on
  * their phone and is reading in a browser should still learn where the
- * subscription lives. But the sheet is a native Play surface, so on that
+ * subscription lives. But the sheet is a native store surface, so on that
  * browser the sentence is the honest thing to show and the button is not.
+ *
+ * ⚠️ TRUE ON iOS TOO SINCE THE APPLE HALF: the plugin's manageSubscriptions()
+ * is AppStore.showManageSubscriptions there. "This phone has a store page" is
+ * NOT "this subscription is on it": a Google subscriber on an iPhone must not
+ * be sent to Apple's list. That second question is managementCopy() in
+ * ./storeManagement, which is what /MyPlan asks.
  */
 export function canOpenStoreSubscriptionManagement() {
-  return isNative && isAndroid;
+  return isNative && (isAndroid || isIOS);
+}
+
+/**
+ * The platform, in the vocabulary ./storeManagement takes.
+ * An unrecognised native platform is 'other', never 'web', so it can never
+ * be handed the browser's freedom to name stores.
+ *
+ * @returns {'android'|'ios'|'web'|'other'}
+ */
+export function billingPlatform() {
+  if (isNative && isAndroid) return 'android';
+  if (isNative && isIOS) return 'ios';
+  if (isNative) return 'other';
+  return 'web';
+}
+
+/**
+ * Which app_config flag switches purchase on for THIS platform.
+ *
+ * ⚠️ TWO FLAGS, BECAUSE THE STORES BECOME READY ON DIFFERENT DAYS. Apple
+ * needs its own agreement, products, key and notification endpoint; turning
+ * Play on must not turn Apple on with it. Every screen that reads the
+ * purchase flag reads it through this, so no screen can pair the Apple sheet
+ * with the Play switch.
+ */
+export function billingFlagKey() {
+  return isNative && isIOS ? 'apple_billing_enabled' : 'play_billing_enabled';
 }
 
 /**
@@ -319,6 +353,13 @@ export function getBillingBackend() {
   // dev native build must still get the real plugin. Handing it the mock
   // there would fake a working integration on a device.
   if (isNative && isAndroid) return playBackend();
+
+  // ⚠️ iOS GETS STOREKIT, AND WHAT KEEPS IT FROM EVERY USER IS THE FLAG.
+  // A backend here makes iapReady() and mayOfferPurchase() depend on
+  // apple_billing_enabled alone (billingFlagKey), so only an admin sees a
+  // purchase until that flag is switched on. The same singleton rule as
+  // Play: appleBackend() returns one object for the life of the app.
+  if (isNative && isIOS) return appleBackend();
 
   // ⚠️ THE BROWSER BRANCH IS DEV-ONLY, AND THE FIRST VERSION GOT THIS WRONG.
   //

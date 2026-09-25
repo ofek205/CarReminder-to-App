@@ -37,6 +37,30 @@ for (const [route, html] of pages) {
   }
 }
 assert.ok(pages.get('/website/vehicle-check').includes('noindex,follow'), 'Vehicle reports must not be indexed');
+
+const GTAG_URL = 'gtag/js?id=G-6Q6XS6C8B0';
+const rootHtml = await fs.readFile(path.join('dist', 'index.html'), 'utf8');
+assert.equal((rootHtml.match(/<title>/g) || []).length, 1, 'root: one title');
+assert.ok(rootHtml.includes('<title>CarReminders</title>'), 'root title is unchanged');
+assert.equal((rootHtml.match(new RegExp(GTAG_URL.replace(/[?]/g, '\\?'), 'g')) || []).length, 0, 'root HTML must not contain the contiguous gtag URL, or every marketing page inherits a second copy');
+assert.ok(rootHtml.includes('__crStoreClicks'), 'root: store-click listener is in the shell');
+assert.ok(rootHtml.includes('__crGtag'), 'root: gated gtag loader is in the shell');
+assert.ok(rootHtml.includes('car-reminder.app'), 'root: loader names the production host');
+assert.ok(!rootHtml.includes("gtag('config','G-6Q6XS6C8B0')"), 'root: no ungated marketing config');
+for (const [route, html] of pages) {
+  const urls = html.match(new RegExp(GTAG_URL.replace(/[?]/g, '\\?'), 'g')) || [];
+  assert.equal(urls.length, 1, `${route}: exactly one gtag script URL`);
+  assert.equal((html.match(/gtag\('config','G-6Q6XS6C8B0'\)/g) || []).length, 1, `${route}: original config call is unchanged and not duplicated`);
+  assert.ok(html.includes('__crStoreClicks'), `${route}: store-click listener is present`);
+}
+assert.ok(pages.get('/website').includes('data-link-location="download"'), '/website download block is labeled');
+assert.ok(pages.get('/website/guides/test-reminder').includes('data-link-location="guide_cta"'), 'guide download block is labeled guide_cta');
+assert.ok(!pages.get('/website/guides/test-reminder').includes('data-link-location="download"'), 'a guide page does not also label the same block download');
+assert.ok(pages.get('/website/vehicle-lookup').includes('data-link-location="hero"'), 'vehicle lookup hero store links are labeled');
+assert.ok(pages.get('/website/vehicle-lookup').includes('data-link-location="download"'), 'vehicle lookup keeps the bottom download block');
+assert.ok(pages.get('/website/test-insurance-reminders').includes('data-link-location="hero"'), 'reminders hero store links are labeled');
+assert.ok(pages.get('/website/child-in-car-reminder').includes('data-link-location="page_cta"'), 'child reminder store links are labeled page_cta');
+assert.ok(!pages.get('/website/child-in-car-reminder').includes('data-link-location="download"'), 'child reminder page does not render the shared download block');
 for (const file of ['src/pages/Marketing.jsx', 'src/lib/marketingContent.js', 'src/lib/marketingSpecialties.js']) {
   assert.ok(!/[\u2013\u2014]/.test(await fs.readFile(file, 'utf8')), `${file}: no long dashes`);
 }

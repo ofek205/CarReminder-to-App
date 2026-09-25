@@ -9,6 +9,7 @@
 
 export const APPLE_STORE_URL = 'https://apps.apple.com/app/carreminder/id6764073107';
 export const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.carreminder.app';
+const SITE_ORIGIN = 'https://car-reminder.app';
 
 export function mobileAppJsonLd() {
   return {
@@ -28,8 +29,8 @@ export function guideJsonLd(article) {
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Car Reminder', item: '/website' },
-          { '@type': 'ListItem', position: 2, name: 'מדריכים', item: '/website#guides' },
+          { '@type': 'ListItem', position: 1, name: 'Car Reminder', item: `${SITE_ORIGIN}/website` },
+          { '@type': 'ListItem', position: 2, name: 'מדריכים', item: `${SITE_ORIGIN}/website#guides` },
           { '@type': 'ListItem', position: 3, name },
         ],
       },
@@ -38,7 +39,7 @@ export function guideJsonLd(article) {
         headline: name,
         description: article.description || article.text,
         inLanguage: 'he',
-        mainEntityOfPage: `/website/guides/${article.slug}`,
+        mainEntityOfPage: `${SITE_ORIGIN}/website/guides/${article.slug}`,
         publisher: { '@type': 'Organization', name: 'Car Reminder' },
       },
     ],

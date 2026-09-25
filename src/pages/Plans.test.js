@@ -26,8 +26,10 @@ const {
   capLabel, advisorLabel, personalNote, unavailableCopy, labelStatesPrice,
   catalogPriceAllowed, COLUMNS, cellValue, detailValue, deltaNote, extrasLine,
   NEAR_FULL, usageMeter, recommendPlan, defaultOpenCode, actionKind,
-  manageNote, currentNote, isStoreManaged,
+  manageNote, currentNote, isStoreManaged, noteVoice,
+  showRestoreControl, restoreControlHidden,
 } = await import('./Plans');
+const { PurchaseState } = await import('@/lib/billing/purchaseMachine');
 
 // The live catalogue as of 2026-09-25, after supabase-plans-redesign.
 const FREE = {
@@ -401,6 +403,75 @@ describe('Ofek\'s rule: no copy says two plans are the same', () => {
     expect(strings.length).toBeGreaterThan(40);
     for (const s of strings) {
       for (const word of FORBIDDEN) expect(s, s).not.toContain(word);
+    }
+  });
+});
+
+describe('the App Store, and the other phone', () => {
+  const apple = { source: 'iap_apple' };
+
+  it('treats a live Apple subscription as store-managed, so no second purchase is offered', () => {
+    // The double-charge guard: keyed on Google alone, an Apple subscriber
+    // opening the app on Android was handed Play's sheet on every row.
+    expect(isStoreManaged(apple, P9)).toBe(true);
+    expect(isStoreManaged(apple, FREE)).toBe(false);
+  });
+
+  it('names the store on its own phone and in a browser, and nothing on the other phone', () => {
+    expect(noteVoice('apple', 'ios')).toBe('store');
+    expect(noteVoice('google', 'android')).toBe('store');
+    expect(noteVoice('apple', 'web')).toBe('store');
+    expect(noteVoice('google', 'ios')).toBe('elsewhere');
+    expect(noteVoice('apple', 'android')).toBe('elsewhere');
+    expect(noteVoice('google', 'other')).toBe('elsewhere');
+    expect(noteVoice(null, 'ios')).toBe('store');
+  });
+
+  it('tells an Apple subscriber that switching happens in the App Store', () => {
+    expect(manageNote(P19, 'apple')).toMatch(/App Store/);
+    expect(manageNote(P19, 'apple')).toMatch(/שדרוג מתחיל מיד/);
+    expect(manageNote(FREE, 'apple')).toMatch(/עד סוף התקופה ששולמה/);
+    expect(currentNote(P9, true, 'apple')).toMatch(/App Store/);
+  });
+
+  it('never names Google or Android in a note an iPhone can render (Guideline 2.3.10)', () => {
+    for (const heldBy of ['google', 'apple']) {
+      const voice = noteVoice(heldBy, 'ios');
+      for (const p of ALL) {
+        for (const text of [manageNote(p, heldBy, voice), currentNote(p, true, heldBy, voice)]) {
+          expect(text, heldBy + '/' + p.code).not.toMatch(/google|play|android|גוגל|אנדרואיד/i);
+        }
+      }
+    }
+  });
+
+  it('keeps every Android sentence byte-identical to before', () => {
+    for (const p of ALL) {
+      expect(manageNote(p, 'google', 'store')).toBe(manageNote(p));
+      expect(currentNote(p, true, 'google', 'store')).toBe(currentNote(p, true));
+    }
+  });
+});
+
+describe('the visible restore control', () => {
+  it('appears wherever a purchase is on offer, for everyone signed in', () => {
+    expect(showRestoreControl(true, false)).toBe(true);
+    // A subscriber too: restore is how a second phone recovers the plan.
+  });
+
+  it('never appears for a guest, or where nothing can be bought', () => {
+    expect(showRestoreControl(true, true)).toBe(false);
+    expect(showRestoreControl(false, false)).toBe(false);
+    // undefined while the flag loads must not flash the control.
+    expect(showRestoreControl(undefined, false)).toBe(false);
+  });
+
+  it('steps aside while the sheet is open or the server is verifying', () => {
+    expect(restoreControlHidden(PurchaseState.SHEET_OPEN)).toBe(true);
+    expect(restoreControlHidden(PurchaseState.VERIFYING)).toBe(true);
+    for (const s of [PurchaseState.IDLE, PurchaseState.PENDING, PurchaseState.DEFERRED,
+      PurchaseState.FAILED, PurchaseState.SUCCESS, PurchaseState.UNAVAILABLE, PurchaseState.LOADING_PRODUCTS]) {
+      expect(restoreControlHidden(s), s).toBe(false);
     }
   });
 });
