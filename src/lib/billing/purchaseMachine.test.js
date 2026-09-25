@@ -11,10 +11,13 @@ describe('afterSheet: the three outcomes that are not failures', () => {
     expect(r.state).not.toBe(PurchaseState.FAILED);
   });
 
-  it('pending stays pending and does NOT verify', () => {
+  it('a store-pending purchase is DEFERRED and does NOT verify', () => {
     // Verifying an unsettled payment would grant a plan nobody has paid for.
     const r = afterSheet(PurchaseOutcome.PENDING);
-    expect(r).toEqual({ state: PurchaseState.PENDING, verify: false });
+    // DEFERRED, not PENDING: nothing is charged yet, and PENDING's copy says
+    // the payment arrived.
+    expect(r).toEqual({ state: PurchaseState.DEFERRED, verify: false });
+    expect(r.state).not.toBe(PurchaseState.PENDING);
     expect(r.state).not.toBe(PurchaseState.SUCCESS);
   });
 
@@ -49,6 +52,12 @@ describe('afterSheet: the three outcomes that are not failures', () => {
 describe('afterVerification: the card has already been charged', () => {
   it('reaches success only on a confirmed entitlement', () => {
     expect(afterVerification('ok')).toBe(PurchaseState.SUCCESS);
+  });
+
+  it('returns to IDLE, silently, when the purchase belongs to another account', () => {
+    // No money moved for THIS account, so "payment received" would be false,
+    // and FAILED would say something happened that did not.
+    expect(afterVerification('not_yours')).toBe(PurchaseState.IDLE);
   });
 
   it.each(['rejected', 'threw', 'timeout'])('%s becomes PENDING, never FAILED', (r) => {

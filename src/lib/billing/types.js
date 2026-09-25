@@ -68,6 +68,11 @@ export const PurchaseOutcome = Object.freeze({
  * @property {() => Promise<boolean>}                connect
  * @property {() => Promise<BillingProduct[]>}       listProducts
  * @property {(productId: string, accountId: string) => Promise<PurchaseResult>} purchase
- * @property {() => Promise<PurchaseResult[]>}       queryOwnedPurchases
+ * @property {(accountId?: string) => Promise<PurchaseResult[]>} queryOwnedPurchases
+ *   Play ignores the account id; Apple needs it (see appleBackend.js).
  * @property {(token: string) => Promise<boolean>}   acknowledge
+ * @property {'apple'} [store]            absent on the Play backend, which predates it
+ * @property {readonly string[]} [productIds]  absent on Play: PLAY_PRODUCT_IDS
+ * @property {boolean} [reportsCatalogueGaps]  the backend files its own
+ *   catalogue report, so the hook must not file a duplicate
  */

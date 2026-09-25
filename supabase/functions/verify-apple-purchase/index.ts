@@ -32,6 +32,9 @@ import {
   getSubscriptionStatuses,
   entitlementFromStatuses,
   linkProblem,
+  ownerToken,
+  otherHolders,
+  releaseHolders,
 } from '../_shared/appleStore.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -169,21 +172,27 @@ serve(async (req) => {
     return json({ granted: false, reason: 'not_active', status: ent.status, environment }, 200, cors);
   }
 
-  // ── 5. one Apple subscription credits one account ─────────────────────
+  // ── 5. one Apple subscription credits one account: Apple's latest pick ─
   // ⚠️ THE KEY IS originalTransactionId, NOT transactionId. Every renewal
   // and every upgrade inside the group mints a new transactionId; the
   // original one is the only id that stays put for the life of the
   // subscription, and it is what the notification endpoint looks up by.
-  const { data: holder } = await admin
-    .from('account_subscriptions')
-    .select('account_id')
-    .eq('source', 'iap_apple')
-    .eq('external_subscription_id', originalTransactionId)
-    .neq('account_id', accountId)
-    .limit(1)
-    .maybeSingle();
-  if (holder?.account_id) {
+  //
+  // ⚠️ AND THE OWNER IS WHOEVER APPLE'S LATEST TRANSACTION NAMES, NOT OUR
+  // ROW. One Apple ID holds one subscription in the group. Subscribe for
+  // account A, later buy for account B: Apple keeps the original id and
+  // signs B's token into the new transaction. The first version refused B
+  // ("held_by_other_account") because A's row still named the id, so B paid
+  // for nothing while the renewal notification handed the plan back to A.
+  const owner = ownerToken(ent.transaction) || accountId.toLowerCase();
+  if (owner !== accountId.toLowerCase()) {
+    // Apple says the subscription now belongs to a different account of
+    // ours: this transaction is an older one in the chain.
     return json({ granted: false, reason: 'held_by_other_account', environment }, 200, cors);
+  }
+  const holders = await otherHolders(admin, originalTransactionId, accountId);
+  if (!holders.ok) {
+    return json({ granted: false, reason: 'verification_error', detail: holders.error, environment }, 200, cors);
   }
 
   // ⚠️ PAYING BOTH STORES IS GRANTED, AND REPORTED. The user is looking at a
@@ -220,6 +229,20 @@ serve(async (req) => {
       severity: 'critical', userId, extra: { productId: ent.productId, environment },
     });
     return json({ granted: false, reason: 'grant_failed', detail: grantErr.message }, 200, cors);
+  }
+
+  // Only now, with the new owner's grant written, take it off the old one:
+  // a failure half way leaves two accounts with the plan, never none.
+  if (holders.value.length > 0) {
+    const releaseErr = await releaseHolders(
+      admin, originalTransactionId, holders.value, `apple_moved_to_${accountId}`,
+    );
+    if (releaseErr) {
+      await reportEdgeError({
+        fn: 'verify-apple-purchase', action: 'release_previous_owner_failed', error: new Error(releaseErr),
+        severity: 'error', userId, extra: { previous: holders.value, accountId, environment },
+      });
+    }
   }
 
   return json({ granted: true, plan, expiry: ent.periodEnd, environment }, 200, cors);

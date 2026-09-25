@@ -21,9 +21,12 @@
  */
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Loader2, Check } from 'lucide-react';
 import { C } from '@/lib/designTokens';
+import { createPageUrl } from '@/utils';
 import { PurchaseState } from '@/lib/billing/purchaseMachine';
+import { storeCopy } from '@/lib/billing/storeCopy';
 
 /** Numerals stay LTR inside Hebrew, or "₪9.00" renders reversed. */
 function Num({ children }) {
@@ -34,12 +37,35 @@ function Num({ children }) {
  * ⚠️ NOT A DISABLED BUTTON. A greyed control invites a tap and then
  * disappoints; absence promises nothing. UX §5 state 2.
  */
-function Unavailable({ offline }) {
+function Unavailable({ offline, copy }) {
   return (
     <p className="text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
       {offline
         ? 'אין חיבור לאינטרנט. המסלולים יוצגו כשהחיבור יחזור.'
-        : 'לא הצלחנו לטעון את המסלולים מ-Google Play. אפשר לנסות שוב בעוד רגע, וכל מה שיש לך בחשבון ממשיך לעבוד כרגיל.'}
+        : copy.catalogueFailed}
+    </p>
+  );
+}
+
+/**
+ * Terms of use and privacy policy, against the disclosure they qualify.
+ *
+ * ⚠️ REQUIRED BY APPLE FOR AN AUTO-RENEWING SUBSCRIPTION (3.1.2): functional
+ * links to both, in the purchase flow, or the subscription is rejected.
+ * Shown for every store because a subscription's terms are ours, not the
+ * store's.
+ *
+ * ⚠️ INLINE LINKS WITH VERTICAL PADDING, ON PURPOSE. Padding on an inline
+ * element enlarges the touch target to about 40px without growing the line
+ * box, so the zone stays one 11px line tall while the links stay pressable.
+ */
+function LegalLinks() {
+  const link = 'underline underline-offset-2 py-3';
+  return (
+    <p className="text-[11px] leading-relaxed" style={{ color: C.gray500 }}>
+      <Link to={createPageUrl('TermsOfService')} className={link}>תנאי שימוש</Link>
+      <span className="px-1" aria-hidden="true">·</span>
+      <Link to={createPageUrl('PrivacyPolicy')} className={link}>מדיניות פרטיות</Link>
     </p>
   );
 }
@@ -66,20 +92,30 @@ function Price({ formatted }) {
   );
 }
 
+/**
+ * @param {'google'|'apple'} [store]  whose sheet this is. Every sentence that
+ *   names a store comes from storeCopy(store); omitted means Google, which is
+ *   what every caller meant before the App Store existed.
+ */
 export default function PurchaseAction({
   state,
   priceFormatted,
   busy = false,
   offline = false,
+  store,
   onBuy,
   onRestore,
 }) {
+  const copy = storeCopy(store);
   const unavailable = state === PurchaseState.UNAVAILABLE;
   const loading     = state === PurchaseState.LOADING_PRODUCTS;
   const owned       = state === PurchaseState.OWNED;
   const success     = state === PurchaseState.SUCCESS;
   const failed      = state === PurchaseState.FAILED;
   const pending     = state === PurchaseState.PENDING;
+  // The store has not taken the money yet (Ask to Buy on iOS). Not PENDING:
+  // PENDING means charged and late, and says so.
+  const deferred    = state === PurchaseState.DEFERRED;
 
   // Locked while the Play sheet is open or the server is verifying: a second
   // tap during either would open a second sheet on a charged card.
@@ -100,7 +136,10 @@ export default function PurchaseAction({
    * that makes their situation strictly worse. The UX doc says it outright:
    * a user who paid and taps again must reach restore, not a second sheet.
    */
-  const showRestore = owned || pending;
+  //
+  // DEFERRED offers it too: once a parent approves, restore is what finds
+  // the purchase, and a buy button would ask the store a second time.
+  const showRestore = owned || pending || deferred;
 
   return (
     <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.gray100}` }}>
@@ -110,7 +149,7 @@ export default function PurchaseAction({
       </div>
 
       {unavailable ? (
-        <Unavailable offline={offline} />
+        <Unavailable offline={offline} copy={copy} />
       ) : (
         <>
           {success ? (
@@ -132,7 +171,7 @@ export default function PurchaseAction({
               className="w-full h-12 rounded-2xl text-[15px] font-bold disabled:opacity-60"
               style={{ background: 'transparent', color: C.primary, border: `1px solid ${C.primary}` }}
             >
-              {pending ? 'בדוק שוב' : 'שחזר רכישה'}
+              {pending || deferred ? 'בדוק שוב' : 'שחזר רכישה'}
             </button>
           ) : (
             <button
@@ -147,7 +186,7 @@ export default function PurchaseAction({
                   inert: a disabled "בחר מסלול" sitting under a banner that
                   says the payment arrived reads as though the purchase did
                   not register. */}
-              {state === PurchaseState.SHEET_OPEN ? 'ממתין ל-Google Play'
+              {state === PurchaseState.SHEET_OPEN ? copy.sheetOpen
                 : state === PurchaseState.VERIFYING ? 'מפעילים את המסלול'
                 : failed ? 'נסה שוב'
                 : 'בחר מסלול'}
@@ -156,13 +195,21 @@ export default function PurchaseAction({
 
           {owned && (
             <p className="mt-2 text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
-              כבר יש לך מנוי פעיל בחשבון Google הזה. נשחזר אותו לחשבון שלך באפליקציה, בלי חיוב נוסף.
+              {copy.owned}
             </p>
           )}
 
           {failed && (
             <p className="mt-2 text-[12px] leading-relaxed" style={{ color: C.errorDark }}>
-              התשלום לא הושלם ולא חויבת. אפשר לנסות שוב או לבחור אמצעי תשלום אחר ב-Google Play.
+              {copy.failed}
+            </p>
+          )}
+
+          {/* Blue, not grey and not red: a status, not a problem. Nothing was
+              charged, and this is the one state where that is the headline. */}
+          {deferred && (
+            <p className="mt-2 text-[12px] leading-relaxed" style={{ color: C.infoDark }}>
+              {copy.deferred}
             </p>
           )}
 
@@ -172,13 +219,19 @@ export default function PurchaseAction({
             </p>
           )}
 
-          {/* ⚠️ REQUIRED BY PLAY, and placed against the button on purpose.
+          {/* ⚠️ REQUIRED BY BOTH STORES, and placed against the button on purpose.
               Pushed to the card footer it becomes legal boilerplate the eye
               skips; next to the control it belongs to the action. */}
-          {!success && !pending && (
-            <p className="mt-2 text-[11px] leading-relaxed" style={{ color: C.gray500 }}>
-              החיוב מתחדש אוטומטית. ניתן לבטל בכל עת דרך Google Play.
-            </p>
+          {!success && !pending && !deferred && (
+            <>
+              <p className="mt-2 text-[11px] leading-relaxed" style={{ color: C.gray500 }}>
+                {copy.renewal}
+              </p>
+              {/* Not while the sheet is open or the server is verifying:
+                  leaving the screen then hides the activation banner, and
+                  the user returns to a screen that never said it worked. */}
+              {!locked && <LegalLinks />}
+            </>
           )}
         </>
       )}

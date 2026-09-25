@@ -73,9 +73,21 @@ describe('getBillingBackend identity', () => {
     expect(getBillingBackend()).toBe(getBillingBackend());
   });
 
-  it('gives iOS a stable null rather than a backend', () => {
+  it('gives iOS the Apple backend, and the same object every call', () => {
     asIOS();
-    expect(getBillingBackend()).toBeNull();
+    const a = getBillingBackend();
+    expect(a).not.toBeNull();
+    expect(a.store).toBe('apple');
+    expect(getBillingBackend()).toBe(a);
+  });
+
+  it('never hands the Apple backend to Android, or the Play one to iOS', () => {
+    asIOS();
+    const apple = getBillingBackend();
+    asAndroid();
+    const play = getBillingBackend();
+    expect(play).not.toBe(apple);
+    expect(play.store).toBeUndefined();
   });
 
   it('keeps the Play backend distinct from the browser one', () => {

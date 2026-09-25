@@ -35,7 +35,7 @@ import { Briefcase, Truck, Users, X, ArrowLeft, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { C } from '@/lib/designTokens';
 import { capWallAction } from '@/lib/billingGate';
-import { iapReady } from '@/lib/billing';
+import { iapReady, billingFlagKey } from '@/lib/billing';
 import { useFeatureFlag } from '@/lib/featureFlags';
 
 const PERKS = [
@@ -61,9 +61,11 @@ const PLAN_PERKS = [
  */
 export default function VehicleCapReachedModal({ open, onClose, capacity, kind = 'personal', planCap = null }) {
   const navigate = useNavigate();
-  // ⚠️ ABOVE THE EARLY RETURN. `if (!open) return null` sits two lines down,
+  // ⚠️ ABOVE THE EARLY RETURN. `if (!open) return null` sits just below,
   // so a hook placed after it would run on some renders and not others.
-  const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
+  // ⚠️ THE PLATFORM'S OWN FLAG. iOS reads apple_billing_enabled, so turning
+  // Play on can never put a Play-era purchase button on an iPhone wall.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
   if (!open) return null;
 
   const isPlan = kind === 'plan';
