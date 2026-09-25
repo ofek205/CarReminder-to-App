@@ -29,6 +29,14 @@ export type SecurityEvent =
   | 'rate_limit_error'
   | 'ssrf_rejected'
   | 'payload_rejected'
+  // send-email: a non-admin tried the admin_direct path, or admin status
+  // could not be resolved. Both were emitted before they were declared here.
+  | 'admin_direct_blocked'
+  | 'admin_check_failed'
+  // send-email recipient policy (audit F2). `monitor` = would have blocked but
+  // sent anyway; `blocked` = refused because SEND_EMAIL_RECIPIENT_POLICY=enforce.
+  | 'recipient_policy_monitor'
+  | 'recipient_policy_blocked'
   // Emitted by admin-impersonate on every successful mint. Unlike the others
   // this is not a failure — it is the highest-privilege thing the system can
   // do, so it belongs in the same queryable stream rather than in a log line

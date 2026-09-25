@@ -20,8 +20,32 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
 import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import {
+  DEFAULT_FROM,
+  RECENT_INVITE_WINDOW_MS,
+  normalizeRecipients,
+  isSingleAddress,
+  isOwnDomainAddress,
+  sanitizeFrom,
+  userNotificationKey,
+  recipientRelated,
+  resolvePolicyMode,
+  ilikeExact,
+  type RecipientEvidence,
+} from '../_shared/emailPolicy.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+
+// Recipient policy for NON-admin callers (audit F2, 2026-09-25). Rolls out in
+// two steps so no legitimate email can silently stop:
+//   monitor (default) — every send a non-admin makes to an address none of
+//                       the five legitimate flows explains is recorded in
+//                       app_errors, and still sent.
+//   enforce           — the same sends are refused with 403.
+// Set the SEND_EMAIL_RECIPIENT_POLICY secret to `enforce` only after the
+// monitor period shows no false positives from real flows. Anything other than
+// the exact word `enforce` stays in monitor (see resolvePolicyMode).
+const RECIPIENT_POLICY = resolvePolicyMode(Deno.env.get('SEND_EMAIL_RECIPIENT_POLICY'));
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') || '';
 const SERVICE_ROLE   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
@@ -37,9 +61,66 @@ const supabaseAdmin = SUPABASE_URL && SERVICE_ROLE
   ? createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
-// Default sender — uses the verified Resend domain (car-reminder.app).
-// Override per-call by passing `from` in the request body.
-const DEFAULT_FROM = 'CarReminder <no-reply@car-reminder.app>';
+// Default sender (DEFAULT_FROM) now lives in _shared/emailPolicy.ts so the
+// policy and the send use one value. Admins may still override `from`;
+// non-admins are held to the car-reminder.app domain by sanitizeFrom().
+
+// Answers "which legitimate flow explains this non-admin send?". Each lookup
+// mirrors a row the client's own RPC wrote moments before sending the email
+// (verified against the live schema and the live RPC bodies on 2026-09-25):
+//   vehicle_shares     owner_user_id = caller, shared_with_email, pending|accepted
+//   vehicle_transfers  from_user_id  = caller, to_email, pending
+//   account_members    invited_by    = caller, status 'ממתין', just now   (unbound)
+//   invites            invited_by_user_id = caller, status 'פעיל', just now (unbound)
+// The two invite checks cannot be tied to the exact address: `invites` has no
+// email column at all, and binding a pending member would need an auth.users
+// lookup. They only require the caller to have created an invite moments ago,
+// which any account owner can do on purpose. See RECENT_INVITE_WINDOW_MS for
+// what closes that gap. Shares and transfers ARE matched to the exact address.
+async function gatherRecipientEvidence(
+  uid: string,
+  userEmail: string | undefined,
+  recipient: string,
+): Promise<{ evidence: RecipientEvidence; error: string | null }> {
+  const r = recipient.trim().toLowerCase();
+  const evidence: RecipientEvidence = {
+    isSelf: false, share: false, transfer: false, pendingMember: false, recentInvite: false,
+  };
+  if (userEmail && userEmail.trim().toLowerCase() === r) {
+    evidence.isSelf = true;
+    return { evidence, error: null };
+  }
+
+  // Case-insensitive but exact: older share rows may predate lowercasing.
+  const pattern = ilikeExact(r);
+  const since = new Date(Date.now() - RECENT_INVITE_WINDOW_MS).toISOString();
+
+  let shareQ = supabaseAdmin!.from('vehicle_shares').select('id')
+    .eq('owner_user_id', uid).in('status', ['pending', 'accepted']);
+  shareQ = pattern === null ? shareQ.eq('shared_with_email', r) : shareQ.ilike('shared_with_email', pattern);
+
+  let transferQ = supabaseAdmin!.from('vehicle_transfers').select('id')
+    .eq('from_user_id', uid).eq('status', 'pending');
+  transferQ = pattern === null ? transferQ.eq('to_email', r) : transferQ.ilike('to_email', pattern);
+
+  const memberQ = supabaseAdmin!.from('account_members').select('id')
+    .eq('invited_by', uid).eq('status', 'ממתין').gte('joined_at', since);
+
+  const inviteQ = supabaseAdmin!.from('invites').select('id')
+    .eq('invited_by_user_id', uid).eq('status', 'פעיל').gte('created_at', since);
+
+  const [share, transfer, member, invite] = await Promise.all([
+    shareQ.limit(1), transferQ.limit(1), memberQ.limit(1), inviteQ.limit(1),
+  ]);
+
+  evidence.share = (share.data?.length ?? 0) > 0;
+  evidence.transfer = (transfer.data?.length ?? 0) > 0;
+  evidence.pendingMember = (member.data?.length ?? 0) > 0;
+  evidence.recentInvite = (invite.data?.length ?? 0) > 0;
+
+  const firstErr = [share, transfer, member, invite].find((q) => q.error)?.error;
+  return { evidence, error: firstErr ? firstErr.message : null };
+}
 
 // CORS — whitelist explicit origins instead of `*`. The JWT gate already
 // blocks unauthenticated callers, but a wildcard origin means any page on
@@ -159,17 +240,102 @@ serve(async (req) => {
   // a non-admin could still send emails that look like admin messages.
   // Audit finding C-1 (2026-05-27): the original code logged the block but
   // continued to send the email — missing `return`.
+  //
+  // Admin status is resolved once here and reused by the recipient policy
+  // below. If it cannot be resolved the caller is treated as NON-admin, which
+  // is the restrictive side; admin_direct still fails closed exactly as before.
+  let isAdmin = false;
+  let adminCheckError: string | null = null;
+  try {
+    const { data: isAdminFlag, error: adminErr } = await supabaseAdmin!.rpc('is_admin', { uid: user.id });
+    if (adminErr) adminCheckError = adminErr.message;
+    else isAdmin = !!isAdminFlag;
+  } catch (adminCheckErr) {
+    adminCheckError = (adminCheckErr as Error)?.message || 'is_admin threw';
+  }
+
   if (notification_key === 'admin_direct') {
-    try {
-      const { data: isAdminFlag } = await supabaseAdmin!.rpc('is_admin', { uid: user.id });
-      if (!isAdminFlag) {
-        logSecurityEvent('send-email', 'admin_direct_blocked', { user_id: user.id, recipient_user_id });
-        return json({ error: 'admin_direct requires admin privileges' }, 403, req);
-      }
-    } catch (adminCheckErr) {
+    if (adminCheckError) {
       // Fail closed — if we can't verify admin status, block the send.
-      logSecurityEvent('send-email', 'admin_check_failed', { user_id: user.id, error: (adminCheckErr as Error)?.message });
+      logSecurityEvent('send-email', 'admin_check_failed', { user_id: user.id, error: adminCheckError });
       return json({ error: 'admin verification failed' }, 500, req);
+    }
+    if (!isAdmin) {
+      logSecurityEvent('send-email', 'admin_direct_blocked', { user_id: user.id, recipient_user_id });
+      return json({ error: 'admin_direct requires admin privileges' }, 403, req);
+    }
+  }
+
+  // ── Non-admin send policy (audit F2) ──────────────────────────────────
+  // Admins are exempt and keep today's behaviour exactly: their own `from`,
+  // any recipients, any notification key.
+  let sendTo: string[] = (Array.isArray(to) ? to : [to]) as string[];
+  let sendFrom = from || DEFAULT_FROM;
+  let sendReplyTo = reply_to;
+  let logKey = notification_key && typeof notification_key === 'string' ? notification_key : 'system_alert';
+
+  if (!isAdmin) {
+    // ENFORCED NOW. Every legitimate non-admin flow sends to exactly one
+    // address, so this cannot affect a real email. It caps a relay attempt
+    // at one victim per request instead of fifty.
+    const recipients = normalizeRecipients(to);
+    if (!recipients || recipients.length !== 1 || !isSingleAddress(recipients[0])) {
+      logSecurityEvent('send-email', 'payload_rejected', {
+        user_id: user.id,
+        reason: 'recipient_shape',
+        count: recipients ? recipients.length : null,
+      });
+      return json({ error: 'exactly one valid recipient is required' }, 400, req);
+    }
+    sendTo = recipients;
+
+    // ENFORCED NOW. No real non-admin flow passes a sender outside our domain
+    // (hand-built emails pass none, templates default to no-reply@).
+    sendFrom = sanitizeFrom(from);
+    logKey = userNotificationKey(notification_key);
+
+    // MONITOR → ENFORCE. Is this recipient explained by a legitimate flow?
+    const { evidence, error: evidenceError } = await gatherRecipientEvidence(user.id, user.email, recipients[0]);
+    const related = !evidenceError && recipientRelated(evidence);
+    const foreignReplyTo = !!reply_to && !isOwnDomainAddress(reply_to);
+
+    if (evidenceError || !related || foreignReplyTo) {
+      const reason = evidenceError ? 'lookup_error' : !related ? 'unrelated_recipient' : 'foreign_reply_to';
+      const recipientDomain = recipients[0].slice(recipients[0].lastIndexOf('@') + 1).toLowerCase();
+
+      if (RECIPIENT_POLICY === 'enforce') {
+        logSecurityEvent('send-email', 'recipient_policy_blocked', { user_id: user.id, reason, recipient_domain: recipientDomain });
+        if (evidenceError) {
+          // Same fail-closed stance as the rate limiter above.
+          return json({ error: 'recipient check unavailable' }, 503, req);
+        }
+        if (!related) {
+          return json({ error: 'recipient not allowed' }, 403, req);
+        }
+        // A foreign reply-to on an otherwise related send is dropped, not blocked.
+        sendReplyTo = undefined;
+      } else {
+        logSecurityEvent('send-email', 'recipient_policy_monitor', { user_id: user.id, reason, recipient_domain: recipientDomain });
+        // One stable message per reason, so five of the same within five
+        // minutes groups into a single error_storm admin alert.
+        await reportEdgeError({
+          fn: 'send-email',
+          action: 'recipient_policy_monitor',
+          error: new Error(`recipient_policy would block: ${reason}`),
+          severity: 'warning',
+          userId: user.id,
+          extra: {
+            mode: RECIPIENT_POLICY,
+            reason,
+            notification_key: notification_key ?? null,
+            subject: subject.slice(0, 80),
+            recipient_domain: recipientDomain,
+            evidence,
+            evidence_error: evidenceError,
+            admin_check_error: adminCheckError,
+          },
+        });
+      }
     }
   }
 
@@ -181,12 +347,12 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: from || DEFAULT_FROM,
-        to: Array.isArray(to) ? to : [to],
+        from: sendFrom,
+        to: sendTo,
         subject,
         html,
         text,
-        reply_to,
+        reply_to: sendReplyTo,
       }),
     });
 
@@ -269,12 +435,10 @@ serve(async (req) => {
     // (user_id, key, date) UNIQUE collision when the same notification
     // is queued twice in one day.
     try {
-      const key = notification_key && typeof notification_key === 'string'
-        ? notification_key
-        : 'system_alert';
-      const recipients = Array.isArray(to) ? to : [to];
-      const rows = recipients.map(r => ({
-        notification_key: key,
+      // logKey is the caller's key for admins, and the allow-listed key for
+      // everyone else (see the non-admin policy above).
+      const rows = sendTo.map(r => ({
+        notification_key: logKey,
         recipient_email: String(r),
         status:          'sent',
         message_id:      data.id || null,
