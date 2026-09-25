@@ -1,41 +1,40 @@
 /**
- * /Plans — where you stand, and what each plan includes.
+ * /Plans — where you stand, and every plan side by side.
  *
- * ⚠️ THIS IS A POSITIONING SCREEN, NOT A PRICING PAGE, and that is the
- * decision the whole layout rests on. There is no purchase button on any
- * surface: there is no checkout and no StoreKit, and a disabled button is a
- * promise that breaks on tap. So the screen's job is "where am I, and what
- * would change", in that order, and it is built to answer the first half
- * without scrolling at all.
+ * ⚠️ A DECISION SCREEN NOW, NOT AN INFORMATION SCREEN. It was built when no
+ * platform could sell anything, and its layout said so: two full cards and
+ * the tiers above folded into one line. Play can sell now, and Ofek wants the
+ * screen to encourage moving between plans, so all four plans are always on
+ * screen, in the same ascending order, for every account.
  *
- * ⚠️ EVERY NUMBER COMES FROM plan_limits. Not one limit is typed into this
- * file. §5.1 requires it so marketing and enforcement cannot contradict each
- * other, and it matters operationally: tuning a cap is an UPDATE with no
- * deploy, and a hardcoded number becomes a lie the moment that happens.
+ * ⚠️ AN ACCORDION, AND THE CLOSED ROWS ARE THE COMPARISON. Each closed row
+ * carries the three numbers that actually differ between plans (vehicles,
+ * documents, AI), in fixed-width columns under one legend, so the eye reads
+ * 5 → 15 → 30 → ללא without scrolling. One row is open at a time, and only
+ * the open row carries a price, a detail list and an action. Four full cards
+ * were ~2,000px of scrolling with four competing buttons; a table could not
+ * hold PurchaseAction's eleven states in a 70px column.
  *
- * Two card genres, because §1.1 describes two engines and they are not
- * equals. Free and the entry paid tier get FULL cards carrying all six
- * dimensions in identical positions, because free vs paid is the decision
- * almost everyone actually makes. The tiers above get COMPACT cards carrying
- * only the delta, because they are feature-identical and differ solely in
- * ceiling; four full cards would print the same feature list three times and
- * imply three new offers where there is one axis. 97.7% of personal accounts
- * never reach the second engine at all.
+ * ⚠️ EVERY NUMBER AND EVERY NAME COMES FROM plan_limits. Not one limit is
+ * typed into this file. Marketing and enforcement cannot contradict each
+ * other, and tuning a cap is an UPDATE with no deploy. A hardcoded number
+ * becomes a lie the moment that happens.
  *
- * ⚠️ NO "RECOMMENDED" BADGE, AND IT IS NOT AN OVERSIGHT. A recommendation
- * presumes an action this screen cannot offer, and worse, it is false for a
- * real segment: a static badge on the entry tier recommends a 15-vehicle
- * ceiling to the account holding 86. The entry tier earns its prominence from
- * a fact instead — it is the only plan that changes WHAT you can do, while the
- * ones above change only HOW MANY.
+ * ⚠️ "מתאים לך" IS EARNED FROM USAGE, NEVER STATIC. It appears only when the
+ * account holds 80% of a cap, and it lands on the cheapest plan that leaves
+ * 20% of headroom, so it never sends somebody straight to the edge of the
+ * next plan. There is no "הכי פופולרי": there are no subscribers yet, and a
+ * claim nothing can prove is how trust at a payment moment is lost.
  *
- * @see docs/spec-monetization-plans-v2.md §1.1, §5.1, §5.4
+ * @see docs/ux-plans-redesign.md
+ * @see docs/spec-monetization-plans-v2.md §5.1, §5.4
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Car, FileText, Sparkles, ScanLine, Share2, Briefcase, CornerDownLeft } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Car, FileText, Sparkles, CornerDownLeft } from 'lucide-react';
 import PageShell from '@/components/business/system/PageShell';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { createPageUrl } from '@/utils';
@@ -44,10 +43,15 @@ import { C } from '@/lib/designTokens';
 import usePlanCatalog from '@/hooks/usePlanCatalog';
 import useAccountPlan, { ACCOUNT_PLAN_QUERY_KEY } from '@/hooks/useAccountPlan';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import { VEHICLE_CAPACITY_QUERY_KEY } from '@/hooks/useVehicleCapacity';
+import useVehicleCapacity, { VEHICLE_CAPACITY_QUERY_KEY } from '@/hooks/useVehicleCapacity';
+import useDocumentUsage, { DOCUMENT_USAGE_QUERY_KEY } from '@/hooks/useDocumentUsage';
 import { FEATURE_USAGE_QUERY_KEY } from '@/hooks/useFeatureUsage';
-import { billingSurface, IAP, NONE } from '@/lib/billingGate';
-import { getBillingBackend, openStoreSubscriptionManagement } from '@/lib/billing';
+import { billingSurface, IAP, NONE, WEB } from '@/lib/billingGate';
+import {
+  getBillingBackend,
+  openStoreSubscriptionManagement,
+  canOpenStoreSubscriptionManagement,
+} from '@/lib/billing';
 import { PurchaseState, mayOfferPurchase } from '@/lib/billing/purchaseMachine';
 import { usePurchaseFlow } from '@/hooks/usePurchaseFlow';
 import { useFeatureFlag } from '@/lib/featureFlags';
@@ -65,43 +69,33 @@ export function capLabel(n) {
   return n === null || n === undefined ? 'ללא הגבלה' : `עד ${n}`;
 }
 
-/** "3 בחודש" / "ללא הגבלה" */
-export function monthlyLabel(n) {
-  return n === null || n === undefined ? 'ללא הגבלה' : `${n} בחודש`;
-}
-
 /**
- * The advisor row.
+ * The advisor, in full, for the open row.
  *
  * ⚠️ "להתרשמות" IS LOAD-BEARING. The free allowance is one question for the
- * lifetime of the account, not one a month, and "שאלה אחת" alone reads as a
- * monthly quota. The word carries "one off" without a sentence of
- * explanation.
+ * lifetime of the account, and "שאלה אחת" alone reads as a monthly quota.
+ *
+ * ⚠️ PAID PLANS SHOW THEIR DAILY CAP, AND THIS USED TO SAY "פתוח". That hid
+ * the 50 / 200 / 500 difference, which is one of only three things that
+ * separate the paid plans at all.
  */
 export function advisorLabel(plan) {
   const teaser = plan?.aiLifetimeTeaser;
-  if (teaser === null || teaser === undefined) return 'פתוח';
-  return teaser === 1 ? 'שאלה אחת להתרשמות' : `${teaser} שאלות להתרשמות`;
-}
-
-/** "כלול" / "לא כלול". Never a ✗: the design forbids marking free as broken. */
-export function includedLabel(b) {
-  return b ? 'כלול' : 'לא כלול';
+  if (teaser !== null && teaser !== undefined) {
+    return teaser === 1 ? 'שאלה אחת להתרשמות' : `${teaser} שאלות להתרשמות`;
+  }
+  const cap = plan?.aiDailyCap;
+  if (cap !== null && cap !== undefined) return `${cap} שאלות ביום`;
+  return 'ללא הגבלה';
 }
 
 /**
  * The note that stops this screen lying to the grandfathered accounts.
  *
  * account_plan() applies the override, so the plan a frozen user is ON says
- * "up to 10" while their app allows the 17 they actually hold. Showing the
- * catalogue value alone would contradict the app; showing only their value
- * would misdescribe the product. So the row shows the PLAN and annotates the
- * difference.
- *
- * "נשמר מהמצב הקודם" is the half that matters: without a reason, a user
- * reading 10 in the card and 17 in their account concludes one of them is a
- * bug. Words like "חריג" or "override" were rejected for implying something
- * is wrong with their account.
+ * "עד 5" while their app allows the 17 they actually hold. The row shows the
+ * PLAN and annotates the difference, and "נשמר מהמצב הקודם" is the half that
+ * matters: without a reason, a reader concludes one of the numbers is a bug.
  *
  * @param effective  the account's real ceiling (from account_plan)
  * @param catalogue  what the plan advertises
@@ -121,28 +115,11 @@ export function personalNote(effective, catalogue) {
  *
  * ⚠️ THE iOS STRING MAY NOT HINT THAT A PURCHASE EXISTS ELSEWHERE.
  * Guideline 3.1.1(a) covers prose, so "המנוי מנוהל באתר" is steering there.
- * "בגרסה הזו של האפליקציה" says temporary without pointing anywhere.
+ * "בגרסה הזו של האפליקציה" says temporary without pointing anywhere, and
+ * none of them says "בקרוב", a promise with a date nobody has.
  *
- * ⚠️ AND NONE OF THEM SAYS "בקרוב". That is a promise with a date nobody
- * has, and it costs more when it is missed than it buys now.
- *
- * These three strings now render at the TOP of the screen rather than the
- * bottom, so the reader is not walked through four cards building an intent
- * the screen then refuses. They were not reworded for the move: the page
- * subtitle gives "רכישה" its antecedent, which was the only thing the new
- * position actually needed.
- *
- * ⚠️ "המנוי מנוהל באתר" WAS REMOVED ON 2026-09-20, AND IT WAS LIVE ON THE
- * INTERNAL TRACK WHEN IT SHOULD NOT HAVE BEEN.
- *
- * It was the 'none' string, and 'none' was Android. That wording is only
- * lawful under Play's consumption-only exemption, which the app stopped
- * qualifying for the moment the Billing library shipped inside the binary.
- * Play Billing present AND an external purchase referred to is the hybrid
- * Play forbids outright. Android is now an 'iap' surface (see billingGate),
- * so it no longer reaches this branch at all, and the branch itself no
- * longer points anywhere: 'none' now means an unrecognised native platform,
- * which is the last place that should be handed a website.
+ * ⚠️ NO SURFACE NAMES A WEBSITE. Android ships Play Billing, and Play Billing
+ * present AND an external purchase referred to is the hybrid Play forbids.
  */
 export function unavailableCopy(surface) {
   if (surface === IAP)  return 'רכישה אינה זמינה בגרסה הזו של האפליקציה.';
@@ -151,44 +128,12 @@ export function unavailableCopy(surface) {
 }
 
 /**
- * The six dimensions, in the order this account should read them.
- *
- * ⚠️ THE ORDER IS DERIVED, NOT FIXED. For a business account sitting on free,
- * "ממשק עסקי: לא כלול" is the single most consequential line on the screen,
- * and as the last row it is the last thing read. It moves to the top for
- * them. Both full cards reorder together, so the vertical alignment that
- * makes the comparison readable is never broken.
- */
-export function rowOrder(isBusiness) {
-  return isBusiness
-    ? ['business', 'vehicles', 'documents', 'ai', 'plate', 'shares']
-    : ['vehicles', 'documents', 'ai', 'plate', 'shares', 'business'];
-}
-
-/** One dimension's value for one plan. Every branch goes through the helpers. */
-export function rowValue(key, plan) {
-  if (!plan) return '';
-  if (key === 'vehicles') return capLabel(plan.maxVehicles);
-  if (key === 'documents') return capLabel(plan.maxDocuments);
-  if (key === 'ai')       return advisorLabel(plan);
-  if (key === 'plate')    return monthlyLabel(plan.plateChecksPerMonth);
-  if (key === 'shares')   return capLabel(plan.maxShares);
-  if (key === 'business') return includedLabel(plan.businessUi);
-  return '';
-}
-
-/**
  * Does this plan's own name already state its price?
  *
- * ⚠️ FOUND IN THE PREVIEW, NOT BY READING THE CODE. `label_he` for the paid
- * plans is seeded as "₪9 לחודש", so a card that printed the label AND a
- * price built from price_ils_month rendered "₪9 לחודש" twice, one line under
- * the other. The free plan does not have the problem, because "חינם" states
- * the price in words.
- *
- * Checked against the label rather than hardcoded, so renaming a plan to
- * "בסיסי" in the database brings the price line back instead of silently
- * removing the price from the screen.
+ * Until the names in supabase-plans-redesign-2026-09-25.sql are applied,
+ * label_he for the paid plans IS the price ("₪9 לחודש"), and printing a price
+ * line under it rendered the price twice. Checked against the label rather
+ * than assumed, so the price line appears by itself once the names land.
  */
 export function labelStatesPrice(plan) {
   if (!plan) return false;
@@ -197,180 +142,502 @@ export function labelStatesPrice(plan) {
 }
 
 /**
- * The paid tiers worth showing ABOVE a given one.
+ * May this surface print a price taken from plan_limits?
  *
- * ⚠️ STRICTLY HIGHER, WHICH IS WHAT MAKES THE TOP-TIER CASE NEED NO SPECIAL
- * CASE. An account on the unlimited plan has nothing above it, so this
- * returns empty and the whole "more vehicles" group disappears on its own. It
- * also stops the screen offering a downgrade, which is noise on a screen with
- * no purchase.
+ * ⚠️ ONLY THE WEB. On Android the price must be Play's, because the store
+ * knows the currency, the tax and the buyer's locale, and a price that
+ * differs from the one charged is a removable offence under Play policy. On
+ * iOS no price may appear at all. So a native row with no Play product shows
+ * no price rather than our number.
  */
-export function higherTiers(paid, featured) {
-  if (!Array.isArray(paid) || !featured) return [];
-  // null is unlimited: nothing outranks it, and it outranks every number.
-  if (featured.maxVehicles === null || featured.maxVehicles === undefined) return [];
-  return paid.filter((p) => {
-    if (p.code === featured.code) return false;
-    if (p.maxVehicles === null || p.maxVehicles === undefined) return true;
-    return p.maxVehicles > featured.maxVehicles;
-  });
+export function catalogPriceAllowed(surface) {
+  return surface === WEB;
+}
+
+/** The three columns every closed row carries, in legend order. */
+export const COLUMNS = ['vehicles', 'documents', 'ai'];
+
+/**
+ * One closed-row cell. "ללא" and not "ללא הגבלה": only three letters fit a
+ * 52px column, and the legend and the open row carry the full wording.
+ *
+ * ⚠️ THE AI UNIT IS WRITTEN IN EVERY CELL, NOT IN THE LEGEND. Free has one
+ * question for life and the paid plans have a daily cap, so a shared "ליום"
+ * heading would print the free teaser as one question a day.
+ */
+export function cellValue(key, plan) {
+  if (!plan) return '';
+  if (key === 'vehicles')  return plan.maxVehicles === null ? 'ללא' : String(plan.maxVehicles);
+  if (key === 'documents') return plan.maxDocuments === null ? 'ללא' : String(plan.maxDocuments);
+  if (key === 'ai') {
+    if (plan.aiLifetimeTeaser !== null && plan.aiLifetimeTeaser !== undefined) {
+      return `${plan.aiLifetimeTeaser} בסה״כ`;
+    }
+    if (plan.aiDailyCap !== null && plan.aiDailyCap !== undefined) return `${plan.aiDailyCap} ביום`;
+    return 'ללא';
+  }
+  return '';
+}
+
+/** One open-row value, in full. */
+export function detailValue(key, plan) {
+  if (!plan) return '';
+  if (key === 'vehicles')  return capLabel(plan.maxVehicles);
+  if (key === 'documents') return capLabel(plan.maxDocuments);
+  if (key === 'ai')        return advisorLabel(plan);
+  return '';
+}
+
+/** The short form a plan's value takes inside "(במקום …)". */
+function referenceValue(key, plan) {
+  if (key === 'ai') {
+    const t = plan.aiLifetimeTeaser;
+    if (t !== null && t !== undefined) return t === 1 ? 'שאלה אחת' : `${t} שאלות`;
+    if (plan.aiDailyCap !== null && plan.aiDailyCap !== undefined) return `${plan.aiDailyCap} ביום`;
+    return 'ללא הגבלה';
+  }
+  const n = key === 'vehicles' ? plan.maxVehicles : plan.maxDocuments;
+  return n === null || n === undefined ? 'ללא הגבלה' : String(n);
+}
+
+/**
+ * "(במקום 5)" beside a value that differs from the account's current plan,
+ * or null when it does not.
+ *
+ * ⚠️ "(במקום 5)" AND NOT "+10". A positive number reads like an advert;
+ * "15 (במקום 5)" reads as a fact: this is what you have, this is what you
+ * would have. The encouragement comes from the comparison, not from words.
+ */
+export function deltaNote(key, plan, reference) {
+  if (!plan || !reference || plan.code === reference.code) return null;
+  const mine = referenceValue(key, plan);
+  const theirs = referenceValue(key, reference);
+  return mine === theirs ? null : `(במקום ${theirs})`;
+}
+
+/**
+ * The single line under the three numbers: vehicle checks, sharing, and the
+ * business interface.
+ *
+ * ⚠️ ONE LINE, NOT THREE ROWS, AND THAT IS THE WHOLE OF THE "LIGHTER" DESIGN
+ * OFEK CHOSE. These three are the same on every paid plan, so three rows each
+ * repeated them under every plan and again at the foot of the screen. Said
+ * once here, the open row keeps its button within thumb reach.
+ *
+ * ⚠️ BUSINESS ACCOUNTS READ THE BUSINESS INTERFACE FIRST. For a business
+ * account sitting on free, "בלי ממשק עסקי" is the most consequential phrase
+ * on the screen, and last in the line is the last thing read.
+ */
+export function extrasLine(plan, isBusiness = false) {
+  if (!plan) return '';
+  const plateOpen = plan.plateChecksPerMonth === null || plan.plateChecksPerMonth === undefined;
+  const sharesOpen = plan.maxShares === null || plan.maxShares === undefined;
+  const counts = plateOpen && sharesOpen
+    ? 'בדיקות רכב ושיתופים ללא הגבלה'
+    : [
+      plateOpen ? 'בדיקות רכב ללא הגבלה' : `${plan.plateChecksPerMonth} בדיקות רכב בחודש`,
+      sharesOpen ? 'שיתופים ללא הגבלה' : `${plan.maxShares} שיתופי רכב`,
+    ].join(', ');
+
+  if (plan.businessUi) {
+    return isBusiness ? `בנוסף: ממשק עסקי, ${counts}.` : `בנוסף: ${counts}, וממשק עסקי.`;
+  }
+  return isBusiness ? `בלי ממשק עסקי, ${counts}.` : `${counts}, בלי ממשק עסקי.`;
+}
+
+/** The share of a cap at which a meter turns amber and a plan is recommended. */
+export const NEAR_FULL = 0.8;
+
+/**
+ * One usage meter, or null when the number is not known.
+ *
+ * A null limit is unlimited: no bar, because a bar needs a denominator and
+ * "11 of infinity" drawn as an empty track reads as "nothing used".
+ */
+export function usageMeter(used, limit) {
+  if (used === null || used === undefined) return null;
+  if (limit === null || limit === undefined) return { used, limit: null, pct: 0, near: false };
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
+  return { used, limit, pct, near: limit <= 0 || used / limit >= NEAR_FULL };
+}
+
+/**
+ * The plan "מתאים לך" sits on, or null.
+ *
+ * Appears only when the account holds NEAR_FULL of its current vehicle or
+ * document cap. Lands on the cheapest plan above the current one where BOTH
+ * what it holds stays under NEAR_FULL of the new cap.
+ *
+ * ⚠️ THE HEADROOM RULE APPLIES TO THE TARGET TOO, AND THAT WAS A BUG FIRST.
+ * "The cheapest plan whose cap exceeds usage" sends somebody holding 12
+ * vehicles to ₪9, where 12 of 15 is already 80%, and a week later the same
+ * badge tells them to upgrade again. They get ₪19.
+ *
+ * ⚠️ AN UNKNOWN DOCUMENT COUNT IS NEITHER FULL NOR BLOCKING. Before
+ * my_document_usage() exists the recommendation runs on vehicles alone,
+ * rather than inventing a document number to decide on.
+ *
+ * @param plans    the catalogue, ascending
+ * @param current  the account's plan, with overrides applied
+ * @param usage    { vehicles, documents }, each a number or null
+ */
+export function recommendPlan(plans, current, usage) {
+  if (!Array.isArray(plans) || !current) return null;
+  const full = (used, cap) =>
+    used !== null && used !== undefined && cap !== null && cap !== undefined
+    && (cap <= 0 || used / cap >= NEAR_FULL);
+  const roomy = (used, cap) =>
+    used === null || used === undefined || cap === null || cap === undefined
+    || used < NEAR_FULL * cap;
+
+  const v = usage?.vehicles ?? null;
+  const d = usage?.documents ?? null;
+  if (!full(v, current.maxVehicles) && !full(d, current.maxDocuments)) return null;
+
+  const rank = plans.findIndex((p) => p.code === current.code);
+  if (rank < 0) return null;
+  const fit = plans.slice(rank + 1).find((p) => roomy(v, p.maxVehicles) && roomy(d, p.maxDocuments));
+  return fit ? fit.code : null;
+}
+
+/**
+ * Which row is open when the screen arrives.
+ *
+ * A recommendation opens itself. Otherwise the next step up, which for a
+ * guest or a free account is the entry paid plan; the top plan opens its own
+ * row, because there is nothing above it to show.
+ */
+export function defaultOpenCode(plans, currentCode, recCode) {
+  if (!Array.isArray(plans) || plans.length === 0) return null;
+  if (recCode && plans.some((p) => p.code === recCode)) return recCode;
+  const rank = plans.findIndex((p) => p.code === currentCode);
+  if (rank < 0) return (plans.find((p) => p.priceIlsMonth > 0) || plans[0]).code;
+  return (plans[rank + 1] || plans[rank]).code;
+}
+
+/**
+ * What the open row offers, as one word.
+ *
+ * ⚠️ A SUBSCRIBER NEVER GETS 'purchase' ON ANOTHER PLAN. purchaseProduct()
+ * has no replacement mode in our plugin, so Play treats a second tap as a NEW
+ * subscription: two live subscriptions, two charges, one account. 'manage'
+ * explains that switching is not possible yet and points at the one place a
+ * cancellation happens.
+ *
+ * ⚠️ THE ACTIVE CARD WINS OVER 'current'. The moment a purchase is granted the
+ * plan becomes current, and without this the success state would be replaced
+ * mid-sentence by "זה המסלול שלך".
+ */
+export function actionKind({ plan, isCurrent, isGuest, offering, storeManaged, isActive }) {
+  if (isGuest) return 'guest';
+  if (isActive) return 'purchase';
+  if (isCurrent) return 'current';
+  if (storeManaged) return 'manage';
+  if (offering && plan?.priceIlsMonth > 0) return 'purchase';
+  return 'none';
+}
+
+/**
+ * The sentence on a row a subscriber cannot switch to.
+ *
+ * ⚠️ IT MAY NOT PROMISE A SWITCH, AND TWO EARLIER STRINGS DID. Play's
+ * subscription centre offers cancel, resume, pause and payment method, never
+ * a move between products, and a move started in the app needs a replacement
+ * mode our plugin does not have.
+ */
+export function manageNote(target) {
+  if (target?.priceIlsMonth === 0) {
+    return 'כדי לחזור לחינם מבטלים את המנוי ב-Google Play. המסלול הנוכחי נשאר פעיל עד סוף התקופה ששולמה.';
+  }
+  return 'עדיין אי אפשר לעבור מסלול מתוך האפליקציה. מבטלים ב-Google Play, ובסוף התקופה ששולמה בוחרים כאן את המסלול החדש.';
+}
+
+/**
+ * Does Google hold a live subscription for this account right now?
+ *
+ * ⚠️ GATED ON THE SOURCE, NOT ON "is on a paid plan". An admin grant also
+ * puts an account on p19, and sending that person to Play would open a
+ * subscriptions list their plan is not in.
+ *
+ * ⚠️ AND ON THE PLAN BEING PAID, OR AN EXPIRED SUBSCRIBER COULD NEVER BUY
+ * AGAIN. The subscription row keeps source 'iap_google' after the period
+ * ends; account_plan() drops the account to free (the expiry fix, ledger 31)
+ * but the source stays. Keyed on source alone, that person would be told
+ * forever that switching is not possible, with nothing live to switch from.
+ */
+export function isStoreManaged(subscription, plan) {
+  return subscription?.source === 'iap_google' && plan?.priceIlsMonth > 0;
+}
+
+/** The sentence on the account's own row. */
+export function currentNote(plan, storeManaged) {
+  return storeManaged && plan?.priceIlsMonth > 0
+    ? 'זה המסלול שלך. ביטול ושינוי אמצעי תשלום נעשים ב-Google Play.'
+    : 'זה המסלול שלך כרגע.';
 }
 
 // ── presentation ────────────────────────────────────────────────────────
 
-const ROW_META = {
-  vehicles:  { icon: Car,      label: 'כלי תחבורה' },
-  documents: { icon: FileText, label: 'מסמכים שמורים' },
-  ai:       { icon: Sparkles,  label: 'מומחה AI' },
-  plate:    { icon: ScanLine,  label: 'בדיקת רכב' },
-  shares:   { icon: Share2,    label: 'שיתוף רכבים' },
-  business: { icon: Briefcase, label: 'ממשק עסקי' },
+const COLUMN_META = {
+  vehicles:  { icon: Car,      label: 'כלי תחבורה', detail: 'כלי תחבורה',     chip: C.light },
+  documents: { icon: FileText, label: 'מסמכים',     detail: 'מסמכים שמורים', chip: C.light },
+  // Yellow because the AI expert already wears it: a green sparkle on a
+  // yellow tile is its avatar across the app.
+  ai:        { icon: Sparkles, label: 'מומחה AI',   detail: 'מומחה AI',      chip: C.yellow },
 };
+
+/**
+ * Keeps the legend and every closed row on the same five tracks.
+ *
+ * ⚠️ THE NUMBER TRACKS ARE AS NARROW AS THEIR WIDEST VALUE, FOUND IN THE
+ * PREVIEW. Inside PageShell a row is about 283px wide, and wider tracks left
+ * the name 63px, so "₪19 לחודש" broke over two lines and "ללא הגבלה" would
+ * too. "ללא" and "40" fit 44px; "200 ביום" fits 60px.
+ */
+const ROW_GRID = 'grid grid-cols-[22px_minmax(0,1fr)_44px_44px_60px] gap-1 items-center';
 
 /** Numerals stay LTR inside Hebrew, or "₪9" renders reversed. */
 function Num({ children }) {
   return <span dir="ltr" className="tabular-nums">{children}</span>;
 }
 
-/** A pill. Only ever one per screen, on the card that describes this account. */
-function Badge({ children, muted }) {
+function Chip({ column, size = 24 }) {
+  const meta = COLUMN_META[column];
+  const Icon = meta.icon;
   return (
     <span
-      className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold${muted ? '' : ' text-white'}`}
-      style={muted ? { background: C.gray100, color: C.gray700 } : { background: C.primary }}
+      aria-hidden="true"
+      className="inline-flex items-center justify-center rounded-full shrink-0"
+      style={{ width: size, height: size, background: meta.chip }}
     >
-      {children}
+      <Icon style={{ width: size * 0.58, height: size * 0.58, color: C.primary }} />
     </span>
   );
 }
 
 /**
- * A full plan card: the six dimensions as a definition list.
- *
- * `accent` colours the VALUES, not the card chrome. That is the whole
- * mechanism that gives the paid tier its lift without a badge and without
- * painting free as broken: same size, same rows, same weight, warmer values.
+ * The two badges, told apart by colour as well as by word: blue says "this
+ * is where you are", yellow says "this is what we suggest". Both green, as
+ * they were, they read as one badge said twice.
  */
-function PlanCard({ plan, order, accent, current, badge, note, action }) {
+function CurrentBadge() {
   return (
-    <section
-      className={`rounded-3xl shadow-sm p-5${accent ? '' : ' bg-white'}`}
-      style={{
-        background: accent ? C.bgSubtle : undefined,
-        boxShadow: current ? `0 0 0 2px ${C.primary}` : undefined,
-      }}
-      aria-label={plan.labelHe}
+    <span
+      className="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap"
+      style={{ background: C.infoBg, color: C.infoDark }}
     >
-      <header className="pb-3">
-        <p className="text-[17px] font-bold" style={{ color: accent ? C.primary : C.gray800 }}>
-          {plan.labelHe}
-        </p>
-        {!labelStatesPrice(plan) && (
-          <p className="text-[13px] mt-0.5" style={{ color: C.gray500 }}>
-            <Num>₪{plan.priceIlsMonth}</Num> לחודש
-          </p>
-        )}
-        {badge && <span className="inline-block mt-2"><Badge muted={!current}>{badge}</Badge></span>}
-      </header>
+      המסלול שלך
+    </span>
+  );
+}
 
-      <dl className="divide-y border-t" style={{ borderColor: accent ? C.gray200 : C.gray100 }}>
-        {order.map((key) => {
-          const meta = ROW_META[key];
-          const Icon = meta.icon;
-          return (
-            <div key={key} className="py-3" style={{ borderColor: accent ? C.gray200 : C.gray100 }}>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="flex items-center gap-2 min-w-0">
-                  <Icon className="h-4 w-4 shrink-0" style={{ color: C.gray500 }} aria-hidden="true" />
-                  <span className="text-[13px] font-semibold truncate" style={{ color: C.gray500 }}>
-                    {meta.label}
-                  </span>
-                </dt>
-                <dd
-                  className="text-[15px] font-bold tabular-nums text-end shrink-0"
-                  style={{ color: accent ? C.primary : C.gray800 }}
-                >
-                  {rowValue(key, plan)}
-                </dd>
-              </div>
-              {key === 'vehicles' && note && (
-                <p
-                  className="text-[12px] mt-1.5 flex items-start gap-1 leading-snug"
-                  style={{ color: C.primary }}
-                >
-                  <CornerDownLeft className="h-3 w-3 shrink-0 mt-0.5 rtl:rotate-180" aria-hidden="true" />
-                  <span>{note}</span>
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </dl>
-      {action}
+function FitsBadge() {
+  return (
+    <span
+      className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap"
+      style={{ background: C.yellow, color: C.text }}
+    >
+      מתאים לך
+    </span>
+  );
+}
+
+function Meter({ label, meter }) {
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <div className="flex items-baseline justify-between gap-1.5">
+        <span className="text-[12px]" style={{ color: C.gray500 }}>{label}</span>
+        <span
+          className="text-[13px] font-medium whitespace-nowrap"
+          style={{ color: meter.near ? C.warnDark : C.gray800 }}
+        >
+          {meter.limit === null
+            ? <><Num>{meter.used}</Num> · ללא הגבלה</>
+            : <><Num>{meter.used}</Num> מתוך <Num>{meter.limit}</Num></>}
+        </span>
+      </div>
+      {meter.limit !== null && (
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: C.border }} aria-hidden="true">
+          <div
+            className="h-1.5 rounded-full"
+            style={{ width: `${meter.pct}%`, background: meter.near ? C.warnMid : C.primary }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Where you stand": the plan, and how full it is. The screen's first read. */
+function StatusStrip({ plan, meters }) {
+  return (
+    <section className="rounded-2xl px-3.5 pt-3 pb-3.5 space-y-2.5" style={{ background: C.light }} aria-label="המסלול שלך">
+      <p className="text-[14px]" style={{ color: C.gray800 }}>
+        המסלול שלך: <span className="font-bold" style={{ color: C.primary }}>{plan.labelHe}</span>
+      </p>
+      {meters.length > 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          {meters.map((m) => <Meter key={m.label} label={m.label} meter={m.meter} />)}
+        </div>
+      )}
     </section>
   );
 }
 
-/**
- * A higher tier: price and ceiling, and deliberately nothing else.
- *
- * The group heading directly above already says the features are identical.
- * Repeating that inside each card would state one fact three times in one
- * screen, which is the duplication this whole layout exists to avoid. A card
- * holding only the delta IS the statement that there is nothing more to it.
- */
-function TierCard({ plan, current, action }) {
+function Legend() {
   return (
-    <section
-      className="rounded-2xl bg-white shadow-sm px-4 py-3.5"
-      style={{ boxShadow: current ? `0 0 0 2px ${C.primary}` : undefined }}
+    <div className={`${ROW_GRID} px-3.5 text-[11px] leading-tight text-center`} style={{ color: C.gray500 }} aria-hidden="true">
+      <span />
+      <span />
+      {COLUMNS.map((key) => (
+        <span key={key} className="flex flex-col items-center gap-1">
+          <Chip column={key} />
+          <span>{COLUMN_META[key].label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ClosedRow({ plan, isCurrent, isRec, price, priceLoading, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-expanded="false"
+      className={`${ROW_GRID} w-full min-h-[56px] px-3.5 py-2 rounded-2xl bg-white border text-right`}
+      style={{ borderColor: C.gray200, color: C.gray800 }}
+    >
+      <span
+        aria-hidden="true"
+        className="justify-self-center w-[18px] h-[18px] rounded-full border-2"
+        style={{ borderColor: C.gray400 }}
+      />
+      <span className="flex flex-col gap-0.5 min-w-0">
+        <span className="flex flex-wrap items-center gap-1">
+          <span className="text-[15px] font-bold">{plan.labelHe}</span>
+          {isCurrent && <CurrentBadge />}
+          {isRec && <FitsBadge />}
+        </span>
+        {price && (
+          <span className="text-[12px]" style={{ color: C.gray500 }}><Num>{price}</Num> לחודש</span>
+        )}
+        {priceLoading && (
+          <span className="block h-2.5 w-14 rounded animate-pulse" style={{ background: C.gray200 }} aria-hidden="true" />
+        )}
+      </span>
+      {COLUMNS.map((key) => (
+        <span key={key} className={`${key === 'ai' ? 'text-[12px]' : 'text-[14px]'} font-medium text-center tabular-nums`}>
+          {cellValue(key, plan)}
+        </span>
+      ))}
+    </button>
+  );
+}
+
+function ManageBlock({ note, canOpen }) {
+  return (
+    <div className="space-y-2.5">
+      <p className="text-[13px] leading-relaxed" style={{ color: C.gray700 }}>{note}</p>
+      {canOpen && (
+        <button
+          type="button"
+          onClick={openStoreSubscriptionManagement}
+          className="w-full h-12 rounded-2xl text-[15px] font-bold bg-white"
+          style={{ color: C.primary, border: `1.5px solid ${C.primary}` }}
+        >
+          ניהול המנוי ב-Google Play
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, vehicleNote, action, reduceMotion, rowRef }) {
+  const extrasGain = gain && reference?.priceIlsMonth === 0 && plan.priceIlsMonth > 0;
+  return (
+    // ⚠️ TRANSFORM ONLY, NEVER OPACITY. Found in the preview: the animation
+    // timeline there stood still, and a fade frozen part-way left the open
+    // row, its price and its button at 57% opacity. A stalled slide costs
+    // six pixels; a stalled fade hides the one control on the screen.
+    <motion.section
+      ref={rowRef}
+      initial={reduceMotion ? false : { y: 6 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="rounded-3xl p-3.5 shadow-sm space-y-3"
+      style={{ background: C.bgSubtle, boxShadow: `0 0 0 2px ${C.primary}` }}
       aria-label={plan.labelHe}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          {/* The label, not a price rebuilt from the number. Two sources for
-              one string is how they drift. */}
-          <p className="text-[15px] font-bold" style={{ color: C.gray800 }}>
-            {plan.labelHe}
-          </p>
-          {current && <span className="inline-block mt-1.5"><Badge>המסלול שלך</Badge></span>}
+      <header className="space-y-0.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="w-[18px] h-[18px] rounded-full bg-white shrink-0"
+            style={{ border: `5px solid ${C.primary}` }}
+          />
+          <span className="text-[18px] font-bold" style={{ color: C.gray800 }}>{plan.labelHe}</span>
+          {isCurrent && <CurrentBadge />}
+          {isRec && <FitsBadge />}
         </div>
-        <p className="text-[15px] font-bold tabular-nums shrink-0" style={{ color: C.gray800 }}>
-          {capLabel(plan.maxVehicles)}
+        {price && (
+          <p className="text-[13px] ps-7" style={{ color: C.gray500 }}><Num>{price}</Num> לחודש</p>
+        )}
+      </header>
+
+      <div className="space-y-2">
+        <dl className="bg-white rounded-2xl px-3 divide-y" style={{ borderColor: C.gray100 }}>
+          {COLUMNS.map((key) => {
+            const delta = deltaNote(key, plan, reference);
+            const emphasised = gain && !!delta;
+            return (
+              <div key={key} className="py-2.5" style={{ borderColor: C.gray100 }}>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="flex items-center gap-2 min-w-0 text-[13px]" style={{ color: C.gray500 }}>
+                    <Chip column={key} size={22} />
+                    <span className="truncate">{COLUMN_META[key].detail}</span>
+                  </dt>
+                  <dd className="flex items-baseline gap-1.5 shrink-0 text-end">
+                    <span
+                      className={`text-[14px] tabular-nums ${emphasised ? 'font-bold' : ''}`}
+                      style={{ color: emphasised ? C.primary : C.gray800 }}
+                    >
+                      {detailValue(key, plan)}
+                    </span>
+                    {delta && <span className="text-[12px]" style={{ color: C.gray500 }}>{delta}</span>}
+                  </dd>
+                </div>
+                {key === 'vehicles' && vehicleNote && (
+                  <p className="text-[12px] mt-1.5 flex items-start gap-1 leading-snug" style={{ color: C.primary }}>
+                    <CornerDownLeft className="h-3 w-3 shrink-0 mt-0.5 rtl:rotate-180" aria-hidden="true" />
+                    <span>{vehicleNote}</span>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </dl>
+        <p
+          className={`text-[13px] leading-snug px-0.5 ${extrasGain ? 'font-medium' : ''}`}
+          style={{ color: extrasGain ? C.primary : C.gray500 }}
+        >
+          {extrasLine(plan, isBusiness)}
         </p>
       </div>
+
       {action}
-    </section>
+    </motion.section>
   );
 }
 
 function SkeletonScreen() {
   // The structure is known before the data is, so the structure is delivered
   // first. A spinner says "something is happening"; this says what.
-  const bar = (w) => (
-    <div className={`h-4 ${w} rounded animate-pulse`} style={{ background: C.gray100 }} />
-  );
   return (
-    <div className="space-y-4" aria-hidden="true">
-      {[0, 1].map((card) => (
-        <div key={card} className="bg-white rounded-3xl shadow-sm p-5">
-          <div className="flex justify-between pb-3">
-            {bar('w-20')}
-            {bar('w-14')}
-          </div>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="py-3 border-t flex justify-between" style={{ borderColor: C.gray100 }}>
-              {bar('w-24')}
-              {bar('w-16')}
-            </div>
-          ))}
-        </div>
-      ))}
-      {[0, 1].map((i) => (
-        <div key={i} className="bg-white rounded-2xl shadow-sm px-4 py-3.5 flex justify-between">
-          {bar('w-16')}
-          {bar('w-16')}
-        </div>
+    <div className="space-y-3.5" aria-hidden="true">
+      <div className="h-[86px] rounded-2xl animate-pulse" style={{ background: C.light }} />
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="h-14 rounded-2xl bg-white border animate-pulse" style={{ borderColor: C.gray200 }} />
       ))}
     </div>
   );
@@ -380,16 +647,12 @@ function SkeletonScreen() {
  * Hand the purchase token to the server, which asks Google about it.
  *
  * ⚠️ IT RETURNS `data.granted`, NOT "the call succeeded". The function
- * answers HTTP 200 with `granted:false` for every rejection, deliberately, so
- * a declined or expired subscription is a normal answer rather than a
- * transport error. Treating a 200 as success would grant a plan on the
- * strength of having reached the server.
+ * answers HTTP 200 with `granted:false` for every rejection, deliberately.
  *
  * ⚠️ AND ANY FAILURE HERE RESOLVES TO PENDING, NOT FAILED. By the time this
- * runs the card is charged. Telling that user their payment failed is the one
- * message this whole flow is built to avoid, so the machine treats a throw,
- * a rejection and a timeout identically: the money arrived, activation is
- * late. See lib/billing/purchaseMachine.afterVerification.
+ * runs the card is charged, so a throw, a rejection and a timeout all mean
+ * the same thing: the money arrived, activation is late. See
+ * lib/billing/purchaseMachine.afterVerification.
  */
 async function verifyPurchase({ purchaseToken, productId, accountId }) {
   const { data, error } = await supabase.functions.invoke('verify-play-purchase', {
@@ -404,19 +667,18 @@ export default function Plans() {
   const { plan: currentPlan, subscription, graceDaysLeft, isGuest } = useAccountPlan();
   const { isBusiness } = useWorkspaceRole();
   const { accountId } = useAccountRole();
+  const capacity = useVehicleCapacity();
+  const documents = useDocumentUsage();
   const surface = billingSurface();
+  const reduceMotion = useReducedMotion();
 
-  // ⚠️ ABOVE THE EARLY RETURNS, AND eslint CAUGHT ME PUTTING THEM BELOW.
-  // The loading and error branches return before the cards render, so hooks
-  // placed after them run on some renders and not others. That is the exact
-  // class react-hooks/rules-of-hooks exists to stop, and CLAUDE.md records a
-  // production break from the same family.
+  // ⚠️ EVERY HOOK SITS ABOVE THE EARLY RETURNS. The loading and error
+  // branches return before the rows render, so a hook placed after them runs
+  // on some renders and not others, the class react-hooks/rules-of-hooks
+  // exists to stop.
   //
-  // ⚠️ AND THE INVARIANT THIS WHOLE WIRING RESTS ON: with the flag off the
-  // screen must render exactly what it rendered before purchase existed.
-  // Everything new is behind `offering`, which is false for every account
-  // today, because mayOfferPurchase also needs a backend and Android native
-  // has none until the Play plugin is installed.
+  // ⚠️ AND WITH THE FLAG OFF NOTHING CAN BE BOUGHT. Everything that sells is
+  // behind `offering`, which also needs a billing backend on this platform.
   const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
   const offering = mayOfferPurchase(billingFlag, getBillingBackend() !== null);
 
@@ -424,19 +686,13 @@ export default function Plans() {
    * ⚠️ WITHOUT THIS, PAYING US CHANGED NOTHING THE USER COULD SEE.
    *
    * The grant lands in the database, but useAccountPlan holds a 60-second
-   * staleTime and nothing told React Query the world had moved. The card
-   * flipped to "המסלול שלך" while isCurrent() twelve lines below still
-   * matched the free plan, so ONE SCREEN showed two different answers to
-   * "which plan am I on", and /MyPlan showed the free one too.
-   *
-   * Every key that reads an entitlement is invalidated, not just the plan:
-   * the caps and the usage meters are all derived from it, and a refreshed
-   * plan sitting next to a stale "4 מתוך 5" is the same contradiction one
-   * level down.
+   * staleTime. Every key that reads an entitlement is invalidated, not just
+   * the plan: a refreshed plan beside a stale "4 מתוך 5" is the same
+   * contradiction one level down.
    */
   const queryClient = useQueryClient();
   const onGranted = useCallback(() => {
-    [ACCOUNT_PLAN_QUERY_KEY, VEHICLE_CAPACITY_QUERY_KEY, FEATURE_USAGE_QUERY_KEY]
+    [ACCOUNT_PLAN_QUERY_KEY, VEHICLE_CAPACITY_QUERY_KEY, DOCUMENT_USAGE_QUERY_KEY, FEATURE_USAGE_QUERY_KEY]
       .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
   }, [queryClient]);
 
@@ -447,8 +703,20 @@ export default function Plans() {
     onGranted,
   });
 
+  // The open row is the user's choice once they have made one, and the
+  // derived default until then, so the default can still follow the data as
+  // the plan and the counts arrive.
+  const [picked, setPicked] = useState(null);
+  const [scrollTo, setScrollTo] = useState(false);
+  const openRef = useRef(null);
+  useEffect(() => {
+    if (!scrollTo || !openRef.current) return;
+    openRef.current.scrollIntoView?.({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    setScrollTo(false);
+  }, [scrollTo, reduceMotion]);
+
+  const plans = catalog.plans;
   const free = catalog.free;
-  const paid = catalog.paid;
 
   if (catalog.isLoading) {
     return (
@@ -472,91 +740,102 @@ export default function Plans() {
     );
   }
 
-  const isOnPaid = !isGuest && !!currentPlan && currentPlan.priceIlsMonth > 0;
+  const known = !isGuest && !!currentPlan;
+  const reference = known ? (plans.find((p) => p.code === currentPlan.code) || null) : null;
+  const currentRank = reference ? plans.indexOf(reference) : -1;
+  const onTopPlan = known && currentPlan.priceIlsMonth > 0 && currentRank === plans.length - 1;
 
-  // The paid tier that gets the full card: the account's own when it has one,
-  // otherwise the entry tier. So a paying account reads its own plan in full
-  // rather than reading about the tier below it.
-  const featured = (isOnPaid && paid.find((p) => p.code === currentPlan.code)) || paid[0] || null;
-  const others   = higherTiers(paid, featured);
-  const onTopPlan = isOnPaid && currentPlan.maxVehicles === null;
+  // ⚠️ NULL UNTIL THE SERVER HAS ANSWERED. useVehicleCapacity reports a
+  // count of 0 while its query is still disabled (no accountId yet), and a
+  // meter reading "0 מתוך 5" for a moment is a fabricated number.
+  const vehiclesHeld = known && accountId && !capacity.isLoading && !capacity.isError
+    ? capacity.count : null;
 
-  const isCurrent = (p) => !isGuest && !!currentPlan && p?.code === currentPlan.code;
+  const meters = [];
+  if (known) {
+    const v = usageMeter(vehiclesHeld, currentPlan.maxVehicles);
+    if (v) meters.push({ label: 'כלי תחבורה', meter: v });
+    const d = usageMeter(documents.count, currentPlan.maxDocuments);
+    if (d) meters.push({ label: 'מסמכים', meter: d });
+  }
 
-  // The override note belongs to the card the account is actually on, and
-  // only where the effective ceiling really differs from what that plan
-  // advertises.
-  const noteFor = (p) => {
-    if (!isCurrent(p)) return null;
-    return personalNote(currentPlan.maxVehicles, p.maxVehicles);
+  const recCode = known
+    ? recommendPlan(plans, currentPlan, { vehicles: vehiclesHeld, documents: documents.count })
+    : null;
+  const openCode = picked && plans.some((p) => p.code === picked)
+    ? picked
+    : defaultOpenCode(plans, known ? currentPlan.code : null, recCode);
+
+  const storeManaged = isStoreManaged(subscription, known ? currentPlan : null);
+  const canOpenManagement = canOpenStoreSubscriptionManagement();
+
+  const priceFor = (p) => {
+    if (p.priceIlsMonth === 0) return null;
+    if (offering) return products.find((x) => x.planCode === p.code)?.priceFormatted || null;
+    if (catalogPriceAllowed(surface) && !labelStatesPrice(p)) return `₪${p.priceIlsMonth}`;
+    return null;
   };
 
-  const order = rowOrder(isBusiness);
-
-  // Two full cards. The account's own comes first, so "where do I stand" is
-  // answered without scrolling. For every account today that is free anyway,
-  // which is why this costs nothing and covers the paid case for free.
-  const fullCards = isOnPaid && featured ? [featured, free] : [free, featured];
-
-  /**
-   * The action strip for one plan.
-   *
-   * ⚠️ THE PRICE COMES FROM PLAY AND IS NEVER REBUILT FROM plan_limits. The
-   * number in our table is internal bookkeeping; the store knows the currency,
-   * the tax treatment and the buyer's locale. Showing a price that differs
-   * from the one charged is a removable offence under Play policy, not a
-   * cosmetic bug, so a plan with no matching Play product renders as
-   * UNAVAILABLE, which shows no price and no control at all.
-   */
   const actionFor = (p) => {
-    const product = products.find((x) => x.planCode === p.code);
-    // Only the card being acted on shows the busy state. Without this, tapping
-    // one plan would spin every button on the screen.
-    const isActive = product && product.productId === activeProductId;
-    const stateForCard = isActive ? purchaseState
-      : purchaseState === PurchaseState.LOADING_PRODUCTS ? PurchaseState.LOADING_PRODUCTS
-      : !product ? PurchaseState.UNAVAILABLE
-      : PurchaseState.IDLE;
+    const product = offering ? products.find((x) => x.planCode === p.code) : null;
+    // Only the row being acted on shows the busy state.
+    const isActive = !!product && product.productId === activeProductId;
+    const kind = actionKind({
+      plan: p, isCurrent: known && p.code === currentPlan.code, isGuest, offering, storeManaged, isActive,
+    });
 
-    /**
-     * ⚠️ A SECOND PURCHASE WAS ONE TAP AWAY, ON EVERY OTHER CARD.
-     *
-     * Nothing here asked whether the account was already subscribed, so once
-     * a purchase landed, the remaining paid cards kept a live "בחר מסלול"
-     * and so did the card for the plan the user had just bought. Tapping any
-     * of them calls purchaseProduct() with no replacement mode, which Play
-     * treats as a NEW subscription rather than a change: two live
-     * subscriptions, two charges, one account.
-     *
-     * ⚠️ GATED ON source === 'iap_google', NOT ON "is on a paid plan".
-     * An admin grant also puts an account on p19, and sending that person to
-     * Play would open a subscriptions list their plan is not in. The source
-     * column is the only thing that actually says "Google holds this
-     * relationship", and useAccountPlan already reads it.
-     */
-    const storeManaged = subscription?.source === 'iap_google';
-    const manage = storeManaged && !!product && !isActive;
+    if (kind === 'guest') {
+      return (
+        <div className="space-y-2.5">
+          <p className="text-[13px] leading-relaxed" style={{ color: C.gray700 }}>
+            אחרי הרשמה בחינם תוכל לבחור מסלול.
+          </p>
+          <Link
+            to={createPageUrl('Auth')}
+            className="flex items-center justify-center w-full h-12 rounded-2xl text-[15px] font-bold text-white"
+            style={{ background: C.primary }}
+          >
+            הרשמה בחינם
+          </Link>
+        </div>
+      );
+    }
+    if (kind === 'current') {
+      return <ManageBlock note={currentNote(p, storeManaged)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} />;
+    }
+    if (kind === 'manage') {
+      return <ManageBlock note={manageNote(p)} canOpen={canOpenManagement} />;
+    }
+    if (kind === 'purchase') {
+      const stateForCard = isActive ? purchaseState
+        : purchaseState === PurchaseState.LOADING_PRODUCTS ? PurchaseState.LOADING_PRODUCTS
+        : !product ? PurchaseState.UNAVAILABLE
+        : PurchaseState.IDLE;
+      return (
+        <PurchaseAction
+          state={stateForCard}
+          priceFormatted={product?.priceFormatted}
+          offline={!online}
+          onBuy={() => product && buy(product.productId)}
+          onRestore={restore}
+        />
+      );
+    }
+    return null;
+  };
 
-    return (
-      <PurchaseAction
-        state={stateForCard}
-        priceFormatted={product?.priceFormatted}
-        offline={!online}
-        manage={manage}
-        onBuy={() => product && buy(product.productId)}
-        onRestore={restore}
-        onManage={openStoreSubscriptionManagement}
-      />
-    );
+  const pick = (code) => {
+    setPicked(code);
+    setScrollTo(true);
   };
 
   return (
     <PageShell
       title="המסלולים"
-      subtitle={isGuest ? 'מצב אורח' : 'מה כל מסלול כולל, ואיפה אתה עומד'}
+      subtitle={isGuest ? 'מצב אורח' : offering ? 'בחר את המסלול שמתאים לך' : 'מה כל מסלול כולל'}
       backTo="MyPlan"
     >
-      <div className="space-y-4">
+      <div className="space-y-3.5">
 
         {/* Sticky, so it survives the scrolling a worried user starts doing
             in exactly this moment. */}
@@ -565,22 +844,13 @@ export default function Plans() {
           <VerifyingBanner pending={purchaseState === PurchaseState.PENDING} />
         )}
 
-        {/* The framing line. It leads rather than closes: telling the reader
-            at the end that nothing here can be bought walks them through four
-            cards building an intent the screen then refuses. Said first, it
-            frames the screen as information, which is what it is.
-            ⚠️ And once purchase IS available the line has to go, or the screen
-            declares itself unbuyable directly above a working buy button. */}
+        {/* The framing line leads rather than closes: said at the end, it
+            walks the reader through four plans building an intent the screen
+            then refuses. ⚠️ And once purchase IS available it has to go, or
+            the screen declares itself unbuyable above a working button. */}
         {!offering && (
           <p className="text-[13px] px-1" style={{ color: C.gray500 }}>
-            {onTopPlan
-              ? 'אתה במסלול הגבוה ביותר, ללא הגבלת כלי תחבורה.'
-              : unavailableCopy(surface)}
-          </p>
-        )}
-        {offering && onTopPlan && (
-          <p className="text-[13px] px-1" style={{ color: C.gray500 }}>
-            אתה במסלול הגבוה ביותר, ללא הגבלת כלי תחבורה.
+            {onTopPlan ? 'אתה במסלול הגבוה ביותר.' : unavailableCopy(surface)}
           </p>
         )}
 
@@ -597,75 +867,54 @@ export default function Plans() {
           </div>
         )}
 
-        {isGuest && (
-          <div className="rounded-2xl p-4 bg-white shadow-sm">
-            <p className="text-[13px] leading-relaxed" style={{ color: C.gray500 }}>
-              הנתונים במצב אורח נשמרים במכשיר בלבד. אחרי הרשמה תראה כאן איפה אתה עומד.
-            </p>
-            <Link
-              to={createPageUrl('Auth')}
-              className="inline-flex items-center mt-3 px-4 font-bold rounded-xl text-white"
-              style={{ height: 44, background: C.primary, fontSize: 14 }}
-            >
-              הרשמה בחינם
-            </Link>
-          </div>
-        )}
+        {known && <StatusStrip plan={currentPlan} meters={meters} />}
 
-        {fullCards.filter(Boolean).map((p) => (
-          <PlanCard
-            key={p.code}
-            plan={p}
-            order={order}
-            accent={p.priceIlsMonth > 0}
-            current={isCurrent(p)}
-            badge={
-              isCurrent(p) ? 'המסלול שלך'
-              : (isGuest && p.priceIlsMonth === 0) ? 'כלול בהרשמה'
-              : null
+        <Legend />
+
+        <div className="space-y-2">
+          {plans.map((p, i) => {
+            const isCurrent = known && p.code === currentPlan.code;
+            const price = priceFor(p);
+            const priceLoading = offering && p.priceIlsMonth > 0 && !price
+              && purchaseState === PurchaseState.LOADING_PRODUCTS;
+            if (p.code !== openCode) {
+              return (
+                <ClosedRow
+                  key={p.code}
+                  plan={p}
+                  isCurrent={isCurrent}
+                  isRec={p.code === recCode}
+                  price={price}
+                  priceLoading={priceLoading}
+                  onOpen={() => pick(p.code)}
+                />
+              );
             }
-            note={noteFor(p)}
-            action={offering && p.priceIlsMonth > 0 ? actionFor(p) : null}
-          />
-        ))}
-
-        {/* The second engine. A heading that names its audience rather than
-            asking everyone a question: it is relevant to nine accounts and
-            would be read by seven hundred, and naming the cohort lets the
-            97.7% stop reading in one line without feeling they skipped
-            something. */}
-        {others.length > 0 && (
-          <div className="space-y-2">
-            <div className="px-1">
-              <h2 className="text-[15px] font-bold" style={{ color: C.gray800 }}>
-                למי שמנהל יותר כלי תחבורה
-              </h2>
-              <p className="text-[13px] mt-0.5 leading-relaxed" style={{ color: C.gray500 }}>
-                אותם פיצ׳רים בדיוק. משתנה רק כמה כלי תחבורה אפשר לנהל.
-              </p>
-            </div>
-            {others.map((p) => (
-              <TierCard
+            return (
+              <OpenRow
                 key={p.code}
+                rowRef={openRef}
                 plan={p}
-                current={isCurrent(p)}
-                action={offering ? actionFor(p) : null}
+                reference={reference}
+                gain={currentRank >= 0 && i > currentRank}
+                isCurrent={isCurrent}
+                isRec={p.code === recCode}
+                isBusiness={isBusiness}
+                // With a purchase on offer PurchaseAction prints the price in
+                // its own zone, so the header stays quiet: one price per row.
+                price={offering ? null : price}
+                vehicleNote={isCurrent ? personalNote(currentPlan.maxVehicles, p.maxVehicles) : null}
+                action={actionFor(p)}
+                reduceMotion={reduceMotion}
               />
-            ))}
-          </div>
-        )}
-
-        {/* Closes on what the reader already has, not on what they lack. A
-            screen that ends on a gap it cannot resolve is a frustrating
-            screen. */}
-        <div className="rounded-2xl p-4" style={{ background: C.gray50 }}>
-          <p className="text-[13px] font-bold mb-1" style={{ color: C.gray800 }}>
-            מה שכלול בכל המסלולים, גם בחינם
-          </p>
-          <p className="text-[13px] leading-relaxed" style={{ color: C.gray500 }}>
-            תזכורות טסט וביטוח · מסמכים · צ׳קליסטים · דיווח תאונות · מצא מוסך
-          </p>
+            );
+          })}
         </div>
+
+        {/* Closes on what the reader already has, not on what they lack. */}
+        <p className="text-[12px] leading-relaxed px-1" style={{ color: C.gray500 }}>
+          כלול בכל המסלולים, גם בחינם: תזכורות טסט וביטוח, מסמכים, צ׳קליסטים, דיווח תאונות ומצא מוסך.
+        </p>
 
       </div>
     </PageShell>
