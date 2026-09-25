@@ -37,6 +37,7 @@ import {
   validateQuickCheckPlate,
 } from '@/services/vehicleQuickCheck';
 import { C } from '@/lib/designTokens';
+import { maybeRequestStoreReview } from '@/lib/storeReview';
 import { trackVehicleCheckSubmit } from '@/lib/vehicleCheckAnalytics';
 // pdfExport is dynamic-imported in the download handler below. It pulls
 // in jsPDF + html2canvas (~597 KB) — only needed when the user actually
@@ -336,6 +337,8 @@ export default function VehicleCheck({ marketingPlate }) {
         queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] }),
       ]);
       setSaved(true);
+      // Plate lookup save. Fire-and-forget so the completion sheet still opens.
+      maybeRequestStoreReview('vehicle_added_plate');
       // Trigger the post-save completion sheet — captures personal info
       // that gov.il doesn't return (photo, nickname, insurance, sometimes
       // current_km). Sheet self-stamps `completion_prompted_at` so it
