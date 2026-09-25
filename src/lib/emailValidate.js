@@ -62,6 +62,8 @@ const CONTENT_FIELDS = [
 export const SYSTEM_PROVIDED = new Set([
   'heroBg', 'heroFg', 'heroNum', 'heroTop', 'heroBig', 'heroSub',
   'pillBorder', 'daysPhrase',
+  // "טסט" / "תוקף רישוי" (צמ"ה) / "ביטוח", and the definite form.
+  'dueNoun', 'dueNounDef',
 ]);
 
 /**
