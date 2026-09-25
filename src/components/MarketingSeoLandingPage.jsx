@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { marketingEvent, trackStoreClickGA4 } from '@/lib/marketingEvents';
+import MarketingSectionBody from '@/components/MarketingSectionBody';
 
 /**
  * Generic template for a conversion-focused SEO landing page under
@@ -81,9 +82,9 @@ export default function MarketingSeoLandingPage({ product }) {
       </div>
     </section>
 
-    {product.sections.map(([heading, text], index) => (
+    {product.sections.map(([heading, text, link], index) => (
       <section id={`detail-${index}`} className="cm-section cm-landing-section" key={heading}>
-        <div className="cm-wrap"><h2>{heading}</h2><p>{text}</p></div>
+        <div className="cm-wrap"><h2>{heading}</h2><MarketingSectionBody text={text} link={link} /></div>
       </section>
     ))}
 

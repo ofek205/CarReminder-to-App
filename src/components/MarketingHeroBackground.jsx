@@ -7,6 +7,7 @@ export default function MarketingHeroBackground() {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
   const [visible, setVisible] = useState(true);
   const [inView, setInView] = useState(true);
   const layer = useRef(null);
@@ -30,6 +31,23 @@ export default function MarketingHeroBackground() {
   }, []);
 
   useEffect(() => {
+    if (reduced) return undefined;
+    const first = layer.current?.querySelector('img');
+    if (!first) return undefined;
+    const unlock = () => setUnlocked(true);
+    if (first.complete && first.naturalWidth > 0) {
+      unlock();
+      return undefined;
+    }
+    first.addEventListener('load', unlock);
+    first.addEventListener('error', unlock);
+    return () => {
+      first.removeEventListener('load', unlock);
+      first.removeEventListener('error', unlock);
+    };
+  }, [reduced]);
+
+  useEffect(() => {
     if (paused || reduced || !visible || !inView) return;
     const timer = setInterval(() => {
       setActive(current => {
@@ -46,7 +64,7 @@ export default function MarketingHeroBackground() {
 
   return <>
     <div ref={layer} className="cm-hero-background" aria-hidden="true">
-      {slides.map((slide, index) => (
+      {slides.map((slide, index) => (index === 0 || unlocked) && (
         // LOWERCASE fetchpriority IS DELIBERATE, AND THE LINTER DISAGREES.
         // React 19 accepts camelCase `fetchPriority`, and eslint-plugin-react
         // has been updated to expect that spelling, but this project is on
@@ -58,8 +76,10 @@ export default function MarketingHeroBackground() {
         // itself a test: scripts/qa-marketing.mjs collects console errors.
         // Revert this to `fetchPriority` and delete the disable when the app
         // moves to React 19.
+        // The first slide is the likely LCP image, so it stays eager. Later
+        // slides stay out of the first HTML until that image has loaded.
         // eslint-disable-next-line react/no-unknown-property
-        <img key={slide} src={`/marketing/hero-${slide}.webp`} alt="" width="1672" height="941" decoding="async" fetchpriority={index === 0 ? 'high' : 'low'} className={index === active ? 'is-active' : ''} onLoad={() => loaded.current.add(index)} />
+        <img key={slide} src={`/marketing/hero-${slide}.webp`} alt="" width="1672" height="941" decoding={index === 0 ? 'auto' : 'async'} loading={index === 0 ? 'eager' : 'lazy'} fetchpriority={index === 0 ? 'high' : 'low'} className={index === active ? 'is-active' : ''} onLoad={() => loaded.current.add(index)} />
       ))}
     </div>
     {!reduced && <button type="button" className="cm-hero-motion" onClick={() => setPaused(value => !value)} aria-label={paused ? 'הפעלת החלפת תמונות הרקע' : 'עצירת החלפת תמונות הרקע'}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>}

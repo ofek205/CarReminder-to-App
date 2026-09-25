@@ -107,3 +107,53 @@ const catchAll = vercel.rewrites[vercel.rewrites.length - 1];
 assert.ok(catchAll.source.startsWith('/((?!'), 'the catch-all rewrite must stay last, or the routes above never match');
 
 console.log(`Marketing checks passed: ${pages.size} pages, crawlable copy, headings, links, assets, report privacy, punctuation, ${multiLineHeadings} spaced line breaks, title/description budgets.`);
+
+function jsonLd(html) {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+}
+
+const homeHtml = pages.get('/website');
+const homeSchema = jsonLd(homeHtml).find(block => block['@type'] === 'MobileApplication');
+assert.ok(homeSchema, '/website: MobileApplication JSON-LD is in the initial HTML');
+assert.ok(!JSON.stringify(homeSchema).includes('aggregateRating'), '/website: no aggregate rating on the app');
+assert.equal(homeSchema.offers, undefined);
+assert.equal(homeSchema.price, undefined);
+assert.deepEqual(homeSchema.installUrl, [
+  'https://apps.apple.com/app/carreminder/id6764073107',
+  'https://play.google.com/store/apps/details?id=com.carreminder.app',
+]);
+
+for (const guide of guides) {
+  const route = `/website/guides/${guide.slug}`;
+  const html = pages.get(route);
+  const blocks = jsonLd(html);
+  const graph = blocks.find(block => Array.isArray(block['@graph']));
+  assert.ok(graph, `${route}: Article graph is in the initial HTML`);
+  assert.deepEqual(graph['@graph'].map(node => node['@type']), ['BreadcrumbList', 'Article']);
+  assert.equal(graph['@graph'][1].headline, guide.heading || guide.title);
+}
+
+assert.ok(pages.get('/website/guides/plate-check').includes('href="/website/vehicle-check"'), 'plate-check keeps its vehicle-check link');
+assert.ok(pages.get('/website/inactive-vehicles').includes('href="/website/vehicle-check"'), 'inactive-vehicles keeps its vehicle-check link');
+for (const route of ['/website/guides/plate-check', '/website/inactive-vehicles', '/website/test-insurance-reminders']) {
+  assert.ok(pages.get(route).includes('href="/website/vehicle-lookup"'), `${route}: links to vehicle lookup`);
+}
+for (const route of ['/website/test-insurance-reminders', '/website/guides/test-reminder', '/website/vehicle-lookup']) {
+  assert.ok(pages.get(route).includes('href="/website/child-in-car-reminder"'), `${route}: links to the child reminder`);
+}
+for (const route of ['/website/documents', '/website/guides/maintenance-log', '/website/guides/test-reminder']) {
+  assert.ok(pages.get(route).includes('href="/website/guides/vehicle-documents"'), `${route}: links to the documents guide`);
+}
+
+assert.equal((homeHtml.match(/\/marketing\/cards\/[^"]+\.webp/g) || []).length, 8, 'homepage category cards use the resized files');
+assert.ok(homeHtml.includes('type="image/avif"'), 'category cards offer AVIF');
+assert.ok(homeHtml.includes('width="840"'), 'category cards keep width');
+assert.ok(homeHtml.includes('height="473"'), 'category cards keep height');
+const lcp = homeHtml.match(/<img[^>]*hero-land-cruiser\.webp[^>]*>/);
+assert.ok(lcp, 'the first hero image is in the initial HTML');
+assert.ok(!lcp[0].includes('loading="lazy"'), 'the LCP hero image is not lazy');
+assert.ok(lcp[0].includes('loading="eager"'), 'the LCP hero image loads eagerly');
+assert.ok(!homeHtml.includes('/marketing/hero-harley.webp'), 'later hero slides are not in the first HTML');
+for (const match of homeHtml.matchAll(/srcset="(\/marketing\/cards\/[^"]+\.avif)"/g)) {
+  await fs.access(path.join('dist', match[1]));
+}
