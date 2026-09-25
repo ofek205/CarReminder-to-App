@@ -495,7 +495,9 @@ function StatusStrip({ plan, meters }) {
         style={{ borderColor: C.border, color: C.primary }}
       >
         <span>פרטי המנוי והניצול</span>
-        <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+        {/* No rtl:rotate-180. In RTL "forward" points left, which is how
+            every Settings row draws it; rotated, this read as a back arrow. */}
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       </Link>
     </section>
   );
