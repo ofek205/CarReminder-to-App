@@ -208,11 +208,28 @@ function buildPlayBackend() {
       }
     },
 
-    async queryOwnedPurchases() {
+    /**
+     * @param {string} [accountId]  the account doing the restore
+     *
+     * ⚠️ ONLY THIS ACCOUNT'S PURCHASES. Play returns every subscription on
+     * the device's GOOGLE account, and one person may hold a personal and a
+     * business workspace. The mount restore in workspace B sent A's token
+     * with B's id, and the server credited B with A's plan. verify-play-
+     * purchase now refuses that (account_mismatch), and this is the other
+     * half: B never sends it, so B's screen does not sit on a PENDING banner
+     * for a purchase that was never B's. The plugin returns the account a
+     * purchase was made for as appAccountToken, verbatim as we sent it. A
+     * purchase without one predates that link and goes to the server to
+     * decide.
+     */
+    async queryOwnedPurchases(accountId) {
       const { purchases } = await NativePurchases.getPurchases({
         productType: PURCHASE_TYPE.SUBS,
         onlyCurrentEntitlements: true,
       });
+      const mine = (purchases || []).filter(
+        (t) => !accountId || !t.appAccountToken || t.appAccountToken === accountId,
+      );
       // ⚠️ NO LOCAL ACTIVE/EXPIRED FILTER BEYOND THAT FLAG, ON PURPOSE.
       // `isActive` and `willCancel` are documented as iOS-only and always
       // null on Android, so the device genuinely cannot tell a refunded
@@ -220,7 +237,7 @@ function buildPlayBackend() {
       // Play Developer API, which is what our verification step does. So
       // every token here goes to the server and the server decides; a
       // refunded purchase simply fails verification and grants nothing.
-      return (purchases || []).map((t) => ({
+      return mine.map((t) => ({
         outcome: PurchaseOutcome.OWNED,
         productId: t.productIdentifier ?? t.productId,
         purchaseToken: t.purchaseToken,

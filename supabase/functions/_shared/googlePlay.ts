@@ -177,6 +177,27 @@ export function entitlementFrom(sub: Record<string, unknown>): {
 }
 
 /**
+ * Will this subscription renew when the current period ends?
+ *
+ * ⚠️ ENTITLED AND RENEWING ARE DIFFERENT QUESTIONS, AND WE ONLY STORED THE
+ * FIRST. A cancelled subscription keeps its plan until expiryTime (see
+ * entitlementFrom), so it was written as plain 'active', and /MyPlan then
+ * told the person who had just cancelled "מתחדש ב...". Google answers the
+ * second question directly in lineItems[].autoRenewingPlan.autoRenewEnabled.
+ *
+ * Returns null when Google does not say, and callers store null as
+ * "unknown" rather than guessing either way.
+ */
+export function willRenewFrom(sub: Record<string, unknown>): boolean | null {
+  const state = String((sub as Record<string, unknown>)?.subscriptionState || '');
+  if (state === 'SUBSCRIPTION_STATE_CANCELED' || state === 'SUBSCRIPTION_STATE_EXPIRED') return false;
+  const lineItems = ((sub as Record<string, unknown>)?.lineItems || []) as Array<Record<string, unknown>>;
+  const plan = lineItems[0]?.autoRenewingPlan as Record<string, unknown> | undefined;
+  if (plan && typeof plan.autoRenewEnabled === 'boolean') return plan.autoRenewEnabled;
+  return null;
+}
+
+/**
  * The account id we attached at purchase time.
  *
  * The client passes our account uuid as `appAccountToken`, which Android
