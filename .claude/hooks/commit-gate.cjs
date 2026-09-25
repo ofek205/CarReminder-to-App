@@ -125,32 +125,12 @@ const SESSION_ID_RE = /^[A-Za-z0-9._-]{8,200}$/;
  * `env` is injectable so the tests can exercise the missing and malformed
  * cases without mutating the real process environment.
  */
-function idFromString(raw) {
+function resolveSessionId(env) {
+  const raw = (env || process.env).CLAUDE_CODE_SESSION_ID;
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
   if (!SESSION_ID_RE.test(id)) return null;
   return id;
-}
-
-function resolveSessionId(env, payload) {
-  const source = env || process.env;
-  // A present but invalid Claude id is a BLOCK, not a prompt to try another
-  // source. Falling through would let a bad env var be ignored.
-  const claudeRaw = source.CLAUDE_CODE_SESSION_ID;
-  if (typeof claudeRaw === 'string' && claudeRaw.trim() !== '') {
-    return idFromString(claudeRaw);
-  }
-  // Cursor's shell exports CURSOR_CONVERSATION_ID. approve.cjs runs there.
-  // The PreToolUse hook sandbox does not receive that variable. The hook
-  // payload's session_id / conversation_id is the same conversation id, so
-  // the two halves still derive one token path. Env wins when it is set.
-  const cursorId = idFromString(source.CURSOR_CONVERSATION_ID);
-  if (cursorId) return cursorId;
-  if (payload && typeof payload === 'object') {
-    const fromPayload = idFromString(payload.session_id) || idFromString(payload.conversation_id);
-    if (fromPayload) return fromPayload;
-  }
-  return null;
 }
 
 /**
@@ -299,7 +279,7 @@ function main() {
   // any earlier would mean a missing env var blocked every Bash call in the
   // session instead of only the gated ones — fail-closed is the contract for
   // the commands this gate guards, not a licence to break the whole tool.
-  const sessionId = resolveSessionId(undefined, payload);
+  const sessionId = resolveSessionId();
   if (sessionId === null) {
     block(
       'The gate could not identify this Claude session.\n\n' +

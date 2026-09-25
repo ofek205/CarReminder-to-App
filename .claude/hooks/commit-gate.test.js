@@ -190,19 +190,6 @@ describe('commit gate matcher', () => {
 // another's token. Everything below exists to keep that from coming back.
 
 describe('session id resolution', () => {
-  it('accepts CURSOR_CONVERSATION_ID when Claude Code did not export one', () => {
-    expect(resolveSessionId({ CURSOR_CONVERSATION_ID: 'bc-c7aef12-1111-4111-8111-aaaaaaaaaaaa' })).toBe(
-      'bc-c7aef12-1111-4111-8111-aaaaaaaaaaaa'
-    );
-  });
-
-  it('prefers CLAUDE_CODE_SESSION_ID when both are present', () => {
-    expect(resolveSessionId({
-      CLAUDE_CODE_SESSION_ID: '4d1595ef-8305-4860-ae1d-f98c2c67828c',
-      CURSOR_CONVERSATION_ID: 'bc-c7aef12-1111-4111-8111-aaaaaaaaaaaa',
-    })).toBe('4d1595ef-8305-4860-ae1d-f98c2c67828c');
-  });
-
   it('accepts the id Claude Code actually exports', () => {
     // Measured from a real PreToolUse invocation, not invented.
     expect(resolveSessionId({ CLAUDE_CODE_SESSION_ID: '4d1595ef-8305-4860-ae1d-f98c2c67828c' })).toBe(
@@ -328,26 +315,11 @@ describe('the gate as a spawned process', () => {
   /** `sessionId: null` means the variable is absent, not empty. */
   const run = (command, sessionId, input) => {
     const env = { ...process.env };
-    // Ambient Cursor id must not satisfy "no session" cases.
-    delete env.CURSOR_CONVERSATION_ID;
     if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
     else env.CLAUDE_CODE_SESSION_ID = sessionId;
 
-    let body = input;
-    if (input === undefined) {
-      const p = payload(command);
-      // Default fixtures carry a dummy session_id. A "no session" case must
-      // not be rescued by that field, or the fail-closed test stops meaning
-      // "no identity at all".
-      if (sessionId === null) {
-        delete p.session_id;
-        delete p.conversation_id;
-      }
-      body = JSON.stringify(p);
-    }
-
     return spawnSync(process.execPath, [GATE], {
-      input: body,
+      input: input === undefined ? JSON.stringify(payload(command)) : input,
       env,
       encoding: 'utf8',
     });
@@ -483,7 +455,6 @@ describe('the gate as a spawned process', () => {
 
   const approve = (sessionId) => {
     const env = { ...process.env };
-    delete env.CURSOR_CONVERSATION_ID;
     if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
     else env.CLAUDE_CODE_SESSION_ID = sessionId;
     return spawnSync(process.execPath, [APPROVE], { env, encoding: 'utf8' });
@@ -502,27 +473,6 @@ describe('the gate as a spawned process', () => {
     expect(fs.existsSync(p)).toBe(true);
 
     expect(run('git commit -m x', id).status).toBe(0);
-    expect(fs.existsSync(p)).toBe(false);
-  });
-
-  it('accepts a token scoped to CURSOR_CONVERSATION_ID when Claude did not export one', () => {
-    const id = nextId('cursor-conv');
-    const p = tokenPath(id);
-    written.add(p);
-    const env = { ...process.env };
-    delete env.CLAUDE_CODE_SESSION_ID;
-    env.CURSOR_CONVERSATION_ID = id;
-
-    const a = spawnSync(process.execPath, [APPROVE], { env, encoding: 'utf8' });
-    expect(a.status).toBe(0);
-    expect(fs.existsSync(p)).toBe(true);
-
-    const r = spawnSync(process.execPath, [GATE], {
-      input: JSON.stringify(payload('git commit -m x')),
-      env,
-      encoding: 'utf8',
-    });
-    expect(r.status).toBe(0);
     expect(fs.existsSync(p)).toBe(false);
   });
 
