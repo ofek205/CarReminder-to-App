@@ -55,11 +55,13 @@ function plainVars(vars = {}) {
 // What the reminder is about. Mirror of dueNouns() in the dispatcher: a
 // צמ"ה vehicle's test reminder says "תוקף רישוי", and the hero reads
 // "ימים לחידוש הרישוי" because "ימים לתוקף רישוי" isn't Hebrew.
+// A '<key>_cme' template is the צמ"ה version of a test reminder, which the
+// dispatcher sends to צמ"ה vehicles only, so its preview is always צמ"ה.
 // KEEP IN SYNC with the dispatcher.
 export function dueNouns(notificationKey, vehicleType) {
   const key = String(notificationKey || '');
   if (key.includes('insurance')) return { dueNoun: 'ביטוח', dueNounDef: 'הביטוח', subNoun: 'ביטוח' };
-  if (key.startsWith('reminder_test') && isCme(vehicleType)) {
+  if (key.startsWith('reminder_test') && (key.endsWith('_cme') || isCme(vehicleType))) {
     return { dueNoun: CME_LICENCE_WORD, dueNounDef: 'תוקף הרישוי', subNoun: 'חידוש הרישוי' };
   }
   return { dueNoun: 'טסט', dueNounDef: 'הטסט', subNoun: 'טסט' };

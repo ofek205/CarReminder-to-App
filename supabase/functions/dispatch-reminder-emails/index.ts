@@ -326,6 +326,24 @@ async function processTrigger(
     }
   }
 
+  // A צמ"ה vehicle's reminder goes out from its own template, '<key>_cme',
+  // when there is one and the admin hasn't switched it off in EmailCenter:
+  // its licence is renewed by paying a fee, not by a test at a station, and
+  // its gov.il page is a different one. Otherwise the regular template is
+  // used, with the צמ"ה hero line. No such template is an expected state
+  // (not an error); a failed read is noted and falls back the same way.
+  let cmeTemplate: any = null;
+  if (cmeVehicleIds.size) {
+    const { data: cmeRows, error: cmeErr } = await supabase.rpc('get_email_template', {
+      p_key: `${notificationKey}_cme`,
+    });
+    if (cmeErr) {
+      stats.errorDetails.push(`צמ"ה template (falls back to the regular one): ${cmeErr.message}`);
+    } else if (cmeRows?.length && cmeRows[0].enabled !== false) {
+      cmeTemplate = cmeRows[0];
+    }
+  }
+
   // Defense-in-depth email format check. The RPC `email_dispatch_candidates`
   // is the canonical source of recipient addresses, but a misconfigured
   // RPC or corrupted user_profile row could return malformed values. A
@@ -353,8 +371,9 @@ async function processTrigger(
       const dl = Number(c.days_left ?? 0);
       // Per-type noun (handles the *_overdue keys too via includes()), and
       // "תוקף רישוי" for a צמ"ה vehicle's test reminder.
-      const { dueNoun, dueNounDef, subNoun } =
-        dueNouns(notificationKey, !!c.vehicle_id && cmeVehicleIds.has(c.vehicle_id));
+      const isCmeVehicle = !!c.vehicle_id && cmeVehicleIds.has(c.vehicle_id);
+      const useTemplate = isCmeVehicle && cmeTemplate ? cmeTemplate : template;
+      const { dueNoun, dueNounDef, subNoun } = dueNouns(notificationKey, isCmeVehicle);
       let heroTop, heroBig, heroSub, daysPhrase;
       let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
       if (dl < 0) {
@@ -397,13 +416,13 @@ async function processTrigger(
           p_reference_date: c.reference_date,
           p_status:         'queued',
           p_message_id:     null,
-          p_metadata:       { vars, days_before: c.days_left },
+          p_metadata:       { vars, days_before: c.days_left, template_key: useTemplate.notification_key },
         });
         if (claimErr) { stats.errors++; stats.errorDetails.push(claimErr.message); continue; }
         if (claimed === false) { stats.skipped++; continue; }   // duplicate
       }
 
-      const rendered = renderTemplate(template, vars);
+      const rendered = renderTemplate(useTemplate, vars);
 
       if (dryRun) { stats.sent++; continue; }
 

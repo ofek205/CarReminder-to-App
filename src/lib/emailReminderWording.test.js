@@ -51,6 +51,31 @@ describe('the words a reminder email uses', () => {
   });
 });
 
+describe('the צמ"ה templates, reminder_test_cme and reminder_test_overdue_cme', () => {
+  // The dispatcher sends these to צמ"ה vehicles only, so the EmailCenter
+  // preview has no vehicle type to go on and must still show צמ"ה.
+  it('preview as צמ"ה with no vehicle type', () => {
+    expect(dueNouns('reminder_test_cme').dueNoun).toBe('תוקף רישוי');
+    expect(deriveReminderHeroVars(5, 'reminder_test_cme').heroSub).toBe('ימים לחידוש הרישוי');
+    expect(deriveReminderHeroVars(0, 'reminder_test_cme').heroTop).toBe('תוקף הרישוי פג');
+  });
+
+  it('the overdue one still renders the overdue hero', () => {
+    const v = deriveReminderHeroVars(7, 'reminder_test_overdue_cme'); // the test dialog stubs a positive number
+    expect(v.heroTop).toBe('באיחור');
+    expect(v.dueNounDef).toBe('תוקף הרישוי');
+  });
+
+  it('the dispatcher looks up exactly the keys the SQL creates', () => {
+    const read = (p) => fs.readFileSync(path.resolve(cwd(), p), 'utf8');
+    expect(read('supabase/functions/dispatch-reminder-emails/index.ts'))
+      .toContain('p_key: `${notificationKey}_cme`');
+    const sql = read('supabase-email-cme-templates-2026-09-25.sql');
+    expect(sql).toContain("('reminder_test', 'reminder_test_cme',");
+    expect(sql).toContain("('reminder_test_overdue', 'reminder_test_overdue_cme',");
+  });
+});
+
 describe('a template that uses {{dueNoun}}', () => {
   const template = {
     notification_key: 'reminder_test',

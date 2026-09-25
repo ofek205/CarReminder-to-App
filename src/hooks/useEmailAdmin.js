@@ -380,7 +380,10 @@ export function useMyEmailPreferences() {
       const prefsMap = Object.fromEntries((prefs || []).map(p => [p.notification_key, p]));
       return {
         userId: user?.id || null,
-        items: (notifs || []).map(n => ({
+        // '<key>_cme' rows are the צמ"ה version of another reminder's
+        // template (the dispatcher picks it per vehicle), not a separate
+        // email a user subscribes to, so they stay off this page.
+        items: (notifs || []).filter(n => !n.key.endsWith('_cme')).map(n => ({
           ...n,
           mandatory: ALWAYS_EMAIL_KEYS.has(n.key),
           // Merge: mandatory emails stay on; explicit preference wins for
