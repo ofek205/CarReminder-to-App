@@ -32,7 +32,7 @@ import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 // component that uses them so future changes are co-located. Match the
 // values in supabase-add-ugc-moderation.sql (eula_acceptances.document_version).
 const TOS_VERSION = '2026-05-13';
-const PRIVACY_VERSION = '2026-09-25';
+const PRIVACY_VERSION = '2026-05-13';
 
 //  Welcome email dispatch helper
 // Lives at module scope so the same call sites (session-returned signup
