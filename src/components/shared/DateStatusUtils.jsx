@@ -399,6 +399,13 @@ export function isCme(vehicleType) {
   return CME_TYPES.has(vehicleType);
 }
 
+// What a צמ"ה vehicle's test_due_date is called. צמ"ה has an annual licence,
+// not a test, so everywhere a car says "טסט" a צמ"ה vehicle says this
+// (Ofek, 2026-09-25; the ministry-sync push already says "תוקף הרישוי").
+// No ה' הידיעה on purpose: it has to read in "X:", "X פג לפני 3 ימים" and
+// "חסר: X" alike. Screens that don't go through getVehicleLabels import it.
+export const CME_LICENCE_WORD = 'תוקף רישוי';
+
 /**
  * Returns context-aware labels based on vehicle type.
  * Branches: vessel / offroad / cme (forklift family) / default.
@@ -433,10 +440,10 @@ export function getVehicleLabels(vehicleType, nickname) {
     // Subtype itself reads natural ("מלגזה", "טרקטור") so use it directly.
     return {
       vehicleWord:    vehicleType,
-      testWord:       'טסט',
-      testDateLabel:  'תאריך טסט',
-      testNextLabel:  'תאריך טסט הבא',
-      testExpiredMsg: 'הטסט עבר את תאריך התוקף',
+      testWord:       CME_LICENCE_WORD,
+      testDateLabel:  CME_LICENCE_WORD,
+      testNextLabel:  `${CME_LICENCE_WORD} עד`,
+      testExpiredMsg: 'תוקף הרישוי פג',
       insuranceWord:  'ביטוח',
       vehicleFallback: vehicleType,
     };

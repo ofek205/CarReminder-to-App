@@ -43,7 +43,7 @@ import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, 
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import LeasingCompanyField from '@/components/vehicle/LeasingCompanyField';
 import { isLeasingOwnership } from '@/constants/leasingCompanies';
-import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy, CME_LICENCE_WORD } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import GeneratorFields, { GENERATOR_DB_COLUMNS, GENERATOR_EMPTY_FIELDS } from "../components/vehicle/GeneratorFields";
@@ -2044,7 +2044,7 @@ export default function AddVehicle() {
                           insurance row. */}
                       {!isAviationCategory && (
                         <div>
-                          <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                          <Label>{isVesselCategory ? 'כושר שייט' : isCmeCategory ? CME_LICENCE_WORD : 'תאריך טסט'}</Label>
                           <DateInput
                             value={form.test_due_date}
                             onChange={e => handleChange('test_due_date', e.target.value)}

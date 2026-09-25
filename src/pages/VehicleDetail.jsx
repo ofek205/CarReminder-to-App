@@ -79,7 +79,7 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
-import { getDateStatus, getVehicleLabels, usesHours } from '../components/shared/DateStatusUtils';
+import { getDateStatus, getVehicleLabels, usesHours, isCme, CME_LICENCE_WORD } from '../components/shared/DateStatusUtils';
 import StatusBadge from '../components/shared/StatusBadge';
 import LicensePlate from '../components/shared/LicensePlate';
 import DisabilityPermitBadge from '../components/shared/DisabilityPermitBadge';
@@ -283,7 +283,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             // Generators have no טסט — show last-service date instead.
             isGenerator
               ? { label: 'טיפול אחרון', value: vehicle.last_service_date ? new Date(vehicle.last_service_date).toLocaleDateString('he-IL') : '-' }
-              : { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '-' },
+              : { label: isVessel ? 'כושר שייט' : isCme(vehicle.vehicle_type) ? CME_LICENCE_WORD : 'טסט', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>

@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme, isGenerator } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme, isGenerator, CME_LICENCE_WORD } from "../components/shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import GeneratorFields, { GENERATOR_DB_COLUMNS } from "../components/vehicle/GeneratorFields";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
@@ -780,7 +780,7 @@ export default function EditVehicle() {
           {hasRegistration && (
             <div className="grid grid-cols-2 gap-3">
               <div data-field="test_due_date" className="rounded-xl p-1 -m-1 transition-all">
-                <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                <Label>{vesselMode ? 'כושר שייט' : cmeMode ? CME_LICENCE_WORD : 'תאריך טסט'}</Label>
                 <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
               </div>
               <div data-field="insurance_due_date" className="rounded-xl p-1 -m-1 transition-all">
@@ -888,7 +888,10 @@ export default function EditVehicle() {
                   סנכרון אוטומטי ממשרד התחבורה
                 </span>
                 <span className="block text-[11px] text-gray-500 mt-0.5 leading-snug">
-                  לאחר טסט שנתי נעדכן את הקילומטראז' ותוקף הטסט אוטומטית, ונשלח התראה.
+                  {/* צמ"ה: the ministry publishes only a licence expiry, no km. */}
+                  {cmeMode
+                    ? 'לאחר חידוש הרישוי נעדכן את התוקף אוטומטית, ונשלח התראה.'
+                    : "לאחר טסט שנתי נעדכן את הקילומטראז' ותוקף הטסט אוטומטית, ונשלח התראה."}
                 </span>
               </span>
             </label>

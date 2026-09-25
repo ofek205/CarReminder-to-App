@@ -32,6 +32,7 @@ import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { isCme, CME_LICENCE_WORD } from '@/components/shared/DateStatusUtils';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -270,7 +271,10 @@ export default function MyVehicles() {
 function VehicleCard({ vehicle, onAction }) {
   const v = vehicle;
   const label = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'הרכב שלי';
-  const testBadge      = useMemo(() => statusBadge('טסט',   daysUntil(v.test_due_date)),      [v.test_due_date]);
+  const testBadge      = useMemo(
+    () => statusBadge(isCme(v.vehicle_type) ? CME_LICENCE_WORD : 'טסט', daysUntil(v.test_due_date)),
+    [v.test_due_date, v.vehicle_type],
+  );
   const insuranceBadge = useMemo(() => statusBadge('ביטוח', daysUntil(v.insurance_due_date)), [v.insurance_due_date]);
 
   return (
