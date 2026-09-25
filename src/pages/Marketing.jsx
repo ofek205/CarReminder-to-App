@@ -18,6 +18,7 @@ const logo = '/marketing/logo.webp';
 import './Marketing.css';
 import { applyMarketingSeo } from '@/lib/marketingSeo';
 import { marketingEvent } from '@/lib/marketingEvents';
+import { appStoreUrl, googlePlayUrl } from '@/lib/storeLinks';
 import { DEMO_HOME_ID } from '@/lib/demoScreens';
 import { onDemoMessage, DEMO_MSG_SCREEN } from '@/lib/demoBridge';
 import MarketingDemoEmbed from '@/components/MarketingDemoEmbed';
@@ -103,8 +104,11 @@ const businessFaqs = [
 let gaAutoPageviewConsumed = false;
 
 function StoreLinks({ linkLocation }) {
-  const appleHref = 'https://apps.apple.com/app/carreminder/id6764073107';
-  const googleHref = 'https://play.google.com/store/apps/details?id=com.carreminder.app';
+  // Campaign params sit on top of the bare store URLs. JSON-LD installUrl
+  // stays bare: https://apps.apple.com/app/carreminder/id6764073107 and
+  // https://play.google.com/store/apps/details?id=com.carreminder.app.
+  const appleHref = appStoreUrl(linkLocation);
+  const googleHref = googlePlayUrl(linkLocation);
   return <div className="cm-stores" data-link-location={linkLocation} onClick={() => marketingEvent('store_click', 'download')}><a href={appleHref} target="_blank" rel="noopener noreferrer"><img src="/marketing/apple.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>App Store</strong></span></a><a href={googleHref} target="_blank" rel="noopener noreferrer"><img src="/marketing/google-play.svg" width="28" height="32" alt="" /><span><small>להורדה ב־</small><strong>Google Play</strong></span></a></div>;
 }
 
