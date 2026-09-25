@@ -11,7 +11,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
 import { ListSkeleton } from "../components/shared/Skeletons";
-import { formatDateHe } from "../components/shared/DateStatusUtils";
+import { formatDateHe, CME_LICENCE_WORD } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
@@ -26,6 +26,9 @@ import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 
 const TYPE_CONFIG = {
   'טסט':        { icon: Calendar,      bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
+  // A צמ"ה vehicle's test reminder carries this name instead of 'טסט'
+  // (getVehicleLabels); same look as a test.
+  [CME_LICENCE_WORD]: { icon: Calendar, bg: C.yellowSoft, color: C.warn,  border: C.warnBorder },
   'כושר שייט':  { icon: Calendar,      bg: '#E0F7FA',    color: '#0C7B93',  border: '#B2EBF2' }, // marine — theme-specific
   'ביטוח':      { icon: Shield,        bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
   'ביטוח ימי':  { icon: Shield,        bg: '#E0F7FA',    color: '#0C7B93',  border: '#B2EBF2' }, // marine

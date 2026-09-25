@@ -23,10 +23,16 @@ import { useWorkspace } from "@/contexts/WorkspaceContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useViewAs from '@/hooks/useViewAs';
 import { daysUntil } from "../components/shared/ReminderEngine";
-import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
+import { usesHours, usesKm, isCme, CME_LICENCE_WORD } from "../components/shared/DateStatusUtils";
 import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
+
+// What this screen calls a vehicle's test_due_date. Deliberately not
+// getVehicleLabels().testWord: that would also turn generators into "בדיקה"
+// here, which nobody asked for. Only צמ"ה changes.
+const testWordFor = (vehicleType, isVessel) =>
+  isVessel ? 'כושר שייט' : isCme(vehicleType) ? CME_LICENCE_WORD : 'טסט';
 import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared/CompleteProfileScreen';
 import useUserProfile from '@/hooks/useUserProfile';
 import LicensePlate from '../components/shared/LicensePlate';
@@ -509,7 +515,7 @@ function StatusSummary({ vehicles }) {
       const isVessel = isVesselType(v.vehicle_type, v.nickname);
       const reasons = [];
       if (testD !== null) {
-        reasons.push({ kind: isVessel ? 'כושר שייט' : 'טסט', days: testD, date: v.test_due_date });
+        reasons.push({ kind: testWordFor(v.vehicle_type, isVessel), days: testD, date: v.test_due_date });
       }
       if (insD !== null) {
         reasons.push({ kind: isVessel ? 'ביטוח ימי' : 'ביטוח', days: insD, date: v.insurance_due_date });
@@ -707,7 +713,7 @@ function VehicleRow({ vehicle }) {
   // turning the whole dashboard into a wall of orange. Those still appear in
   // the Edit screen where the user actually fills them in.
   const missingFields = [];
-  if (!vehicle.test_due_date) missingFields.push(isVessel ? 'כושר שייט' : 'טסט');
+  if (!vehicle.test_due_date) missingFields.push(testWordFor(vehicle.vehicle_type, isVessel));
   if (!vehicle.insurance_due_date) missingFields.push(isVessel ? 'ביטוח ימי' : 'ביטוח');
   if (!vehicle.license_plate) missingFields.push('מספר רישוי');
   if (!vehicle.manufacturer) missingFields.push('יצרן');
@@ -719,7 +725,7 @@ function VehicleRow({ vehicle }) {
   const badges = [];
   if (testDays !== null) {
     const tStatus = testDays < 0 ? 'overdue' : testDays <= 30 ? 'soon' : 'ok';
-    badges.push({ label: isVessel ? 'כושר שייט' : 'טסט', date: fmtDate(vehicle.test_due_date), status: tStatus });
+    badges.push({ label: testWordFor(vehicle.vehicle_type, isVessel), date: fmtDate(vehicle.test_due_date), status: tStatus });
   }
   if (insDays !== null) {
     const iStatus = insDays < 0 ? 'overdue' : insDays <= 30 ? 'soon' : 'ok';
@@ -790,6 +796,7 @@ function VehicleRow({ vehicle }) {
                 const fieldParam = {
                   'טסט': 'test_due_date',
                   'כושר שייט': 'test_due_date',
+                  [CME_LICENCE_WORD]: 'test_due_date',
                   'ביטוח': 'insurance_due_date',
                   'ביטוח ימי': 'insurance_due_date',
                   'מספר רישוי': 'license_plate',
@@ -1318,7 +1325,7 @@ export default function Dashboard() {
     const reminders = vehiclesToShow.flatMap(v => {
       const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
       const isV = isVesselType(v.vehicle_type, v.nickname);
-      const vtw = isV ? 'כושר שייט' : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
+      const vtw = isV ? 'כושר שייט' : isCme(v.vehicle_type) ? CME_LICENCE_WORD : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
       const iw = isV ? 'ביטוח ימי' : 'חידוש ביטוח';
       const vLabel = vehicleLabel(v);
       return [
@@ -1566,7 +1573,7 @@ export default function Dashboard() {
   const allReminders = vehicles.flatMap(v => {
     const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
     const isV = isVesselType(v.vehicle_type, v.nickname);
-    const vtw = isV ? 'כושר שייט' : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
+    const vtw = isV ? 'כושר שייט' : isCme(v.vehicle_type) ? CME_LICENCE_WORD : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
     const iw = isV ? 'ביטוח ימי' : 'חידוש ביטוח';
     const vLabel = v.nickname
       || [v.manufacturer, v.model].filter(Boolean).join(' ')
