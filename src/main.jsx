@@ -17,6 +17,7 @@ import { initBootLog, recordBootStage, markBootSucceeded, flushPreviousFailedBoo
 import { validateEnv } from '@/lib/envValidator';
 import { captureAttribution } from '@/lib/signupAttribution';
 import { initTripGuardActionListener } from '@/lib/tripGuard';
+import { noteStoreReviewFirstOpen } from '@/lib/storeReview';
 import { C } from '@/lib/designTokens';
 
 // Boot log is the FIRST thing we initialize — even before plugin init,
@@ -76,6 +77,9 @@ if (isNative) {
   if (isIOS) document.documentElement.classList.add('ios-app');
   if (isAndroid) document.documentElement.classList.add('android-app');
 }
+
+// First native open starts the store-review clock. No-op on web.
+noteStoreReviewFirstOpen();
 
 // Initialize native plugins (no-op on web)
 initStatusBar();
