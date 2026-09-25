@@ -37,6 +37,7 @@ import {
   validateQuickCheckPlate,
 } from '@/services/vehicleQuickCheck';
 import { C } from '@/lib/designTokens';
+import { trackVehicleCheckSubmit } from '@/lib/vehicleCheckAnalytics';
 // pdfExport is dynamic-imported in the download handler below. It pulls
 // in jsPDF + html2canvas (~597 KB) — only needed when the user actually
 // taps "Export PDF".
@@ -111,6 +112,9 @@ export default function VehicleCheck({ marketingPlate }) {
   const isBusy = status === 'loading';
   const isPublicVisitor = !authLoading && !isAuthenticated;
   const validation = useMemo(() => validateQuickCheckPlate(plate), [plate]);
+  // Homepage form arrives with marketingPlate. The page form does not.
+  // The helper drops the call unless the path is /website.
+  const websiteCheckFormLocation = marketingPlate ? 'home_form' : 'vehicle_check_page';
 
   useEffect(() => {
     if (marketingPlate) {
@@ -234,6 +238,10 @@ export default function VehicleCheck({ marketingPlate }) {
       if (!data) {
         setResult(null);
         setStatus('not_found');
+        trackVehicleCheckSubmit({
+          formLocation: websiteCheckFormLocation,
+          resultStatus: 'not_found',
+        });
         return;
       }
       // Dual-registry hit. Stop and ask the user which vehicle they
@@ -246,11 +254,19 @@ export default function VehicleCheck({ marketingPlate }) {
       setResult(data);
       saveLastQuickCheckResult(data);
       setStatus('success');
+      trackVehicleCheckSubmit({
+        formLocation: websiteCheckFormLocation,
+        resultStatus: 'found',
+      });
     } catch (err) {
       setStatus('error');
       setError(err?.code === 'invalid_plate'
         ? err.message
         : 'לא הצלחנו להשלים את הבדיקה כרגע. נסה שוב בעוד רגע.');
+      trackVehicleCheckSubmit({
+        formLocation: websiteCheckFormLocation,
+        resultStatus: 'error',
+      });
     }
   };
 
@@ -265,6 +281,10 @@ export default function VehicleCheck({ marketingPlate }) {
       setResult(normalized);
       saveLastQuickCheckResult(normalized);
       setStatus('success');
+      trackVehicleCheckSubmit({
+        formLocation: websiteCheckFormLocation,
+        resultStatus: 'found',
+      });
     } else {
       setStatus('idle');
     }
