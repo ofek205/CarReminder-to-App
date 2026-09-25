@@ -299,16 +299,37 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
    * the purchase and we hold nothing. Waiting for the user to find a button
    * means waiting for them to contact support instead.
    */
-  const restore = useCallback(async () => {
-    if (!backend) return;
-    // ⚠️ THE ACCOUNT TRAVELS WITH THE QUERY. Play ignores it. Apple needs it:
-    // one Apple ID can hold a subscription bought for a DIFFERENT CarReminder
-    // account, and sending that one to verification would render PENDING
-    // ("payment received, activation late") to someone who paid nothing here.
-    const owned = await backend.queryOwnedPurchases(accountId);
-    if (owned.length === 0) { safeSet(PurchaseState.IDLE); return; }
+  //
+  // ⚠️ IT ANSWERS NOW, BECAUSE A VISIBLE RESTORE CONTROL NEEDS TO SAY WHAT
+  // HAPPENED. Returns 'restored' (verification started), 'none' or 'error'.
+  // A button that silently does nothing when there is nothing to restore
+  // reads as broken, and Apple expects the control to exist at all.
+  //
+  // `manual` is a tap. On iOS it asks StoreKit to sync with Apple first,
+  // which may show Apple's sign-in sheet, so the automatic run never sets it.
+  //
+  // ⚠️ AND A THROW NO LONGER ESCAPES. The query used to run bare, so a store
+  // that failed to answer became an unhandled rejection from the mount
+  // effect, reported by nobody.
+  const restore = useCallback(async ({ manual = false } = {}) => {
+    if (!backend) return 'none';
+    let owned;
+    try {
+      // ⚠️ THE ACCOUNT TRAVELS WITH THE QUERY. Play ignores it. Apple needs it:
+      // one Apple ID can hold a subscription bought for a DIFFERENT CarReminder
+      // account, and sending that one to verification would render PENDING
+      // ("payment received, activation late") to someone who paid nothing here.
+      owned = await backend.queryOwnedPurchases(accountId, { sync: manual === true });
+    } catch (err) {
+      try {
+        reportError('billing_restore', err, { where: 'usePurchaseFlow.restore', manual: manual === true });
+      } catch { /* reporting must never break the screen */ }
+      return 'error';
+    }
+    if (owned.length === 0) { safeSet(PurchaseState.IDLE); return 'none'; }
     setActiveProductId(owned[0].productId);
     await runVerification(owned[0]);
+    return 'restored';
   }, [backend, accountId, runVerification, safeSet]);
 
   /**

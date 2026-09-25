@@ -162,3 +162,7 @@ Playbook: ux (deferred inline, not a banner), designer (`C.infoDark`, inline lin
 2. Device-only: the StoreKit sheet, cancellation on a Hebrew device, Ask to Buy, `manageSubscriptions`, and that the plugin compiles and registers (Podfile, slice 2a).
 3. After switching plans in Apple's page, /Plans updates within the 60-second `useAccountPlan` staleTime, not instantly.
 
+### Restore Purchases control (added after the App Review notes exposed its absence)
+
+`RestoreControl` below the plan list on /Plans, both stores, whenever `offering && !isGuest` (subscribers included: it is how a second phone recovers), hidden during SHEET_OPEN and VERIFYING. A tap passes `manual: true`: on iOS `queryOwnedPurchases(..., { sync: true })` calls the plugin's `restorePurchases()` (`AppStore.sync`) first, which may show Apple's sign-in; the automatic mount restore never does. `usePurchaseFlow.restore()` now returns 'restored' | 'none' | 'error' and catches a failed store query instead of leaking an unhandled rejection. Verified in /dev/components at 375px: 44px target, reserved 18px message line, none / error / offline.
+

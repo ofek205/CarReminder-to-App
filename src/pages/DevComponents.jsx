@@ -20,6 +20,7 @@ import {
 import { DateInput } from '@/components/ui/date-input';
 import PurchaseAction from '@/components/plans/PurchaseAction';
 import VerifyingBanner from '@/components/plans/VerifyingBanner';
+import RestoreControl from '@/components/plans/RestoreControl';
 import { PurchaseState } from '@/lib/billing/purchaseMachine';
 
 // Section wrapper used throughout this page. Centralized so future
@@ -506,6 +507,21 @@ export default function DevComponents() {
           <div key={label} className="rounded-3xl bg-white shadow-sm p-5">
             <p className="text-cr-xs text-cr-text-muted mb-1">{label}</p>
             <PurchaseAction state={st} priceFormatted="₪9.00" store="apple" />
+          </div>
+        ))}
+        {/* The restore control. Each fake answers after a short wait so the
+            working state can be seen before the result. */}
+        {[
+          ['שחזור: לא נמצא', 'none', true],
+          ['שחזור: שגיאה', 'error', true],
+          ['שחזור: אופליין', 'none', false],
+        ].map(([label, answer, online]) => (
+          <div key={label} className="rounded-3xl bg-white shadow-sm p-5">
+            <p className="text-cr-xs text-cr-text-muted mb-1">{label}</p>
+            <RestoreControl
+              online={online}
+              onRestore={() => new Promise((r) => setTimeout(() => r(answer), 900))}
+            />
           </div>
         ))}
       </Section>

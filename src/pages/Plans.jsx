@@ -62,6 +62,7 @@ import { useFeatureFlag } from '@/lib/featureFlags';
 import useAccountRole from '@/hooks/useAccountRole';
 import PurchaseAction from '@/components/plans/PurchaseAction';
 import VerifyingBanner from '@/components/plans/VerifyingBanner';
+import RestoreControl from '@/components/plans/RestoreControl';
 
 // ── pure helpers, exported for testing ──────────────────────────────────
 //
@@ -397,6 +398,26 @@ export function noteVoice(heldBy, platform) {
   if (!heldBy) return 'store';
   if (platform === 'web') return 'store';
   return nativeStoreOf(platform) === heldBy ? 'store' : 'elsewhere';
+}
+
+/**
+ * May the "שחזור רכישות" control appear at all?
+ *
+ * Wherever a purchase is on offer, including for a subscriber: restore is
+ * how a second phone or a reinstall recovers the plan, and actionKind's
+ * double-purchase guard has nothing to say about it. Never for a guest,
+ * who has no account to restore into.
+ */
+export function showRestoreControl(offering, isGuest) {
+  return offering === true && !isGuest;
+}
+
+/**
+ * While the sheet is open or the server is verifying, a second flow must
+ * not start beside the first, so the control steps out of the way.
+ */
+export function restoreControlHidden(purchaseState) {
+  return purchaseState === PurchaseState.SHEET_OPEN || purchaseState === PurchaseState.VERIFYING;
 }
 
 /** The sentence on the account's own row. */
@@ -843,7 +864,8 @@ export default function Plans() {
           offline={!online}
           store={purchaseStore}
           onBuy={() => product && buy(product.productId)}
-          onRestore={restore}
+          // A tap, so iOS may sync with Apple first (see appleBackend).
+          onRestore={() => restore({ manual: true })}
         />
       );
     }
@@ -936,6 +958,17 @@ export default function Plans() {
             );
           })}
         </div>
+
+        {/* ⚠️ THE VISIBLE RESTORE, which Apple expects for any subscription.
+            Below the list and above the closing line, so it never competes
+            with the open row's button. */}
+        {showRestoreControl(offering, isGuest) && (
+          <RestoreControl
+            hidden={restoreControlHidden(purchaseState)}
+            online={online}
+            onRestore={restore}
+          />
+        )}
 
         {/* Closes on what the reader already has, not on what they lack. */}
         <p className="text-[12px] leading-relaxed px-1" style={{ color: C.gray500 }}>

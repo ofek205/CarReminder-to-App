@@ -279,13 +279,20 @@ export function buildAppleBackend() {
      * to someone else. Without an account id there is nothing to filter by,
      * so it returns nothing rather than everything.
      */
-    async queryOwnedPurchases(accountId) {
+    //
+    // ⚠️ `sync` IS FOR A TAP, NEVER FOR THE AUTOMATIC RESTORE. It calls the
+    // plugin's restorePurchases(), which is `AppStore.sync()` in the Swift,
+    // and that may put Apple's own sign-in sheet in front of the user. Right
+    // for someone who pressed "שחזור רכישות"; wrong for a screen that merely
+    // opened. A failed or cancelled sync throws, and the caller reports it.
+    async queryOwnedPurchases(accountId, { sync = false } = {}) {
       if (!isUuid(accountId)) {
         safeReport('billing_restore', new Error('apple_restore_without_account_id'), {
           where: 'appleBackend.queryOwnedPurchases',
         });
         return [];
       }
+      if (sync) await NativePurchases.restorePurchases();
       const { purchases } = await NativePurchases.getPurchases({
         productType: PURCHASE_TYPE.SUBS,
         onlyCurrentEntitlements: true,

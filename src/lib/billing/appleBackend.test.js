@@ -111,6 +111,9 @@ const NativePurchasesFake = {
 
   getStorefront: vi.fn(async () => ({ countryCode: fake.storefront })),
 
+  // restorePurchases: `try await AppStore.sync()`, then resolve() with nothing.
+  restorePurchases: vi.fn(async () => undefined),
+
   acknowledgePurchase: vi.fn(async ({ purchaseToken }) => {
     if (!/^\d+$/.test(String(purchaseToken))) throw new Error('Invalid purchaseToken format');
   }),
@@ -348,6 +351,24 @@ describe('queryOwnedPurchases()', () => {
     await expect(buildAppleBackend().queryOwnedPurchases()).resolves.toEqual([]);
     expect(NativePurchasesFake.getPurchases).not.toHaveBeenCalled();
     expect(reportError.mock.calls[0][1].message).toBe('apple_restore_without_account_id');
+  });
+
+  it('asks Apple to sync first only when the user tapped restore', async () => {
+    fake.entitlements = [{ transactionId: '11', productIdentifier: 'plan_p9', appAccountToken: ACCOUNT.toUpperCase() }];
+    await buildAppleBackend().queryOwnedPurchases(ACCOUNT);
+    expect(NativePurchasesFake.restorePurchases).not.toHaveBeenCalled();
+
+    const owned = await buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true });
+    expect(NativePurchasesFake.restorePurchases).toHaveBeenCalledTimes(1);
+    // Synced first, then read.
+    expect(NativePurchasesFake.restorePurchases.mock.invocationCallOrder[0])
+      .toBeLessThan(NativePurchasesFake.getPurchases.mock.invocationCallOrder.at(-1));
+    expect(owned).toHaveLength(1);
+  });
+
+  it('lets a failed sync throw, so the screen can say it could not check', async () => {
+    NativePurchasesFake.restorePurchases.mockRejectedValueOnce(new Error('The operation couldn’t be completed.'));
+    await expect(buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true })).rejects.toThrow();
   });
 
   it('ignores products that are not ours', async () => {

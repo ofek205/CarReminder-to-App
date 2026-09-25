@@ -27,7 +27,9 @@ const {
   catalogPriceAllowed, COLUMNS, cellValue, detailValue, deltaNote, extrasLine,
   NEAR_FULL, usageMeter, recommendPlan, defaultOpenCode, actionKind,
   manageNote, currentNote, isStoreManaged, noteVoice,
+  showRestoreControl, restoreControlHidden,
 } = await import('./Plans');
+const { PurchaseState } = await import('@/lib/billing/purchaseMachine');
 
 // The live catalogue as of 2026-09-25, after supabase-plans-redesign.
 const FREE = {
@@ -447,6 +449,29 @@ describe('the App Store, and the other phone', () => {
     for (const p of ALL) {
       expect(manageNote(p, 'google', 'store')).toBe(manageNote(p));
       expect(currentNote(p, true, 'google', 'store')).toBe(currentNote(p, true));
+    }
+  });
+});
+
+describe('the visible restore control', () => {
+  it('appears wherever a purchase is on offer, for everyone signed in', () => {
+    expect(showRestoreControl(true, false)).toBe(true);
+    // A subscriber too: restore is how a second phone recovers the plan.
+  });
+
+  it('never appears for a guest, or where nothing can be bought', () => {
+    expect(showRestoreControl(true, true)).toBe(false);
+    expect(showRestoreControl(false, false)).toBe(false);
+    // undefined while the flag loads must not flash the control.
+    expect(showRestoreControl(undefined, false)).toBe(false);
+  });
+
+  it('steps aside while the sheet is open or the server is verifying', () => {
+    expect(restoreControlHidden(PurchaseState.SHEET_OPEN)).toBe(true);
+    expect(restoreControlHidden(PurchaseState.VERIFYING)).toBe(true);
+    for (const s of [PurchaseState.IDLE, PurchaseState.PENDING, PurchaseState.DEFERRED,
+      PurchaseState.FAILED, PurchaseState.SUCCESS, PurchaseState.UNAVAILABLE, PurchaseState.LOADING_PRODUCTS]) {
+      expect(restoreControlHidden(s), s).toBe(false);
     }
   });
 });
