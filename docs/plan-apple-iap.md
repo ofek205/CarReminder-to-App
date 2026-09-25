@@ -166,3 +166,17 @@ Playbook: ux (deferred inline, not a banner), designer (`C.infoDark`, inline lin
 
 `RestoreControl` below the plan list on /Plans, both stores, whenever `offering && !isGuest` (subscribers included: it is how a second phone recovers), hidden during SHEET_OPEN and VERIFYING. A tap passes `manual: true`: on iOS `queryOwnedPurchases(..., { sync: true })` calls the plugin's `restorePurchases()` (`AppStore.sync`) first, which may show Apple's sign-in; the automatic mount restore never does. `usePurchaseFlow.restore()` now returns 'restored' | 'none' | 'error' and catches a failed store query instead of leaking an unhandled rejection. Verified in /dev/components at 375px: 44px target, reserved 18px message line, none / error / offline.
 
+### Pre-merge review (independent reviewer + own pass), all fixed
+
+| Sev | Finding | Fix |
+|---|---|---|
+| High | One Apple ID, two of our accounts: B pays, gets `held_by_other_account`, the renewal hands the plan back to A | Owner = Apple's latest signed `appAccountToken` (`resolveAppleAccount`, `ownerToken`); old holder released after the new grant (`releaseHolders`) in both functions |
+| High | Android restore credits another account's Google subscription | **Play session's** (feat/plans-edge-cases): server `account_mismatch` + device filter. Client maps it (and Apple's equivalents) to `not_yours` → IDLE, never PENDING |
+| Medium | ASN read a DB error as "no account"/"not current" and answered 200, so Apple never retried | every DB error → 500 |
+| Low | Restore spinner had no ceiling | 30s in RestoreControl |
+| Low | "בדוק שוב" from DEFERRED/PENDING finding nothing put the buy button back | the waiting state survives "none" |
+| Low | A failed AppStore.sync skipped the local entitlements | read anyway; error only when nothing is found |
+| Low | Legal links pressable mid-verification | hidden while locked |
+| Low | Restore before accountId answered "nothing found" | control waits for the account |
+| Medium | iOS purchase returning another account's existing subscription rendered PENDING | FAILED ("not charged"), which is true: nothing new was bought |
+| (found in own gatekeeper pass) | An expiry revoked only the account Apple names, leaving an earlier owner of a moved subscription on a paid plan | every iap_apple row naming the subscription is revoked; and `otherHolders` never filters on an empty uuid, which Postgres rejects (22P02) |

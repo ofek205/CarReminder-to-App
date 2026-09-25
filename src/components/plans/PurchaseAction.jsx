@@ -227,7 +227,10 @@ export default function PurchaseAction({
               <p className="mt-2 text-[11px] leading-relaxed" style={{ color: C.gray500 }}>
                 {copy.renewal}
               </p>
-              <LegalLinks />
+              {/* Not while the sheet is open or the server is verifying:
+                  leaving the screen then hides the activation banner, and
+                  the user returns to a screen that never said it worked. */}
+              {!locked && <LegalLinks />}
             </>
           )}
         </>

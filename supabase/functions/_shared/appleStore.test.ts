@@ -320,3 +320,138 @@ describe('linkProblem', () => {
     expect(linkProblem(null, { bundleId: BUNDLE_ID, accountId: ACCOUNT })).toBe('unreadable');
   });
 });
+
+// ── ownership ───────────────────────────────────────────────────────────
+
+import { ownerToken, resolveAppleAccount, otherHolders, releaseHolders, type AdminLike } from './appleStore';
+
+type Row = Record<string, unknown>;
+
+/**
+ * A tiny stand-in for the Supabase client: tables are arrays of rows, and
+ * the chain applies eq/neq filters for real, so the helpers are tested
+ * against what they select, not against what a mock was told to return.
+ */
+function fakeAdmin(tables: Record<string, Row[]>, fail: { table?: string; rpc?: boolean } = {}) {
+  const calls: Array<{ rpc: string; args: Record<string, unknown> }> = [];
+  const admin: AdminLike = {
+    from(table: string) {
+      const filters: Array<(r: Row) => boolean> = [];
+      let update: Row | null = null;
+      const q: any = {
+        select() { return q; },
+        update(values: Row) { update = values; return q; },
+        eq(k: string, v: unknown) { filters.push((r) => r[k] === v); return q; },
+        neq(k: string, v: unknown) { filters.push((r) => r[k] !== v); return q; },
+        limit() { return q; },
+        run() {
+          if (fail.table === table) return { data: null, error: { message: `boom on ${table}` } };
+          const rows = (tables[table] || []).filter((r) => filters.every((f) => f(r)));
+          if (update) { rows.forEach((r) => Object.assign(r, update)); return { data: null, error: null }; }
+          return { data: rows, error: null };
+        },
+        maybeSingle() { const r = q.run(); return Promise.resolve(r.error ? r : { data: r.data[0] ?? null, error: null }); },
+        then(res: (v: unknown) => unknown, rej: (e: unknown) => unknown) { return Promise.resolve(q.run()).then(res, rej); },
+      };
+      return q;
+    },
+    rpc(fn: string, args: Record<string, unknown>) {
+      calls.push({ rpc: fn, args });
+      return Promise.resolve(fail.rpc ? { error: { message: 'rpc boom' } } : { error: null });
+    },
+  };
+  return { admin, calls, tables };
+}
+
+const A = '3f2b8c1e-5d4a-4b7e-9c21-0a1b2c3d4e5f';
+const B = '9e8d7c6b-5a49-4382-8170-6f5e4d3c2b1a';
+const O1 = '2000000900000000';
+
+describe('ownerToken', () => {
+  it('lower-cases a valid token and drops anything else', () => {
+    expect(ownerToken({ appAccountToken: A.toUpperCase() })).toBe(A);
+    expect(ownerToken({ appAccountToken: 'not-a-uuid' })).toBe('');
+    expect(ownerToken(null)).toBe('');
+  });
+});
+
+describe('resolveAppleAccount', () => {
+  it('follows Apple\'s latest token over our stored row', () => {
+    // A subscribed first; B bought last. Apple says B.
+    const { admin } = fakeAdmin({
+      accounts: [{ id: A }, { id: B }],
+      account_subscriptions: [{ account_id: A, source: 'iap_apple', external_subscription_id: O1 }],
+    });
+    return expect(resolveAppleAccount(admin, O1, { appAccountToken: B.toUpperCase() }))
+      .resolves.toEqual({ ok: true, value: B });
+  });
+
+  it('falls back to the stored row only when Apple names no usable account', async () => {
+    const { admin } = fakeAdmin({
+      accounts: [{ id: A }],
+      account_subscriptions: [{ account_id: A, source: 'iap_apple', external_subscription_id: O1 }],
+    });
+    await expect(resolveAppleAccount(admin, O1, {})).resolves.toEqual({ ok: true, value: A });
+    // A token naming an account that no longer exists is not an owner.
+    await expect(resolveAppleAccount(admin, O1, { appAccountToken: B })).resolves.toEqual({ ok: true, value: A });
+  });
+
+  it('answers null, not an error, when nobody holds it', () => {
+    const { admin } = fakeAdmin({ accounts: [], account_subscriptions: [] });
+    return expect(resolveAppleAccount(admin, O1, {})).resolves.toEqual({ ok: true, value: null });
+  });
+
+  it('reports a database failure as a failure, so the caller can ask Apple to retry', async () => {
+    const byToken = fakeAdmin({ accounts: [{ id: B }] }, { table: 'accounts' });
+    await expect(resolveAppleAccount(byToken.admin, O1, { appAccountToken: B })).resolves.toMatchObject({ ok: false });
+    const byRow = fakeAdmin({ account_subscriptions: [] }, { table: 'account_subscriptions' });
+    await expect(resolveAppleAccount(byRow.admin, O1, {})).resolves.toMatchObject({ ok: false });
+  });
+});
+
+describe('otherHolders and releaseHolders', () => {
+  it('finds only OTHER accounts still naming this Apple subscription', async () => {
+    const { admin } = fakeAdmin({
+      account_subscriptions: [
+        { account_id: A, source: 'iap_apple', external_subscription_id: O1 },
+        { account_id: B, source: 'iap_apple', external_subscription_id: O1 },
+        { account_id: 'x', source: 'iap_google', external_subscription_id: O1 },
+      ],
+    });
+    await expect(otherHolders(admin, O1, B)).resolves.toEqual({ ok: true, value: [A] });
+  });
+
+  it('lists EVERY holder when there is no account to keep, without an empty-uuid filter', async () => {
+    const { admin } = fakeAdmin({
+      account_subscriptions: [
+        { account_id: A, source: 'iap_apple', external_subscription_id: O1 },
+        { account_id: B, source: 'iap_apple', external_subscription_id: O1 },
+      ],
+    });
+    const neqValues: unknown[] = [];
+    const from = admin.from.bind(admin);
+    admin.from = (t: string) => {
+      const q = from(t);
+      const neq = q.neq;
+      q.neq = (k: string, v: unknown) => { neqValues.push(v); return neq(k, v); };
+      return q;
+    };
+    await expect(otherHolders(admin, O1, '')).resolves.toEqual({ ok: true, value: [A, B] });
+    // An empty string compared to a uuid column is a Postgres error, not "no match".
+    expect(neqValues).toEqual([]);
+  });
+
+  it('revokes the old owner and forgets the id, so a later lookup cannot find them', async () => {
+    const f = fakeAdmin({
+      account_subscriptions: [{ account_id: A, source: 'iap_apple', external_subscription_id: O1 }],
+    });
+    await expect(releaseHolders(f.admin, O1, [A], 'apple_moved')).resolves.toBeNull();
+    expect(f.calls).toEqual([{ rpc: 'revoke_iap_entitlement', args: { p_account_id: A, p_reason: 'apple_moved' } }]);
+    expect(f.tables.account_subscriptions[0].external_subscription_id).toBeNull();
+  });
+
+  it('stops and reports when the revoke fails', async () => {
+    const f = fakeAdmin({ account_subscriptions: [] }, { rpc: true });
+    await expect(releaseHolders(f.admin, O1, [A], 'r')).resolves.toBe('rpc boom');
+  });
+});

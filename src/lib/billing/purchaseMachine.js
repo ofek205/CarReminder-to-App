@@ -84,7 +84,11 @@ export function afterSheet(outcome) {
  * @returns {string}
  */
 export function afterVerification(result) {
-  return result === 'ok' ? PurchaseState.SUCCESS : PurchaseState.PENDING;
+  if (result === 'ok') return PurchaseState.SUCCESS;
+  // The server said the purchase belongs to another account of ours. No
+  // money moved for THIS account, so "payment received" would be false.
+  if (result === 'not_yours') return PurchaseState.IDLE;
+  return PurchaseState.PENDING;
 }
 
 /**

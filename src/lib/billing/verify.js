@@ -38,12 +38,34 @@ export function verifyRequest(store, { purchaseToken, productId, accountId }) {
   };
 }
 
+/**
+ * Server refusals that mean "this purchase belongs to another account",
+ * not "your payment is late". Apple's from verify-apple-purchase, Play's
+ * account_mismatch from verify-play-purchase.
+ */
+const NOT_YOURS = new Set([
+  'held_by_other_account', 'account_token_mismatch', 'no_account_token', 'account_mismatch',
+]);
+
+/**
+ * `true`, `false` (not yet: renders PENDING), or `'not_yours'`.
+ *
+ * ⚠️ 'not_yours' EXISTS SO A REFUSAL CAN BE SILENT. Every other refusal
+ * renders PENDING, whose copy says the payment arrived and activation is
+ * late. For a purchase that belongs to a different account of ours, that
+ * sentence is false and invites paying again, so the screen returns to idle.
+ */
+export function verificationResult(data, error) {
+  if (error) return false;
+  if (data?.granted === true) return true;
+  return NOT_YOURS.has(data?.reason) ? 'not_yours' : false;
+}
+
 function makeStoreVerifier(store) {
   return async function verifyStorePurchase(args) {
     const { fn, body } = verifyRequest(store, args);
     const { data, error } = await supabase.functions.invoke(fn, { body });
-    if (error) return false;
-    return data?.granted === true;
+    return verificationResult(data, error);
   };
 }
 

@@ -241,9 +241,29 @@ export function buildAppleBackend() {
           safeReport('billing_purchase', new Error('apple_purchase_no_transaction_id'), {
             where: 'appleBackend.purchase', productId,
           });
+        } else if (isUuid(txn?.appAccountToken) && !sameUuid(txn.appAccountToken, accountId)) {
+          /**
+           * ⚠️ ANOTHER ACCOUNT'S SUBSCRIPTION CAME BACK, SO NOTHING WAS BOUGHT.
+           * A purchase we start always carries OUR token, and StoreKit signs
+           * it into any NEW transaction. A different token therefore means
+           * StoreKit handed back an EXISTING transaction: this Apple ID is
+           * already subscribed, for another account of ours. Nothing was
+           * charged, and verifying it would render PENDING ("התשלום נקלט")
+           * over a payment that never happened. FAILED's copy says exactly
+           * the true thing: not completed, not charged.
+           */
+          safeReport('billing_purchase', new Error('apple_subscription_owned_by_other_account'), {
+            where: 'appleBackend.purchase', productId, transactionId,
+          });
+          return {
+            outcome: PurchaseOutcome.FAILED,
+            productId,
+            message: 'apple_subscription_owned_by_other_account',
+          };
         } else if (!sameUuid(txn?.appAccountToken, accountId)) {
-          // Unreachable while the uuid check above holds. Kept because the
-          // cost of it happening unseen is a charged user we cannot credit.
+          // No token at all. Unreachable while the uuid check above holds.
+          // Kept because the cost of it happening unseen is a charged user
+          // we cannot credit.
           safeReport('billing_purchase', new Error('apple_purchase_account_token_lost'), {
             where: 'appleBackend.purchase', productId, transactionId,
           });
@@ -292,12 +312,20 @@ export function buildAppleBackend() {
         });
         return [];
       }
-      if (sync) await NativePurchases.restorePurchases();
+      // ⚠️ A FAILED SYNC DOES NOT SKIP THE LOCAL CHECK. Cancelling Apple's
+      // sign-in, or being offline, throws from AppStore.sync(); the
+      // subscriptions already on the phone are still readable, and a user who
+      // holds one must not be told the check failed. It only becomes an
+      // error when nothing is found either.
+      let syncFailure = null;
+      if (sync) {
+        try { await NativePurchases.restorePurchases(); } catch (err) { syncFailure = err; }
+      }
       const { purchases } = await NativePurchases.getPurchases({
         productType: PURCHASE_TYPE.SUBS,
         onlyCurrentEntitlements: true,
       });
-      return (purchases || [])
+      const owned = (purchases || [])
         .filter((t) => APPLE_PRODUCT_IDS.includes(t?.productIdentifier))
         .filter((t) => t?.transactionId)
         .filter((t) => sameUuid(t?.appAccountToken, accountId))
@@ -307,6 +335,8 @@ export function buildAppleBackend() {
           purchaseToken: String(t.transactionId),
           transactionId: String(t.transactionId),
         }));
+      if (owned.length === 0 && syncFailure) throw syncFailure;
+      return owned;
     },
 
     /**

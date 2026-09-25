@@ -25,6 +25,14 @@ import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 
+/**
+ * ⚠️ A CEILING, BECAUSE THE RESTORE CHAIN HAS NONE OF ITS OWN. It awaits
+ * AppStore.sync, the store query and the server, and the hook's 20-second
+ * verification timeout only moves the PURCHASE state. Without this the
+ * control could sit on "בודקים מול החנות" for as long as a fetch hangs.
+ */
+export const RESTORE_TIMEOUT_MS = 30000;
+
 export const RESTORE_COPY = Object.freeze({
   button: 'שחזור רכישות',
   working: 'בודקים מול החנות',
@@ -69,10 +77,16 @@ export default function RestoreControl({ hidden = false, online = true, onRestor
     if (working || !online) return;
     setStatus('working');
     let result = 'error';
+    let timer = null;
     try {
-      result = await onRestore({ manual: true });
+      result = await Promise.race([
+        onRestore({ manual: true }),
+        new Promise((resolve) => { timer = setTimeout(() => resolve('error'), RESTORE_TIMEOUT_MS); }),
+      ]);
     } catch {
       result = 'error';
+    } finally {
+      if (timer) clearTimeout(timer);
     }
     // 'restored' hands over to the verification banner; nothing to say here.
     setStatus(result === 'none' || result === 'error' ? result : 'idle');

@@ -71,6 +71,9 @@ function catalogueTag(backend) {
  */
 export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted }) {
   const [state, setState] = useState(PurchaseState.LOADING_PRODUCTS);
+  // The latest state for callbacks that must not re-create on every change.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
   const [products, setProducts] = useState([]);
   const [activeProductId, setActiveProductId] = useState(null);
 
@@ -245,7 +248,8 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
         productId: result.productId,
         accountId,
       });
-      finish(ok ? 'ok' : 'rejected');
+      // 'not_yours' is passed through: see lib/billing/verify.
+      finish(ok === 'not_yours' ? 'not_yours' : ok ? 'ok' : 'rejected');
     } catch {
       finish('threw');
     }
@@ -326,7 +330,17 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
       } catch { /* reporting must never break the screen */ }
       return 'error';
     }
-    if (owned.length === 0) { safeSet(PurchaseState.IDLE); return 'none'; }
+    if (owned.length === 0) {
+      // ⚠️ A WAITING STATE SURVIVES "NOTHING FOUND YET". "בדוק שוב" from
+      // DEFERRED (a parent has not approved) or PENDING (charged, activation
+      // late) finding nothing is not the end of either. Dropping to IDLE put
+      // the buy button back under a waiting message, inviting a second Ask
+      // to Buy or, worse, a second charge.
+      const waiting = stateRef.current === PurchaseState.DEFERRED
+        || stateRef.current === PurchaseState.PENDING;
+      if (!waiting) safeSet(PurchaseState.IDLE);
+      return 'none';
+    }
     setActiveProductId(owned[0].productId);
     await runVerification(owned[0]);
     return 'restored';

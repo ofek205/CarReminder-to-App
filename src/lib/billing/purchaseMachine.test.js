@@ -54,6 +54,12 @@ describe('afterVerification: the card has already been charged', () => {
     expect(afterVerification('ok')).toBe(PurchaseState.SUCCESS);
   });
 
+  it('returns to IDLE, silently, when the purchase belongs to another account', () => {
+    // No money moved for THIS account, so "payment received" would be false,
+    // and FAILED would say something happened that did not.
+    expect(afterVerification('not_yours')).toBe(PurchaseState.IDLE);
+  });
+
   it.each(['rejected', 'threw', 'timeout'])('%s becomes PENDING, never FAILED', (r) => {
     // From the user's side these are identical: the money left and the plan
     // has not arrived. Calling it failure invites paying twice.

@@ -260,6 +260,19 @@ describe('purchase()', () => {
     expect(r.message).toBe('Cannot find product for id plan_p9');
   });
 
+  it('refuses, as not charged, a transaction that belongs to ANOTHER account', async () => {
+    // StoreKit hands back the existing subscription when this Apple ID already
+    // holds one, and ours would carry OUR token if it were new.
+    NativePurchasesFake.purchaseProduct.mockImplementationOnce(async () => ({
+      transactionId: '2000000000000002', productIdentifier: 'plan_p9', appAccountToken: OTHER_ACCOUNT.toUpperCase(),
+    }));
+    const r = await buildAppleBackend().purchase('plan_p9', ACCOUNT);
+    expect(r.outcome).toBe(PurchaseOutcome.FAILED);
+    expect(r.message).toBe('apple_subscription_owned_by_other_account');
+    expect(r).not.toHaveProperty('purchaseToken');
+    expect(reportError.mock.calls[0][1].message).toBe('apple_subscription_owned_by_other_account');
+  });
+
   it('reports a completed purchase that lost its account link', async () => {
     NativePurchasesFake.purchaseProduct.mockImplementationOnce(async () => ({
       transactionId: '2000000000000001', productIdentifier: 'plan_p9',
@@ -366,7 +379,14 @@ describe('queryOwnedPurchases()', () => {
     expect(owned).toHaveLength(1);
   });
 
-  it('lets a failed sync throw, so the screen can say it could not check', async () => {
+  it('still reads the phone when the sync fails, so a held subscription is not lost', async () => {
+    fake.entitlements = [{ transactionId: '11', productIdentifier: 'plan_p9', appAccountToken: ACCOUNT.toUpperCase() }];
+    NativePurchasesFake.restorePurchases.mockRejectedValueOnce(new Error('sign-in cancelled'));
+    await expect(buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true }))
+      .resolves.toHaveLength(1);
+  });
+
+  it('lets a failed sync throw when nothing is found either, so the screen can say it could not check', async () => {
     NativePurchasesFake.restorePurchases.mockRejectedValueOnce(new Error('The operation couldn’t be completed.'));
     await expect(buildAppleBackend().queryOwnedPurchases(ACCOUNT, { sync: true })).rejects.toThrow();
   });

@@ -66,14 +66,15 @@ import {
   getSubscriptionStatuses,
   entitlementFromStatuses,
   requestTestNotification,
+  resolveAppleAccount,
+  otherHolders,
+  releaseHolders,
   type AppleTransaction,
 } from '../_shared/appleStore.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ASN_SECRET   = Deno.env.get('APPLE_ASN_SECRET');
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(payload: unknown, status: number) {
   return new Response(JSON.stringify(payload), {
@@ -93,41 +94,17 @@ function secretMatches(given: string, expected: string): boolean {
   return diff === 0;
 }
 
-// The type of the client as actually constructed. `ReturnType<typeof
-// createClient>` (play-rtdn's spelling) resolves the generic defaults instead
-// and types every row as `never`.
-const makeAdmin = () => createClient(SUPABASE_URL, SERVICE_ROLE);
-type Admin = ReturnType<typeof makeAdmin>;
-
 /**
- * Which account does this subscription belong to?
+ * Which account does this subscription belong to? See resolveAppleAccount
+ * in _shared/appleStore.ts: the appAccountToken inside APPLE'S latest copy
+ * of the transaction first, our stored row only as a fallback.
  *
- * By originalTransactionId first, which verify-apple-purchase stored. Then by
- * the appAccountToken inside APPLE'S copy of the transaction, which is what
- * makes this endpoint able to grant a purchase the device never managed to
- * report: the app closing mid-verification, Ask to Buy approved hours later,
- * a renewal after a reinstall. Play's handler cannot do that; this one can,
- * because Apple signs the account link into the transaction.
+ * That order is what lets this endpoint grant a purchase the device never
+ * managed to report (the app closing mid-verification, Ask to Buy approved
+ * hours later, a renewal after a reinstall), and what follows the
+ * subscription when the same Apple ID buys for a different account of ours.
  */
-async function resolveAccountId(
-  admin: Admin,
-  originalTransactionId: string,
-  txn: AppleTransaction | null,
-): Promise<string | null> {
-  const { data: byId } = await admin
-    .from('account_subscriptions')
-    .select('account_id')
-    .eq('source', 'iap_apple')
-    .eq('external_subscription_id', originalTransactionId)
-    .limit(1)
-    .maybeSingle();
-  if (byId?.account_id) return byId.account_id as string;
-
-  const token = String(txn?.appAccountToken || '').toLowerCase();
-  if (!UUID_RE.test(token)) return null;
-  const { data: acct } = await admin.from('accounts').select('id').eq('id', token).maybeSingle();
-  return acct?.id ? (acct.id as string) : null;
-}
+const makeAdmin = () => createClient(SUPABASE_URL, SERVICE_ROLE);
 
 serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
@@ -227,18 +204,26 @@ serve(async (req) => {
   if (ent.transaction?.bundleId !== BUNDLE_ID) return json({ ok: true, ignored: 'other_app' }, 200);
 
   const admin = makeAdmin();
-  const accountId = await resolveAccountId(admin, originalTransactionId, ent.transaction);
+  // ⚠️ EVERY DATABASE ERROR BELOW ANSWERS 500. In production Apple retries
+  // a non-2xx five times over three days and never resends a notification it
+  // was told it delivered. Reading a failed query as "no account" or "not
+  // current" answered 200, so a renewal lost that way let a paying
+  // subscriber age out to free, and a refund lost that way was never revoked.
+  const resolved = await resolveAppleAccount(admin, originalTransactionId, ent.transaction);
+  if (!resolved.ok) return json({ error: 'db_error', detail: resolved.error }, 500);
+  const accountId = resolved.value;
   if (!accountId) {
     // No row and no usable account token. Answering 500 would only make
     // Apple resend something that can never resolve.
     return json({ ok: true, ignored: 'unknown_account', type, status: ent.status }, 200);
   }
 
-  const { data: current } = await admin
+  const { data: current, error: currentErr } = await admin
     .from('account_subscriptions')
     .select('source, status, current_period_end, external_subscription_id')
     .eq('account_id', accountId)
     .maybeSingle();
+  if (currentErr) return json({ error: 'db_error', detail: currentErr.message }, 500);
 
   // ── 5. apply it ───────────────────────────────────────────────────────
   if (ent.entitled && ent.productId) {
@@ -262,6 +247,9 @@ serve(async (req) => {
       return json({ ok: true, ignored: 'held_by_google' }, 200);
     }
 
+    const holders = await otherHolders(admin, originalTransactionId, accountId);
+    if (!holders.ok) return json({ error: 'db_error', detail: holders.error }, 500);
+
     const { error } = await admin.rpc('grant_iap_entitlement', {
       p_account_id:      accountId,
       p_store:           'apple',
@@ -270,24 +258,45 @@ serve(async (req) => {
       p_external_sub_id: originalTransactionId,
     });
     if (error) return json({ error: 'grant_failed', detail: error.message }, 500);
-    return json({ ok: true, action: 'granted', type, status: ent.status, periodEnd: ent.periodEnd }, 200);
+
+    // Apple moved the subscription to this account: take it off the old one,
+    // only now that the new grant has landed.
+    if (holders.value.length > 0) {
+      const releaseErr = await releaseHolders(
+        admin, originalTransactionId, holders.value, `apple_moved_to_${accountId}`,
+      );
+      if (releaseErr) return json({ error: 'release_failed', detail: releaseErr }, 500);
+    }
+    return json({
+      ok: true, action: 'granted', type, status: ent.status, periodEnd: ent.periodEnd,
+      moved_from: holders.value.length ? holders.value : undefined,
+    }, 200);
   }
 
   /**
-   * ⚠️ REVOKE ONLY THE SUBSCRIPTION THIS NOTIFICATION IS ABOUT.
+   * ⚠️ REVOKE ONLY ROWS THAT NAME THIS SUBSCRIPTION, BUT ALL OF THEM.
    * revoke_iap_entitlement() drops the account to free whatever store holds
    * it. An old Apple subscription expiring must not take down a Google plan
-   * or a newer Apple one bought for the same account, so the row has to be
-   * THIS subscription before anything is revoked.
+   * or a newer Apple one bought for the same account, so a row is revoked
+   * only if it is source iap_apple AND names this originalTransactionId.
+   *
+   * Every such row, not just the one Apple's token points at: if the
+   * subscription moved between two accounts of ours and the move was never
+   * processed, the earlier owner still names it, and an expiry that revoked
+   * only the new owner would leave the old one on a paid plan for ever.
    */
-  const isThisOne = current?.source === 'iap_apple'
-    && current?.external_subscription_id === originalTransactionId;
-  if (!isThisOne) return json({ ok: true, ignored: 'not_current', type, status: ent.status }, 200);
+  const holders = await otherHolders(admin, originalTransactionId, '');
+  if (!holders.ok) return json({ error: 'db_error', detail: holders.error }, 500);
+  if (holders.value.length === 0) {
+    return json({ ok: true, ignored: 'not_current', type, status: ent.status }, 200);
+  }
 
-  const { error } = await admin.rpc('revoke_iap_entitlement', {
-    p_account_id: accountId,
-    p_reason: `apple_${type || 'status'}_${ent.status ?? 'unknown'}`,
-  });
-  if (error) return json({ error: 'revoke_failed', detail: error.message }, 500);
-  return json({ ok: true, action: 'revoked', type, status: ent.status }, 200);
+  for (const holder of holders.value) {
+    const { error } = await admin.rpc('revoke_iap_entitlement', {
+      p_account_id: holder,
+      p_reason: `apple_${type || 'status'}_${ent.status ?? 'unknown'}`,
+    });
+    if (error) return json({ error: 'revoke_failed', detail: error.message }, 500);
+  }
+  return json({ ok: true, action: 'revoked', type, status: ent.status, accounts: holders.value.length }, 200);
 });

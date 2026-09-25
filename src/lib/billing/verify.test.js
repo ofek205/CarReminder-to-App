@@ -10,7 +10,7 @@ vi.mock('@/lib/supabase', () => ({
   supabase: { functions: { invoke: (...a) => invoke(...a) } },
 }));
 
-const { verifyRequest, verifierFor } = await import('./verify');
+const { verifyRequest, verifierFor, verificationResult } = await import('./verify');
 
 const ARGS = { purchaseToken: '2000000987654321', productId: 'plan_p9', accountId: 'acc-uuid' };
 
@@ -34,6 +34,26 @@ describe('verifyRequest', () => {
 
   it('never hands Apple a purchaseToken field, which it does not read', () => {
     expect(verifyRequest('apple', ARGS).body).not.toHaveProperty('purchaseToken');
+  });
+});
+
+describe('verificationResult', () => {
+  it('grants only on granted:true', () => {
+    expect(verificationResult({ granted: true }, null)).toBe(true);
+    expect(verificationResult({ granted: false, reason: 'not_active' }, null)).toBe(false);
+    expect(verificationResult(null, new Error('network'))).toBe(false);
+  });
+
+  it('marks another account\'s purchase as not_yours, from either store', () => {
+    for (const reason of ['held_by_other_account', 'account_token_mismatch', 'no_account_token', 'account_mismatch']) {
+      expect(verificationResult({ granted: false, reason }, null), reason).toBe('not_yours');
+    }
+  });
+
+  it('keeps every other refusal as false, which renders PENDING', () => {
+    for (const reason of ['lookup_failed', 'grant_failed', 'product_mismatch', 'verification_error', undefined]) {
+      expect(verificationResult({ granted: false, reason }, null), String(reason)).toBe(false);
+    }
   });
 });
 

@@ -962,7 +962,9 @@ export default function Plans() {
         {/* ⚠️ THE VISIBLE RESTORE, which Apple expects for any subscription.
             Below the list and above the closing line, so it never competes
             with the open row's button. */}
-        {showRestoreControl(offering, isGuest) && (
+        {/* And only once the account is known: a tap before that queried
+            with no account and answered "nothing found", which was false. */}
+        {showRestoreControl(offering, isGuest) && !!accountId && (
           <RestoreControl
             hidden={restoreControlHidden(purchaseState)}
             online={online}
