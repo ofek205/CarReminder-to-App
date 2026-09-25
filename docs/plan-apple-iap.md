@@ -1,6 +1,6 @@
 # Apple / StoreKit subscriptions: plan
 
-Status 2026-09-25: slice 1 merged (`feat/apple-iap`, PR #67). Slice 2a on `feat/apple-iap-wiring`: everything outside `/Plans`. Still inert: `getBillingBackend()` returns null on iOS.
+Status 2026-09-25: slice 1 merged (`feat/apple-iap`, PR #67). Slice 2a on `feat/apple-iap-wiring` (PR #68). **Slice 2b on `feat/apple-iap-plans`**, stacked on the approved `/Plans` redesign + 2a: iOS is wired. Merge order: redesign, then 2a, then 2b. Everything stays behind `apple_billing_enabled` (off), so only an admin on an iOS build sees a purchase. See §5.
 Companion: [runbook-app-store-connect-iap.md](runbook-app-store-connect-iap.md) (Ofek's App Store Connect checklist, in Hebrew).
 Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux-play-billing-purchase.md`.
 
@@ -138,3 +138,27 @@ Items marked ✅ are done in slice 2a (`feat/apple-iap-wiring`). The rest are in
 ```
 
 Why per iapReady and not per build like Android: Play's rule is about the Billing library being in the binary (the "hybrid"). Apple's is about what the user is told: once our subscriptions are purchasable in the app, naming them is ordinary; before that, naming a plan the app cannot sell points outside it. `canReferToWeb()` and `canMentionExternalPurchase()` stay false on iOS either way.
+
+## 5. Slice 2b: /Plans wired for iOS (`feat/apple-iap-plans`)
+
+Built on the redesign after Ofek approved it. Defaults taken when the three questions were dismissed, each overrulable: build now on the redesign; on iOS name plans only when a sheet can open (D6); never offer a second store's purchase (D9).
+
+| Piece | What changed |
+|---|---|
+| `lib/billing/index.js` | `getBillingBackend()` returns the Apple singleton on iOS |
+| `lib/billing/verify.js` | `verifierFor(store)`: Apple → `verify-apple-purchase` with `transactionId`, Play unchanged; one stable function per store |
+| `lib/billing/storeCopy.js` | every store-naming sentence, per store; Google strings byte-identical and pinned |
+| `purchaseMachine` | new `DEFERRED` state for a store-pending purchase (Ask to Buy). PENDING stays "charged, activation late". Unreachable on Android |
+| `PurchaseAction` | `store` prop; DEFERRED inline in `C.infoDark` with "בדוק שוב"; Terms + Privacy links under the renewal disclosure on every store (3.1.2) |
+| `Plans.jsx` | `billingFlagKey()`; `verifierFor`; `isStoreManaged` covers both stores (no cross-store double purchase); `noteVoice` keeps Google out of an iPhone |
+| `billingGate` | iOS CTA and plan mentions follow `iapReady` (D6) |
+| `MyPlan` | passes `iapReady` to `mayMentionPaidPlans` |
+
+Playbook: ux (deferred inline, not a banner), designer (`C.infoDark`, inline links with `py-3` for a 37px hit area on an 18px line), copywriter, frontend-design, qa (GO for staging). Verified in `/dev/components` at 375px: every App Store state, the deferred line, the links. `/Plans` renders as a guest with no JS errors.
+
+### Known issues before App Review, none blocking a merge
+
+1. 🔴 **`TermsOfService` has no subscription terms at all.** Apple requires the Terms link in the purchase flow and in the listing, and the page it points to must cover auto-renewal, price, cancellation. Legal text is Ofek's to approve.
+2. Device-only: the StoreKit sheet, cancellation on a Hebrew device, Ask to Buy, `manageSubscriptions`, and that the plugin compiles and registers (Podfile, slice 2a).
+3. After switching plans in Apple's page, /Plans updates within the 60-second `useAccountPlan` staleTime, not instantly.
+

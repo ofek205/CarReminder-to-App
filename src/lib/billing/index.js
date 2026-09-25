@@ -12,6 +12,7 @@
 import { NativePurchases, PURCHASE_TYPE } from '@capgo/native-purchases';
 import { isAndroid, isIOS, isNative } from '@/lib/capacitor';
 import { mockBackend } from './mockBackend';
+import { appleBackend } from './appleBackend';
 import { PurchaseOutcome } from './types';
 
 export { PurchaseOutcome };
@@ -352,6 +353,13 @@ export function getBillingBackend() {
   // dev native build must still get the real plugin. Handing it the mock
   // there would fake a working integration on a device.
   if (isNative && isAndroid) return playBackend();
+
+  // ⚠️ iOS GETS STOREKIT, AND WHAT KEEPS IT FROM EVERY USER IS THE FLAG.
+  // A backend here makes iapReady() and mayOfferPurchase() depend on
+  // apple_billing_enabled alone (billingFlagKey), so only an admin sees a
+  // purchase until that flag is switched on. The same singleton rule as
+  // Play: appleBackend() returns one object for the life of the app.
+  if (isNative && isIOS) return appleBackend();
 
   // ⚠️ THE BROWSER BRANCH IS DEV-ONLY, AND THE FIRST VERSION GOT THIS WRONG.
   //

@@ -42,7 +42,8 @@ import { AI_ADVISOR, AI_FORUM, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { canReferToWeb, mayMentionPaidPlans } from '@/lib/billingGate';
-import { openStoreSubscriptionManagement, billingPlatform } from '@/lib/billing';
+import { openStoreSubscriptionManagement, billingPlatform, billingFlagKey, iapReady } from '@/lib/billing';
+import { useFeatureFlag } from '@/lib/featureFlags';
 import { managementCopy } from '@/lib/billing/storeManagement';
 
 const UNLIMITED = 'ללא הגבלה';
@@ -198,6 +199,10 @@ export default function MyPlan() {
   const usage = useFeatureUsage();
   const { isBusiness } = useWorkspaceRole();
   const { activeWorkspace } = useWorkspace();
+  // Above every early return, like the hooks around it. On iOS whether a
+  // paid plan may be NAMED depends on whether the StoreKit sheet can sell it
+  // (billingGate.mayMentionPaidPlans), and that needs the platform's flag.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
 
   const accountName = activeWorkspace?.account_name || 'החשבון שלי';
 
@@ -601,7 +606,7 @@ export default function MyPlan() {
             paid plans is both permitted and, now that Play sells them, true.
             The old gate would have deleted this card on Android for a reason
             that does not apply to a sentence pointing nowhere. */}
-        {isFree && mayMentionPaidPlans() && (
+        {isFree && mayMentionPaidPlans({ iapReady: iapReady(billingFlag) }) && (
           <Card>
             <div className="flex items-start gap-2.5">
               <Info className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.gray400 }} />

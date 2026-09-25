@@ -62,11 +62,13 @@ describe('canOpenStoreSubscriptionManagement', () => {
   });
 });
 
-describe('the Apple backend is still not wired', () => {
-  it('returns no backend on iOS, so no purchase can start there yet', () => {
-    // The day this changes, the verify call, the PurchaseAction copy and the
-    // billingGate decision must change with it. See docs/plan-apple-iap.md §4.
+describe('the Apple backend is wired on iOS only', () => {
+  it('returns the Apple backend on iOS and nothing Apple anywhere else', () => {
     asIOS();
+    expect(getBillingBackend()?.store).toBe('apple');
+    asAndroid();
+    expect(getBillingBackend()?.store).toBeUndefined();
+    asOther();
     expect(getBillingBackend()).toBeNull();
   });
 });

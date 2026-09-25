@@ -38,7 +38,6 @@ import { Car, FileText, Sparkles, CornerDownLeft } from 'lucide-react';
 import PageShell from '@/components/business/system/PageShell';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { createPageUrl } from '@/utils';
-import { supabase } from '@/lib/supabase';
 import { C } from '@/lib/designTokens';
 import usePlanCatalog from '@/hooks/usePlanCatalog';
 import useAccountPlan, { ACCOUNT_PLAN_QUERY_KEY } from '@/hooks/useAccountPlan';
@@ -51,7 +50,12 @@ import {
   getBillingBackend,
   openStoreSubscriptionManagement,
   canOpenStoreSubscriptionManagement,
+  billingFlagKey,
+  billingPlatform,
 } from '@/lib/billing';
+import { storeOfSource, nativeStoreOf, STORE } from '@/lib/billing/storeManagement';
+import { storeCopy, ELSEWHERE } from '@/lib/billing/storeCopy';
+import { verifierFor } from '@/lib/billing/verify';
 import { PurchaseState, mayOfferPurchase } from '@/lib/billing/purchaseMachine';
 import { usePurchaseFlow } from '@/hooks/usePurchaseFlow';
 import { useFeatureFlag } from '@/lib/featureFlags';
@@ -345,15 +349,20 @@ export function actionKind({ plan, isCurrent, isGuest, offering, storeManaged, i
  * a move between products, and a move started in the app needs a replacement
  * mode our plugin does not have.
  */
-export function manageNote(target) {
-  if (target?.priceIlsMonth === 0) {
-    return 'כדי לחזור לחינם מבטלים את המנוי ב-Google Play. המסלול הנוכחי נשאר פעיל עד סוף התקופה ששולמה.';
-  }
-  return 'עדיין אי אפשר לעבור מסלול מתוך האפליקציה. מבטלים ב-Google Play, ובסוף התקופה ששולמה בוחרים כאן את המסלול החדש.';
+//
+// ⚠️ PER STORE SINCE THE APP STORE. Apple's subscriptions page DOES switch
+// between plans in one group (an upgrade at once, a cheaper plan at the next
+// renewal), so its sentence says so; Play's still may not. `voice` is
+// 'elsewhere' when this phone holds a subscription from the OTHER store,
+// where naming it would mean naming Google inside an iPhone app (2.3.10).
+export function manageNote(target, store = STORE.GOOGLE, voice = 'store') {
+  if (voice === 'elsewhere') return ELSEWHERE.otherNote;
+  const copy = storeCopy(store);
+  return target?.priceIlsMonth === 0 ? copy.toFreeNote : copy.toPaidNote;
 }
 
 /**
- * Does Google hold a live subscription for this account right now?
+ * Does a store (Google or Apple) hold a live subscription for this account now?
  *
  * ⚠️ GATED ON THE SOURCE, NOT ON "is on a paid plan". An admin grant also
  * puts an account on p19, and sending that person to Play would open a
@@ -365,15 +374,35 @@ export function manageNote(target) {
  * but the source stays. Keyed on source alone, that person would be told
  * forever that switching is not possible, with nothing live to switch from.
  */
+//
+// ⚠️ ANY STORE, SINCE THE APP STORE, AND THAT IS THE DOUBLE-CHARGE GUARD.
+// An Apple subscriber opening the app on Android, or a Google one on an
+// iPhone, holds a live paid plan all the same. Keyed on Google alone, that
+// person was offered the other store's sheet on every row: two stores, two
+// charges, one account.
 export function isStoreManaged(subscription, plan) {
-  return subscription?.source === 'iap_google' && plan?.priceIlsMonth > 0;
+  return storeOfSource(subscription?.source) !== null && plan?.priceIlsMonth > 0;
+}
+
+/**
+ * How this phone may speak about the store that holds the subscription.
+ * 'store' names it (it is this phone's own store, or a browser, where no
+ * store rule applies). 'elsewhere' is the other phone, or a platform we do
+ * not recognise, and names nothing.
+ *
+ * @param {'google'|'apple'|null} heldBy
+ * @param {'android'|'ios'|'web'|'other'} platform
+ */
+export function noteVoice(heldBy, platform) {
+  if (!heldBy) return 'store';
+  if (platform === 'web') return 'store';
+  return nativeStoreOf(platform) === heldBy ? 'store' : 'elsewhere';
 }
 
 /** The sentence on the account's own row. */
-export function currentNote(plan, storeManaged) {
-  return storeManaged && plan?.priceIlsMonth > 0
-    ? 'זה המסלול שלך. ביטול ושינוי אמצעי תשלום נעשים ב-Google Play.'
-    : 'זה המסלול שלך כרגע.';
+export function currentNote(plan, storeManaged, store = STORE.GOOGLE, voice = 'store') {
+  if (!(storeManaged && plan?.priceIlsMonth > 0)) return 'זה המסלול שלך כרגע.';
+  return voice === 'elsewhere' ? ELSEWHERE.currentNote : storeCopy(store).currentNote;
 }
 
 // ── presentation ────────────────────────────────────────────────────────
@@ -535,18 +564,18 @@ function ClosedRow({ plan, isCurrent, isRec, price, priceLoading, onOpen }) {
   );
 }
 
-function ManageBlock({ note, canOpen }) {
+function ManageBlock({ note, canOpen, store }) {
   return (
     <div className="space-y-2.5">
       <p className="text-[13px] leading-relaxed" style={{ color: C.gray700 }}>{note}</p>
       {canOpen && (
         <button
           type="button"
-          onClick={openStoreSubscriptionManagement}
+          onClick={() => openStoreSubscriptionManagement()}
           className="w-full h-12 rounded-2xl text-[15px] font-bold bg-white"
           style={{ color: C.primary, border: `1.5px solid ${C.primary}` }}
         >
-          ניהול המנוי ב-Google Play
+          {storeCopy(store).manageButton}
         </button>
       )}
     </div>
@@ -643,25 +672,6 @@ function SkeletonScreen() {
   );
 }
 
-/**
- * Hand the purchase token to the server, which asks Google about it.
- *
- * ⚠️ IT RETURNS `data.granted`, NOT "the call succeeded". The function
- * answers HTTP 200 with `granted:false` for every rejection, deliberately.
- *
- * ⚠️ AND ANY FAILURE HERE RESOLVES TO PENDING, NOT FAILED. By the time this
- * runs the card is charged, so a throw, a rejection and a timeout all mean
- * the same thing: the money arrived, activation is late. See
- * lib/billing/purchaseMachine.afterVerification.
- */
-async function verifyPurchase({ purchaseToken, productId, accountId }) {
-  const { data, error } = await supabase.functions.invoke('verify-play-purchase', {
-    body: { purchaseToken, productId, accountId },
-  });
-  if (error) return false;
-  return data?.granted === true;
-}
-
 export default function Plans() {
   const catalog = usePlanCatalog();
   const { plan: currentPlan, subscription, graceDaysLeft, isGuest } = useAccountPlan();
@@ -679,8 +689,15 @@ export default function Plans() {
   //
   // ⚠️ AND WITH THE FLAG OFF NOTHING CAN BE BOUGHT. Everything that sells is
   // behind `offering`, which also needs a billing backend on this platform.
-  const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
-  const offering = mayOfferPurchase(billingFlag, getBillingBackend() !== null);
+  //
+  // ⚠️ THE PLATFORM'S OWN FLAG: apple_billing_enabled on an iPhone, so
+  // switching Play on can never open the StoreKit sheet with it.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
+  const backend = getBillingBackend();
+  const offering = mayOfferPurchase(billingFlag, backend !== null);
+  // Whose sheet and whose server. The Play backend predates `store`.
+  const purchaseStore = backend?.store === 'apple' ? STORE.APPLE : STORE.GOOGLE;
+  const platform = billingPlatform();
 
   /**
    * ⚠️ WITHOUT THIS, PAYING US CHANGED NOTHING THE USER COULD SEE.
@@ -699,7 +716,10 @@ export default function Plans() {
   const { state: purchaseState, products, activeProductId, online, buy, restore } = usePurchaseFlow({
     enabled: offering,
     accountId,
-    verifyPurchase,
+    // ⚠️ ROUTED BY STORE. A StoreKit transaction sent to verify-play-purchase
+    // is "not found" at Google and leaves a charged user in PENDING for ever.
+    // verifierFor() returns one stable function per store. See lib/billing/verify.
+    verifyPurchase: verifierFor(backend?.store),
     onGranted,
   });
 
@@ -767,7 +787,12 @@ export default function Plans() {
     : defaultOpenCode(plans, known ? currentPlan.code : null, recCode);
 
   const storeManaged = isStoreManaged(subscription, known ? currentPlan : null);
-  const canOpenManagement = canOpenStoreSubscriptionManagement();
+  // Which store holds it, and whether THIS phone may open that store's page
+  // or even name it. An iPhone holding a Google subscription can do neither.
+  const heldBy = storeManaged ? storeOfSource(subscription?.source) : null;
+  const voice = noteVoice(heldBy, platform);
+  const canOpenManagement = canOpenStoreSubscriptionManagement()
+    && heldBy !== null && heldBy === nativeStoreOf(platform);
 
   const priceFor = (p) => {
     if (p.priceIlsMonth === 0) return null;
@@ -801,10 +826,10 @@ export default function Plans() {
       );
     }
     if (kind === 'current') {
-      return <ManageBlock note={currentNote(p, storeManaged)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} />;
+      return <ManageBlock note={currentNote(p, storeManaged, heldBy, voice)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} store={heldBy} />;
     }
     if (kind === 'manage') {
-      return <ManageBlock note={manageNote(p)} canOpen={canOpenManagement} />;
+      return <ManageBlock note={manageNote(p, heldBy, voice)} canOpen={canOpenManagement} store={heldBy} />;
     }
     if (kind === 'purchase') {
       const stateForCard = isActive ? purchaseState
@@ -816,6 +841,7 @@ export default function Plans() {
           state={stateForCard}
           priceFormatted={product?.priceFormatted}
           offline={!online}
+          store={purchaseStore}
           onBuy={() => product && buy(product.productId)}
           onRestore={restore}
         />

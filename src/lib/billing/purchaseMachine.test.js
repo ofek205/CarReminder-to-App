@@ -11,10 +11,13 @@ describe('afterSheet: the three outcomes that are not failures', () => {
     expect(r.state).not.toBe(PurchaseState.FAILED);
   });
 
-  it('pending stays pending and does NOT verify', () => {
+  it('a store-pending purchase is DEFERRED and does NOT verify', () => {
     // Verifying an unsettled payment would grant a plan nobody has paid for.
     const r = afterSheet(PurchaseOutcome.PENDING);
-    expect(r).toEqual({ state: PurchaseState.PENDING, verify: false });
+    // DEFERRED, not PENDING: nothing is charged yet, and PENDING's copy says
+    // the payment arrived.
+    expect(r).toEqual({ state: PurchaseState.DEFERRED, verify: false });
+    expect(r.state).not.toBe(PurchaseState.PENDING);
     expect(r.state).not.toBe(PurchaseState.SUCCESS);
   });
 

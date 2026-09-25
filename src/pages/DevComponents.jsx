@@ -467,7 +467,7 @@ export default function DevComponents() {
       <Section
         id="p-purchase"
         title="PurchaseAction + VerifyingBanner"
-        description="עשרת מצבי הרכישה של Google Play. ראה docs/ux-play-billing-purchase.md §5."
+        description="מצבי הרכישה, ל-Google Play ול-App Store. ראה docs/ux-play-billing-purchase.md §5 ו-docs/plan-apple-iap.md."
       >
         <VerifyingBanner />
         <VerifyingBanner pending />
@@ -482,6 +482,7 @@ export default function DevComponents() {
           ['9 כשל תשלום', PurchaseState.FAILED, '₪9.00', false],
           ['10 כבר בבעלותך', PurchaseState.OWNED, '₪9.00', false],
           ['פעולה איטית', PurchaseState.PENDING, '₪9.00', false],
+          ['ממתין לאישור', PurchaseState.DEFERRED, '₪9.00', false],
           // State 11 (an existing subscriber on another plan) is not here any
           // more: /Plans never mounts PurchaseAction for that person, it
           // renders its own manage block. See actionKind in Plans.jsx.
@@ -489,6 +490,22 @@ export default function DevComponents() {
           <div key={label} className="rounded-3xl bg-white shadow-sm p-5">
             <p className="text-cr-xs text-cr-text-muted mb-1">{label}</p>
             <PurchaseAction state={st} priceFormatted={price} offline={offline} />
+          </div>
+        ))}
+        {/* The App Store wording of every state that names a store. An
+            iPhone cannot be emulated in a browser, so this is the only
+            place the iOS strings are ever seen before a device. */}
+        {[
+          ['App Store: לא זמינים', PurchaseState.UNAVAILABLE],
+          ['App Store: רגיל', PurchaseState.IDLE],
+          ['App Store: גיליון פתוח', PurchaseState.SHEET_OPEN],
+          ['App Store: כשל תשלום', PurchaseState.FAILED],
+          ['App Store: כבר בבעלותך', PurchaseState.OWNED],
+          ['App Store: ממתין לאישור הורה', PurchaseState.DEFERRED],
+        ].map(([label, st]) => (
+          <div key={label} className="rounded-3xl bg-white shadow-sm p-5">
+            <p className="text-cr-xs text-cr-text-muted mb-1">{label}</p>
+            <PurchaseAction state={st} priceFormatted="₪9.00" store="apple" />
           </div>
         ))}
       </Section>
