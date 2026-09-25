@@ -26,6 +26,7 @@ export const PurchaseState = Object.freeze({
   FAILED: 'failed',
   OWNED: 'owned',
   PENDING: 'pending',
+  DEFERRED: 'deferred',
 });
 
 /**
@@ -36,9 +37,16 @@ export const PurchaseState = Object.freeze({
  *
  *   CANCELLED → IDLE, in silence. Closing the sheet is a legitimate act, and
  *     an error toast tells the user they did something wrong.
- *   PENDING   → PENDING. A slow payment method has not settled. Granting
- *     would hand out a plan nobody paid for; failing would tell someone who
- *     WILL pay that they did not.
+ *   PENDING   → DEFERRED. The store has not taken the money yet: Ask to Buy
+ *     on iOS (a parent must approve), a slow payment method on Play.
+ *     Granting would hand out a plan nobody paid for; failing would tell
+ *     someone who WILL pay that they did not.
+ *
+ *     ⚠️ DEFERRED, NOT PENDING, AND THE DIFFERENCE IS THE COPY. PENDING is
+ *     the state after verification ran late, when the card IS charged, and
+ *     its banner says "התשלום נקלט". Reusing it here told a child waiting
+ *     for a parent that the payment had landed. Unreachable on Android
+ *     today, where the Play backend never returns PENDING.
  *   OWNED     → OWNED. This is what a reinstall looks like. Routing that user
  *     back to a purchase sheet is how somebody pays twice.
  *
@@ -52,7 +60,7 @@ export const PurchaseState = Object.freeze({
 export function afterSheet(outcome) {
   switch (outcome) {
     case PurchaseOutcome.CANCELLED: return { state: PurchaseState.IDLE,    verify: false };
-    case PurchaseOutcome.PENDING:   return { state: PurchaseState.PENDING, verify: false };
+    case PurchaseOutcome.PENDING:   return { state: PurchaseState.DEFERRED, verify: false };
     case PurchaseOutcome.OWNED:     return { state: PurchaseState.OWNED,   verify: false };
     case PurchaseOutcome.PURCHASED: return { state: PurchaseState.VERIFYING, verify: true };
     default:                        return { state: PurchaseState.FAILED,  verify: false };
@@ -76,7 +84,11 @@ export function afterSheet(outcome) {
  * @returns {string}
  */
 export function afterVerification(result) {
-  return result === 'ok' ? PurchaseState.SUCCESS : PurchaseState.PENDING;
+  if (result === 'ok') return PurchaseState.SUCCESS;
+  // The server said the purchase belongs to another account of ours. No
+  // money moved for THIS account, so "payment received" would be false.
+  if (result === 'not_yours') return PurchaseState.IDLE;
+  return PurchaseState.PENDING;
 }
 
 /**

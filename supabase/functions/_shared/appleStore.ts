@@ -409,3 +409,113 @@ export function linkProblem(
   if (token !== String(expected.accountId || '').toLowerCase()) return 'account_token_mismatch';
   return null;
 }
+
+// ── ownership, and moving it ────────────────────────────────────────────
+//
+// ⚠️ ONE APPLE ID HOLDS ONE SUBSCRIPTION IN THE GROUP, AND APPLE DECIDES WHICH
+// OF OUR ACCOUNTS IT BELONGS TO. An upgrade or a resubscribe inside the group
+// keeps the same originalTransactionId but carries the appAccountToken of
+// whoever bought it LAST. The first version trusted our own stored row
+// instead: somebody who subscribed for account A and later bought for
+// account B paid, got "held_by_other_account", and watched the renewal
+// notification hand the plan back to A. The owner is now whoever Apple's
+// latest signed transaction names, and a row that still names the
+// subscription for another account is released.
+
+/** The narrow slice of the Supabase client these helpers use. */
+// deno-lint-ignore no-explicit-any
+export type AdminLike = { from: (table: string) => any; rpc: (fn: string, args: Record<string, unknown>) => any };
+
+export type DbResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Apple's latest signed account token, lower case, or '' when absent. */
+export function ownerToken(txn: AppleTransaction | null | undefined): string {
+  const t = String(txn?.appAccountToken || '').toLowerCase();
+  return UUID_RE.test(t) ? t : '';
+}
+
+/**
+ * Which of our accounts this subscription belongs to.
+ *
+ * Apple's latest signed token first, when it names a real account. The
+ * stored row only when Apple's transaction carries no usable token.
+ *
+ * ⚠️ A DATABASE ERROR IS AN ERROR, NOT "NOBODY". Reading a failed query as
+ * "no account" answered Apple 200, and Apple never resends a notification it
+ * was told it delivered: a renewal lost that way drops a paying subscriber to
+ * free three days after the old period ended.
+ */
+export async function resolveAppleAccount(
+  admin: AdminLike,
+  originalTransactionId: string,
+  txn: AppleTransaction | null | undefined,
+): Promise<DbResult<string | null>> {
+  const token = ownerToken(txn);
+  if (token) {
+    const { data, error } = await admin.from('accounts').select('id').eq('id', token).maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (data?.id) return { ok: true, value: String(data.id) };
+  }
+  const { data, error } = await admin
+    .from('account_subscriptions')
+    .select('account_id')
+    .eq('source', 'iap_apple')
+    .eq('external_subscription_id', originalTransactionId)
+    .limit(1)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, value: data?.account_id ? String(data.account_id) : null };
+}
+
+/**
+ * Accounts other than `keep` whose row still names this subscription, or
+ * every such account when `keep` is empty.
+ *
+ * ⚠️ NO FILTER AT ALL FOR AN EMPTY `keep`. account_id is a uuid column, and
+ * neq('account_id', '') makes Postgres cast '' to uuid and fail (22P02),
+ * which would have turned every expiry into a 500 that Apple retries for
+ * three days and never gets past.
+ */
+export async function otherHolders(
+  admin: AdminLike,
+  originalTransactionId: string,
+  keep: string,
+): Promise<DbResult<string[]>> {
+  let q = admin
+    .from('account_subscriptions')
+    .select('account_id')
+    .eq('source', 'iap_apple')
+    .eq('external_subscription_id', originalTransactionId);
+  if (keep) q = q.neq('account_id', keep);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, value: (data || []).map((r: { account_id: string }) => String(r.account_id)) };
+}
+
+/**
+ * Takes the subscription off accounts Apple no longer names: revoke, then
+ * forget the id, so the next lookup cannot find the old owner again.
+ * Call it only AFTER the new owner's grant has landed, so a failure half way
+ * leaves two accounts with the plan rather than none.
+ */
+export async function releaseHolders(
+  admin: AdminLike,
+  originalTransactionId: string,
+  accountIds: string[],
+  reason: string,
+): Promise<string | null> {
+  for (const id of accountIds) {
+    const r = await admin.rpc('revoke_iap_entitlement', { p_account_id: id, p_reason: reason });
+    if (r?.error) return String(r.error.message || r.error);
+    const u = await admin
+      .from('account_subscriptions')
+      .update({ external_subscription_id: null })
+      .eq('account_id', id)
+      .eq('source', 'iap_apple')
+      .eq('external_subscription_id', originalTransactionId);
+    if (u?.error) return String(u.error.message || u.error);
+  }
+  return null;
+}

@@ -42,7 +42,9 @@ import { AI_ADVISOR, AI_FORUM, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { canReferToWeb, mayMentionPaidPlans, planEntryPage } from '@/lib/billingGate';
-import { openStoreSubscriptionManagement, canOpenStoreSubscriptionManagement } from '@/lib/billing';
+import { openStoreSubscriptionManagement, billingPlatform, billingFlagKey, iapReady } from '@/lib/billing';
+import { useFeatureFlag } from '@/lib/featureFlags';
+import { managementCopy } from '@/lib/billing/storeManagement';
 
 const UNLIMITED = 'ללא הגבלה';
 
@@ -213,6 +215,10 @@ export default function MyPlan() {
   const usage = useFeatureUsage();
   const { isBusiness } = useWorkspaceRole();
   const { activeWorkspace } = useWorkspace();
+  // Above every early return, like the hooks around it. On iOS whether a
+  // paid plan may be NAMED depends on whether the StoreKit sheet can sell it
+  // (billingGate.mayMentionPaidPlans), and that needs the platform's flag.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
 
   const accountName = activeWorkspace?.account_name || 'החשבון שלי';
 
@@ -226,7 +232,7 @@ export default function MyPlan() {
    * StoreKit it stays the plan screen, reached from Settings and going back
    * to it, exactly as before. The 3.1.1 reason is at planEntryPage.
    */
-  const plansParent = planEntryPage() === 'Plans';
+  const plansParent = planEntryPage({ iapReady: iapReady(billingFlag) }) === 'Plans';
   const pageTitle = plansParent ? 'פרטי המנוי והניצול' : 'המסלול והחיוב';
   const backTo = plansParent ? 'Plans' : 'Settings';
 
@@ -328,7 +334,9 @@ export default function MyPlan() {
 
   // ── loaded ──────────────────────────────────────────────────────────────
   const isFree = plan.code === 'free';
-  const canOpenPlayManagement = canOpenStoreSubscriptionManagement();
+  // Where the subscription lives and what this phone may say about it.
+  // null for any plan no store holds (free, admin grant, grandfather).
+  const storeRow = managementCopy(subscription?.source, billingPlatform());
 
   // The count comes from my_vehicle_capacity(); the CAP comes from the plan.
   // Two sources on purpose: the plan is what this screen is about, and the
@@ -573,37 +581,36 @@ export default function MyPlan() {
             * shows a paid plan here, and sending that person to Play opens a
             * subscriptions list their plan is not in.
             */}
-          {subscription?.source === 'iap_google' && (
+          {storeRow && (
             <div className="mt-1 pt-3 border-t" style={{ borderColor: C.gray100 }}>
-              {/* ⚠️ THE CONTROL IS ANDROID-ONLY, THE SENTENCE IS NOT, AND THE
-                  SPLIT IS THE WHOLE POINT. §7 of the UX doc requires this to
-                  key off `source` rather than platform, so somebody who
+              {/* ⚠️ THE CONTROL IS PER STORE AND PER PHONE, THE SENTENCE IS NOT,
+                  AND THE SPLIT IS THE WHOLE POINT. §7 of the UX doc requires this
+                  to key off `source` rather than platform, so somebody who
                   bought on their phone and is reading in a browser still
-                  learns where the subscription lives. But the native sheet
-                  only exists on Android, so rendering the BUTTON everywhere
-                  would give that same person a control that silently does
-                  nothing, which is worse than not offering one. */}
-              {canOpenPlayManagement ? (
+                  learns where the subscription lives. But a store page only
+                  helps on the phone whose store holds the plan: Apple's list
+                  does not contain a Google subscription, and a button that
+                  opens it would read as "my subscription vanished". The whole
+                  decision, and every string, is managementCopy(). */}
+              {storeRow.canOpenHere ? (
                 <button
                   type="button"
-                  onClick={openStoreSubscriptionManagement}
+                  onClick={() => openStoreSubscriptionManagement()}
                   className="flex items-center justify-between w-full text-right"
                   style={{ minHeight: 44 }}
                 >
                   <span className="text-[13px] font-bold" style={{ color: C.primary }}>
-                    ניהול המנוי ב-Google Play
+                    {storeRow.title}
                   </span>
                   <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
                 </button>
               ) : (
                 <p className="text-[13px] font-bold" style={{ color: C.gray700 }}>
-                  המנוי מנוהל דרך Google Play
+                  {storeRow.title}
                 </p>
               )}
               <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
-                {canOpenPlayManagement
-                  ? 'שם אפשר לבטל, לשנות אמצעי תשלום או לעבור למסלול אחר. ביטול נשאר בתוקף עד סוף התקופה ששולמה.'
-                  : 'ביטול ושינוי אמצעי תשלום נעשים באפליקציה במכשיר האנדרואיד שבו נרכש המנוי.'}
+                {storeRow.detail}
               </p>
             </div>
           )}
@@ -620,7 +627,7 @@ export default function MyPlan() {
             paid plans is both permitted and, now that Play sells them, true.
             The old gate would have deleted this card on Android for a reason
             that does not apply to a sentence pointing nowhere. */}
-        {isFree && mayMentionPaidPlans() && (
+        {isFree && mayMentionPaidPlans({ iapReady: iapReady(billingFlag) }) && (
           <Card>
             <div className="flex items-start gap-2.5">
               <Info className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.gray400 }} />

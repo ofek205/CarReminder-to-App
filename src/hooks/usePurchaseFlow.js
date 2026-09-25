@@ -39,12 +39,27 @@ const VERIFY_TIMEOUT_MS = 20000;
 const CATALOGUE_TIMEOUT_MS = 12000;
 
 /** Rejects rather than resolving, so the caller's catch owns the failure. */
-function withCatalogueTimeout(fn) {
+function withCatalogueTimeout(fn, store) {
   return Promise.race([
     fn(),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('play_catalogue_timeout')), CATALOGUE_TIMEOUT_MS)),
+      setTimeout(() => reject(new Error(`${store}_catalogue_timeout`)), CATALOGUE_TIMEOUT_MS)),
   ]);
+}
+
+/**
+ * Which store a report is about, and which ids it asked for.
+ *
+ * ⚠️ THE PLAY BACKEND PREDATES THESE FIELDS, so a backend without them is
+ * Play, and every Android report keeps exactly the message it had
+ * ('play_catalogue_empty', 'play_catalogue_timeout'). Without this an iPhone
+ * would have filed App Store gaps under Play's name and Play's product list.
+ */
+function catalogueTag(backend) {
+  return {
+    store: backend?.store === 'apple' ? 'apple' : 'play',
+    requested: backend?.productIds ?? PLAY_PRODUCT_IDS,
+  };
 }
 
 /**
@@ -56,6 +71,9 @@ function withCatalogueTimeout(fn) {
  */
 export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted }) {
   const [state, setState] = useState(PurchaseState.LOADING_PRODUCTS);
+  // The latest state for callbacks that must not re-create on every change.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
   const [products, setProducts] = useState([]);
   const [activeProductId, setActiveProductId] = useState(null);
 
@@ -146,7 +164,7 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
         const list = await withCatalogueTimeout(async () => {
           const connected = await backend.connect();
           return connected ? await backend.listProducts() : null;
-        });
+        }, catalogueTag(backend).store);
         if (cancelled) return;
         setProducts(list || []);
         /**
@@ -156,11 +174,15 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
          * not map" both reached the screen as the same blank card with no row
          * in app_errors to say which. Diagnosing one of these cost two days.
          */
-        if (Array.isArray(list) && list.length === 0) {
+        //
+        // A backend that reports its own gaps (Apple's, which knows WHICH ids
+        // are missing and the storefront) is not reported twice.
+        if (Array.isArray(list) && list.length === 0 && !backend.reportsCatalogueGaps) {
           try {
-            reportError('billing_catalogue', new Error('play_catalogue_empty'), {
+            const tag = catalogueTag(backend);
+            reportError('billing_catalogue', new Error(`${tag.store}_catalogue_empty`), {
               where: 'usePurchaseFlow.catalogue',
-              requested: PLAY_PRODUCT_IDS,
+              requested: tag.requested,
             });
           } catch { /* reporting must never break the screen */ }
         }
@@ -177,7 +199,7 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
         try {
           reportError('billing_catalogue', err, {
             where: 'usePurchaseFlow.catalogue',
-            requested: PLAY_PRODUCT_IDS,
+            requested: catalogueTag(backend).requested,
           });
         } catch { /* reporting must never be the thing that breaks the screen */ }
         safeSet(afterCatalogue({ connected: false, threw: true }));
@@ -226,7 +248,8 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
         productId: result.productId,
         accountId,
       });
-      finish(ok ? 'ok' : 'rejected');
+      // 'not_yours' is passed through: see lib/billing/verify.
+      finish(ok === 'not_yours' ? 'not_yours' : ok ? 'ok' : 'rejected');
     } catch {
       finish('threw');
     }
@@ -280,14 +303,47 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
    * the purchase and we hold nothing. Waiting for the user to find a button
    * means waiting for them to contact support instead.
    */
-  const restore = useCallback(async () => {
-    if (!backend) return;
-    // accountId goes along so the backend returns only this account's
-    // purchases; see queryOwnedPurchases in lib/billing.
-    const owned = await backend.queryOwnedPurchases(accountId);
-    if (owned.length === 0) { safeSet(PurchaseState.IDLE); return; }
+  //
+  // ⚠️ IT ANSWERS NOW, BECAUSE A VISIBLE RESTORE CONTROL NEEDS TO SAY WHAT
+  // HAPPENED. Returns 'restored' (verification started), 'none' or 'error'.
+  // A button that silently does nothing when there is nothing to restore
+  // reads as broken, and Apple expects the control to exist at all.
+  //
+  // `manual` is a tap. On iOS it asks StoreKit to sync with Apple first,
+  // which may show Apple's sign-in sheet, so the automatic run never sets it.
+  //
+  // ⚠️ AND A THROW NO LONGER ESCAPES. The query used to run bare, so a store
+  // that failed to answer became an unhandled rejection from the mount
+  // effect, reported by nobody.
+  const restore = useCallback(async ({ manual = false } = {}) => {
+    if (!backend) return 'none';
+    let owned;
+    try {
+      // ⚠️ THE ACCOUNT TRAVELS WITH THE QUERY. Play ignores it. Apple needs it:
+      // one Apple ID can hold a subscription bought for a DIFFERENT CarReminder
+      // account, and sending that one to verification would render PENDING
+      // ("payment received, activation late") to someone who paid nothing here.
+      owned = await backend.queryOwnedPurchases(accountId, { sync: manual === true });
+    } catch (err) {
+      try {
+        reportError('billing_restore', err, { where: 'usePurchaseFlow.restore', manual: manual === true });
+      } catch { /* reporting must never break the screen */ }
+      return 'error';
+    }
+    if (owned.length === 0) {
+      // ⚠️ A WAITING STATE SURVIVES "NOTHING FOUND YET". "בדוק שוב" from
+      // DEFERRED (a parent has not approved) or PENDING (charged, activation
+      // late) finding nothing is not the end of either. Dropping to IDLE put
+      // the buy button back under a waiting message, inviting a second Ask
+      // to Buy or, worse, a second charge.
+      const waiting = stateRef.current === PurchaseState.DEFERRED
+        || stateRef.current === PurchaseState.PENDING;
+      if (!waiting) safeSet(PurchaseState.IDLE);
+      return 'none';
+    }
     setActiveProductId(owned[0].productId);
     await runVerification(owned[0]);
+    return 'restored';
   }, [backend, accountId, runVerification, safeSet]);
 
   /**
@@ -303,12 +359,19 @@ export function usePurchaseFlow({ enabled, accountId, verifyPurchase, onGranted 
    * before that there is no connection to query through. `restoredRef` is
    * what stops the IDLE it can set from re-triggering it.
    */
+  //
+  // ⚠️ AND IT WAITS FOR THE ACCOUNT ID. The catalogue can resolve before
+  // useAccountRole does. Restoring then spent the one-shot `restoredRef` on a
+  // run that could not work: verification without an accountId is refused
+  // by the server, which renders PENDING on Android, and the Apple query
+  // returns nothing without one. Either way the real restore never ran.
   useEffect(() => {
     if (state !== PurchaseState.IDLE) return;
+    if (!accountId) return;
     if (restoredRef.current) return;
     restoredRef.current = true;
     restore();
-  }, [state, restore]);
+  }, [state, accountId, restore]);
 
   return { state, products, activeProductId, online, buy, restore };
 }

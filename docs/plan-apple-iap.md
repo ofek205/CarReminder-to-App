@@ -1,6 +1,6 @@
 # Apple / StoreKit subscriptions: plan
 
-Status 2026-09-25: slice 1 built on `feat/apple-iap`, inert. Nothing a user can reach changed.
+Status 2026-09-25: slice 1 merged (`feat/apple-iap`, PR #67). Slice 2a on `feat/apple-iap-wiring` (PR #68). **Slice 2b on `feat/apple-iap-plans`**, stacked on the approved `/Plans` redesign + 2a: iOS is wired. Merge order: redesign, then 2a, then 2b. Everything stays behind `apple_billing_enabled` (off), so only an admin on an iOS build sees a purchase. See §5.
 Companion: [runbook-app-store-connect-iap.md](runbook-app-store-connect-iap.md) (Ofek's App Store Connect checklist, in Hebrew).
 Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux-play-billing-purchase.md`.
 
@@ -28,7 +28,7 @@ Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux
 | App Store Server Notifications V2 endpoint | ✅ `app-store-notifications`, written, **not deployed** |
 | `iap_products` Apple rows + `apple_billing_enabled` seeded false | ✅ `supabase-monetization-iap-apple-2026-09-25.sql`, **not applied** |
 | App Store Connect checklist for Ofek | ✅ runbook |
-| Native plugin compiled into the iOS app | ⏸ deliberately **slice 2**, item 0 (§3 finding 1, §4) |
+| Native plugin compiled into the iOS app | ✅ slice 2a, Podfile entry; **never compiled yet** (§3 finding 1) |
 
 **Acceptance for slice 1:** all new tests green; lint 0 errors; no screen, flag or query changes behaviour for any user; `getBillingBackend()` still returns `null` on iOS (pinned by `backendIdentity.test.js`).
 
@@ -70,7 +70,7 @@ Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux
 
 | Risk | L | I | Mitigation |
 |---|---|---|---|
-| Plugin never compiled on iOS (no Mac) | M | H | Podfile entry lands with slice 2, so the first compile is in the build that needs it; same swift_version as the plugins that build today; a failure stops before upload |
+| Plugin never compiled on iOS (no Mac) | M | H | Podfile entry in slice 2a; Ofek runs one iOS build as a deliberate compile check while /Plans waits; same swift_version as the plugins that build today; a failure stops before upload |
 | Apple drops the query-string secret | L | H | path-segment secret accepted too; the `probe=test` call proves which form works before launch |
 | Cancellation misread on a Hebrew device | M | M | exact plugin strings matched first; thrown errors are localised, fallback errs to CANCELLED; 🔴 confirm on device |
 | "Already subscribed" returns cancelled while charging (community reports) | L | M | server grants from the notification via Apple's account token; restore at mount |
@@ -87,7 +87,7 @@ Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux
 
 ## 3. Findings while reading the code
 
-1. **The Apple plugin is not in the Podfile.** The iOS build is CocoaPods-driven and hand-maintained; `npx cap sync` updates the unused SPM package instead. This is the third plugin this happened to (push notifications, Sign in with Apple). Without the line, StoreKit can never work and the JS falls back to the web stub in silence. **Held for slice 2 on purpose:** the plugin has never been compiled for iOS, and adding it now would put that first compile inside every staging iOS build, including unrelated releases, before anything uses it.
+1. **The Apple plugin is not in the Podfile.** The iOS build is CocoaPods-driven and hand-maintained; `npx cap sync` updates the unused SPM package instead. This is the third plugin this happened to (push notifications, Sign in with Apple). Without the line, StoreKit can never work and the JS falls back to the web stub in silence. Held out of slice 1 so the first compile would not surprise an unrelated release; **added in slice 2a** once the wiring started, because the wait for `/Plans` is the best time to learn whether it compiles. Only Ofek runs iOS builds, so the first one is a deliberate compile check.
 2. **iOS does not reject an unknown product id.** Android rejects "Product not found"; StoreKit just returns fewer products. The backend counts and reports every gap, with the storefront country, which is the fact that cost three days on Android. No native patch is needed.
 3. **The plugin compares account tokens case-sensitively against Swift's upper-case `uuidString`.** Its own `getPurchases` filter can never match a lower-case account id. Filtered in JS instead.
 4. **The plugin drops a non-uuid `appAccountToken` with no error.** Refused before the sheet opens.
@@ -97,21 +97,21 @@ Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux
 
 ## 4. Slice 2: wiring (needs coordination with the `/Plans` redesign)
 
-All in files another session is changing, so none of it is on this branch.
+Items marked ✅ are done in slice 2a (`feat/apple-iap-wiring`). The rest are in `Plans.jsx` / `PurchaseAction.jsx` / `VerifyingBanner`, which the `/Plans` redesign rewrites, and wait for it (agreed with that session 2026-09-25).
 
-0. `ios/App/Podfile`, inside `capacitor_pods`, after the Apple sign-in pod. The first CI iOS build after this is the compile check; it fails before the upload step if the plugin does not build.
+0. ✅ `ios/App/Podfile`, inside `capacitor_pods`, after the Apple sign-in pod. The first CI iOS build after this is the compile check; it fails before the upload step if the plugin does not build.
 
 ```ruby
   pod 'CapgoNativePurchases',         :path => '../../node_modules/@capgo/native-purchases'
 ```
 
-1. `src/lib/billing/index.js`: `if (isNative && isIOS) return appleBackend();` in `getBillingBackend()`; `canOpenStoreSubscriptionManagement()` true on iOS too; export `billingFlagKey()` (`apple_billing_enabled` on iOS, `play_billing_enabled` elsewhere) and `verifyStorePurchase()` (iOS invokes `verify-apple-purchase` with `{ transactionId, productId, accountId }`). Update the "iOS is null" identity test.
-2. `usePurchaseFlow.js`: pass `accountId` to `queryOwnedPurchases`; report `backend.productIds` and a store-neutral message instead of `PLAY_PRODUCT_IDS` / `play_catalogue_empty`.
+1. `src/lib/billing/index.js`: ✅ `canOpenStoreSubscriptionManagement()` true on iOS too, ✅ `billingFlagKey()` (`apple_billing_enabled` on iOS, `play_billing_enabled` elsewhere), ✅ `billingPlatform()`. Still to do, with the Plans wiring: `if (isNative && isIOS) return appleBackend();` in `getBillingBackend()` and `verifyStorePurchase()` (iOS invokes `verify-apple-purchase` with `{ transactionId, productId, accountId }`). Update the "iOS is null" identity test.
+2. ✅ `usePurchaseFlow.js`: pass `accountId` to `queryOwnedPurchases`; report `backend.productIds` and a store-neutral message instead of `PLAY_PRODUCT_IDS` / `play_catalogue_empty` (Android messages unchanged). Also: the mount restore now waits for `accountId`, which fixes an Android case too (restore before the account resolved spent the one-shot restore on a refused verification that rendered PENDING).
 3. `Plans.jsx`: `useFeatureFlag(billingFlagKey())`; `verifyPurchase` delegates to `verifyStorePurchase`; `storeManaged` compares against the platform's own source; an account whose source is the OTHER store gets no purchase control.
 4. `PurchaseAction.jsx`: two strings name "Google Play"; on iOS they must name the App Store (also 2.3.10: no other platforms in an iOS app). Copy-only change, Playbook: copywriter → frontend-design.
 5. `VerifyingBanner` / `purchaseMachine`: PENDING from the sheet (Ask to Buy, nothing charged) and PENDING from verification (charged, late) share one sentence that is only true for the second.
-6. `MyPlan.jsx`: management row for `iap_apple` as for `iap_google`.
-7. `VehicleCapReachedModal.jsx`: `billingFlagKey()`.
+6. ✅ `MyPlan.jsx`: store row from `managementCopy(source, platform)` in `src/lib/billing/storeManagement.js`, all six store × phone combinations tested. **Also fixes a latent 2.3.10 issue:** a Google subscriber opening the iPhone app used to read "Google Play" and "אנדרואיד"; the other phone now gets one neutral sentence in both directions.
+7. ✅ `VehicleCapReachedModal.jsx`: `billingFlagKey()`.
 8. `billingGate.js`, proposed diff (D6):
 
 ```diff
@@ -138,3 +138,45 @@ All in files another session is changing, so none of it is on this branch.
 ```
 
 Why per iapReady and not per build like Android: Play's rule is about the Billing library being in the binary (the "hybrid"). Apple's is about what the user is told: once our subscriptions are purchasable in the app, naming them is ordinary; before that, naming a plan the app cannot sell points outside it. `canReferToWeb()` and `canMentionExternalPurchase()` stay false on iOS either way.
+
+## 5. Slice 2b: /Plans wired for iOS (`feat/apple-iap-plans`)
+
+Built on the redesign after Ofek approved it. Defaults taken when the three questions were dismissed, each overrulable: build now on the redesign; on iOS name plans only when a sheet can open (D6); never offer a second store's purchase (D9).
+
+| Piece | What changed |
+|---|---|
+| `lib/billing/index.js` | `getBillingBackend()` returns the Apple singleton on iOS |
+| `lib/billing/verify.js` | `verifierFor(store)`: Apple → `verify-apple-purchase` with `transactionId`, Play unchanged; one stable function per store |
+| `lib/billing/storeCopy.js` | every store-naming sentence, per store; Google strings byte-identical and pinned |
+| `purchaseMachine` | new `DEFERRED` state for a store-pending purchase (Ask to Buy). PENDING stays "charged, activation late". Unreachable on Android |
+| `PurchaseAction` | `store` prop; DEFERRED inline in `C.infoDark` with "בדוק שוב"; Terms + Privacy links under the renewal disclosure on every store (3.1.2) |
+| `Plans.jsx` | `billingFlagKey()`; `verifierFor`; `isStoreManaged` covers both stores (no cross-store double purchase); `noteVoice` keeps Google out of an iPhone |
+| `billingGate` | iOS CTA and plan mentions follow `iapReady` (D6) |
+| `MyPlan` | passes `iapReady` to `mayMentionPaidPlans` |
+
+Playbook: ux (deferred inline, not a banner), designer (`C.infoDark`, inline links with `py-3` for a 37px hit area on an 18px line), copywriter, frontend-design, qa (GO for staging). Verified in `/dev/components` at 375px: every App Store state, the deferred line, the links. `/Plans` renders as a guest with no JS errors.
+
+### Known issues before App Review, none blocking a merge
+
+1. 🔴 **`TermsOfService` has no subscription terms at all.** Apple requires the Terms link in the purchase flow and in the listing, and the page it points to must cover auto-renewal, price, cancellation. Legal text is Ofek's to approve.
+2. Device-only: the StoreKit sheet, cancellation on a Hebrew device, Ask to Buy, `manageSubscriptions`, and that the plugin compiles and registers (Podfile, slice 2a).
+3. After switching plans in Apple's page, /Plans updates within the 60-second `useAccountPlan` staleTime, not instantly.
+
+### Restore Purchases control (added after the App Review notes exposed its absence)
+
+`RestoreControl` below the plan list on /Plans, both stores, whenever `offering && !isGuest` (subscribers included: it is how a second phone recovers), hidden during SHEET_OPEN and VERIFYING. A tap passes `manual: true`: on iOS `queryOwnedPurchases(..., { sync: true })` calls the plugin's `restorePurchases()` (`AppStore.sync`) first, which may show Apple's sign-in; the automatic mount restore never does. `usePurchaseFlow.restore()` now returns 'restored' | 'none' | 'error' and catches a failed store query instead of leaking an unhandled rejection. Verified in /dev/components at 375px: 44px target, reserved 18px message line, none / error / offline.
+
+### Pre-merge review (independent reviewer + own pass), all fixed
+
+| Sev | Finding | Fix |
+|---|---|---|
+| High | One Apple ID, two of our accounts: B pays, gets `held_by_other_account`, the renewal hands the plan back to A | Owner = Apple's latest signed `appAccountToken` (`resolveAppleAccount`, `ownerToken`); old holder released after the new grant (`releaseHolders`) in both functions |
+| High | Android restore credits another account's Google subscription | **Play session's** (feat/plans-edge-cases): server `account_mismatch` + device filter. Client maps it (and Apple's equivalents) to `not_yours` → IDLE, never PENDING |
+| Medium | ASN read a DB error as "no account"/"not current" and answered 200, so Apple never retried | every DB error → 500 |
+| Low | Restore spinner had no ceiling | 30s in RestoreControl |
+| Low | "בדוק שוב" from DEFERRED/PENDING finding nothing put the buy button back | the waiting state survives "none" |
+| Low | A failed AppStore.sync skipped the local entitlements | read anyway; error only when nothing is found |
+| Low | Legal links pressable mid-verification | hidden while locked |
+| Low | Restore before accountId answered "nothing found" | control waits for the account |
+| Medium | iOS purchase returning another account's existing subscription rendered PENDING | FAILED ("not charged"), which is true: nothing new was bought |
+| (found in own gatekeeper pass) | An expiry revoked only the account Apple names, leaving an earlier owner of a moved subscription on a paid plan | every iap_apple row naming the subscription is revoked; and `otherHolders` never filters on an empty uuid, which Postgres rejects (22P02) |

@@ -25,6 +25,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
 import { isNative, isIOS } from '@/lib/capacitor';
 import { planEntryPage } from '@/lib/billingGate';
+import { billingFlagKey, iapReady } from '@/lib/billing';
 
 export default function Settings() {
   const { isBusiness, isOwner, isManager } = useWorkspaceRole();
@@ -61,6 +62,9 @@ export default function Settings() {
   // ⚠️ "המסלול והחיוב", not "מנוי". Everyone is on the free plan today, and
   // "subscription" implies they are paying for something.
   const { enabled: planUiEnabled } = useFeatureFlag('monetization_ui_enabled');
+  // The platform's billing flag, so iOS joins the one-tap entry the moment
+  // StoreKit is live, from the same function /MyPlan asks.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
 
   // ⚠️ STRAIGHT TO /Plans WHERE PAID PLANS MAY BE MENTIONED, AND ONLY THERE.
   // Ofek, 2026-09-25: the row used to land on /MyPlan, whose main job had
@@ -68,7 +72,7 @@ export default function Settings() {
   // On iOS before StoreKit it still opens /MyPlan; the reason is at
   // planEntryPage in billingGate, which /MyPlan asks too.
   const planRow = planUiEnabled
-    ? planEntryPage() === 'Plans'
+    ? planEntryPage({ iapReady: iapReady(billingFlag) }) === 'Plans'
       ? { to: 'Plans', icon: CreditCard, label: 'המסלול והחיוב', sub: 'המסלול שלך, הניצול וכל המסלולים' }
       : { to: 'MyPlan', icon: CreditCard, label: 'המסלול והחיוב', sub: 'המסלול הנוכחי, המגבלות והניצול' }
     : null;

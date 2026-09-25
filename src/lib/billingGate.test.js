@@ -107,9 +107,20 @@ describe('mayMentionPaidPlans', () => {
     expect(canMentionExternalPurchase()).toBe(false);
   });
 
-  it('still forbids it on iOS, where 3.1.1(a) covers prose', () => {
+  it('still forbids it on iOS while no StoreKit sheet can open', () => {
+    // 3.1.1(a) covers prose: naming a plan the app cannot sell hints at a
+    // purchase somewhere else.
     asIOS();
     expect(mayMentionPaidPlans()).toBe(false);
+    expect(mayMentionPaidPlans({ iapReady: false })).toBe(false);
+  });
+
+  it('lets iOS name our plans once the StoreKit sheet can sell them', () => {
+    asIOS();
+    expect(mayMentionPaidPlans({ iapReady: true })).toBe(true);
+    // Naming our own plan is not pointing outside the app.
+    expect(canMentionExternalPurchase()).toBe(false);
+    expect(canReferToWeb()).toBe(false);
   });
 
   it('allows it in a browser', () => {
@@ -177,13 +188,12 @@ describe('capWallAction', () => {
     expect(a.mayMentionPlans).toBe(true);
   });
 
-  it('never gives iOS a CTA, even if a caller claims iapReady', () => {
-    // Fail-closed: iOS has no StoreKit implementation, so a true here would
-    // be a caller bug. It must not become a 3.1.1(a) breach.
+  it('gives iOS the StoreKit route once a sheet can open, and not before', () => {
+    // The route is /Plans, where the only purchase is the StoreKit sheet.
+    // Before iapReady there is nothing to press and nothing may be named.
     asIOS();
-    const a = capWallAction('plan', { iapReady: true });
-    expect(a.cta).toBeNull();
-    expect(a.mayMentionPlans).toBe(false);
+    expect(capWallAction('plan', { iapReady: true })).toEqual({ cta: 'plan', mayMentionPlans: true });
+    expect(capWallAction('plan', { iapReady: false })).toEqual({ cta: null, mayMentionPlans: false });
   });
 
   it('gives the browser a real route to the plan screen', () => {
