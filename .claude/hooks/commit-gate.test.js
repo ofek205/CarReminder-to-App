@@ -190,6 +190,19 @@ describe('commit gate matcher', () => {
 // another's token. Everything below exists to keep that from coming back.
 
 describe('session id resolution', () => {
+  it('accepts the Cursor conversation id when Claude Code does not export one', () => {
+    expect(resolveSessionId({ CURSOR_CONVERSATION_ID: 'bc-f01db8b8-6609-5a39-a1ac-636377b92916' })).toBe(
+      'bc-f01db8b8-6609-5a39-a1ac-636377b92916'
+    );
+  });
+
+  it('does not replace an invalid Claude id with the Cursor id', () => {
+    expect(resolveSessionId({
+      CLAUDE_CODE_SESSION_ID: 'short',
+      CURSOR_CONVERSATION_ID: 'bc-f01db8b8-6609-5a39-a1ac-636377b92916',
+    })).toBeNull();
+  });
+
   it('accepts the id Claude Code actually exports', () => {
     // Measured from a real PreToolUse invocation, not invented.
     expect(resolveSessionId({ CLAUDE_CODE_SESSION_ID: '4d1595ef-8305-4860-ae1d-f98c2c67828c' })).toBe(
@@ -315,8 +328,10 @@ describe('the gate as a spawned process', () => {
   /** `sessionId: null` means the variable is absent, not empty. */
   const run = (command, sessionId, input) => {
     const env = { ...process.env };
-    if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
-    else env.CLAUDE_CODE_SESSION_ID = sessionId;
+    if (sessionId === null) {
+      delete env.CLAUDE_CODE_SESSION_ID;
+      delete env.CURSOR_CONVERSATION_ID;
+    } else env.CLAUDE_CODE_SESSION_ID = sessionId;
 
     return spawnSync(process.execPath, [GATE], {
       input: input === undefined ? JSON.stringify(payload(command)) : input,
@@ -389,9 +404,22 @@ describe('the gate as a spawned process', () => {
   it('blocks a gated command when the session cannot be identified', () => {
     // The fail-closed half of the undocumented-env-var risk. If Claude Code
     // stops exporting CLAUDE_CODE_SESSION_ID, gated commands stop, loudly.
-    const r = run('git commit -m x', null);
+    const body = payload('git commit -m x');
+    delete body.session_id;
+    delete body.conversation_id;
+    const r = run('git commit -m x', null, JSON.stringify(body));
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('could not identify this Claude session');
+  });
+
+  it('accepts a token for the payload session id when the env has none', () => {
+    const id = nextId('payload');
+    put(id, Date.now());
+    const body = payload('git commit -m x');
+    body.session_id = id;
+    delete body.conversation_id;
+    const r = run('git commit -m x', null, JSON.stringify(body));
+    expect(r.status).toBe(0);
   });
 
   it('still allows ungated commands when the session cannot be identified', () => {
@@ -455,8 +483,10 @@ describe('the gate as a spawned process', () => {
 
   const approve = (sessionId) => {
     const env = { ...process.env };
-    if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
-    else env.CLAUDE_CODE_SESSION_ID = sessionId;
+    if (sessionId === null) {
+      delete env.CLAUDE_CODE_SESSION_ID;
+      delete env.CURSOR_CONVERSATION_ID;
+    } else env.CLAUDE_CODE_SESSION_ID = sessionId;
     return spawnSync(process.execPath, [APPROVE], { env, encoding: 'utf8' });
   };
 

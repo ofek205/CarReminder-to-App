@@ -125,12 +125,29 @@ const SESSION_ID_RE = /^[A-Za-z0-9._-]{8,200}$/;
  * `env` is injectable so the tests can exercise the missing and malformed
  * cases without mutating the real process environment.
  */
-function resolveSessionId(env) {
-  const raw = (env || process.env).CLAUDE_CODE_SESSION_ID;
+function sessionCandidate(raw) {
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
   if (!SESSION_ID_RE.test(id)) return null;
   return id;
+}
+
+function resolveSessionId(env, payload) {
+  const source = env || process.env;
+  // A present Claude id is authoritative, including when it is invalid.
+  // Falling through from a bad value would let a second field authorize
+  // a commit the bad id was meant to block.
+  if (source.CLAUDE_CODE_SESSION_ID !== undefined && source.CLAUDE_CODE_SESSION_ID !== null) {
+    return sessionCandidate(source.CLAUDE_CODE_SESSION_ID);
+  }
+  // Cursor's shell exports CURSOR_CONVERSATION_ID. The hook process does
+  // not receive that variable, but the same id arrives on the payload as
+  // session_id and conversation_id. approve.cjs only sees the environment,
+  // so the shell path and the hook path name one session.
+  const fromCursor = sessionCandidate(source.CURSOR_CONVERSATION_ID);
+  if (fromCursor) return fromCursor;
+  if (!payload || typeof payload !== 'object') return null;
+  return sessionCandidate(payload.session_id) || sessionCandidate(payload.conversation_id);
 }
 
 /**
@@ -279,7 +296,7 @@ function main() {
   // any earlier would mean a missing env var blocked every Bash call in the
   // session instead of only the gated ones — fail-closed is the contract for
   // the commands this gate guards, not a licence to break the whole tool.
-  const sessionId = resolveSessionId();
+  const sessionId = resolveSessionId(undefined, payload);
   if (sessionId === null) {
     block(
       'The gate could not identify this Claude session.\n\n' +
