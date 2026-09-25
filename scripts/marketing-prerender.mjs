@@ -27,6 +27,16 @@ const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;
  */
 const GA4_SNIPPET = `<script async src="https://www.googletagmanager.com/gtag/js?id=G-6Q6XS6C8B0"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-6Q6XS6C8B0');</script>`;
 
+// Safari on iOS reads this and shows the Smart App Banner. It is written
+// into each prerendered /website page, never into the shared app shell
+// (dist/index.html). That shell is also the Capacitor bundle and the
+// signed-in web app, where the banner is not wanted.
+//
+// No app-argument. Universal Links in
+// public/.well-known/apple-app-site-association cover /JoinInvite,
+// /VehicleTransfer and /Notifications only, not /website paths.
+const APPLE_SMART_APP_BANNER = '<meta name="apple-itunes-app" content="app-id=6764073107" />';
+
 // The SPA shell gets SITE_GTAG_SNIPPET during the same build, via
 // transformIndexHtml below. Prerender copies dist/index.html, so every
 // /website page inherits that script. The snippet bails out when this
@@ -123,7 +133,9 @@ export function marketingPrerender() {
             `<meta name="twitter:card" content="summary_large_image" />`,
           ].join('') : '';
           const schema = origin && route !== '/website/vehicle-check' ? `<script id="cm-seo-schema" type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebPage', name: meta.title, description: meta.description, url: origin + route, inLanguage: 'he' }).replaceAll('<', '\\u003c')}</script>` : '';
-          html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="${origin && route !== '/website/vehicle-check' ? 'index,follow' : 'noindex,follow'}" /><meta property="og:title" content="${escape(meta.title)}" /><meta property="og:description" content="${escape(meta.description)}" />${social}${canonical}${schema}${GA4_SNIPPET}</head>`);
+          // Drop any copy inherited from the shared shell, then insert one.
+          html = html.replace(/<meta\s+name=["']apple-itunes-app["'][^>]*>/gi, '');
+          html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="${origin && route !== '/website/vehicle-check' ? 'index,follow' : 'noindex,follow'}" /><meta property="og:title" content="${escape(meta.title)}" /><meta property="og:description" content="${escape(meta.description)}" />${social}${canonical}${schema}${GA4_SNIPPET}${APPLE_SMART_APP_BANNER}</head>`);
           const destination = path.join(output, route.slice(1), 'index.html');
           await fs.mkdir(path.dirname(destination), { recursive: true });
           await fs.writeFile(destination, html);
