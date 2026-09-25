@@ -129,6 +129,7 @@ export default function AppUpdateGate({ children }) {
         {/* Primary CTA — store update */}
         <a
           href={storeUrl}
+          data-link-location="app_update_gate"
           target="_blank"
           rel="noopener noreferrer"
           className="block py-3.5 rounded-2xl font-bold text-center transition-all hover:scale-[1.01] active:scale-[0.99]"
