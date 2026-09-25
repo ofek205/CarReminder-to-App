@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, BellRing, BriefcaseBusiness, Car, Database, FileText, Loader2, LockKeyhole, Menu, ShieldCheck, Ship, Smartphone, Sparkles, Trash2, Users, Wallet, X } from 'lucide-react';
 import { guides, productPages } from '@/lib/marketingContent';
@@ -19,6 +19,7 @@ import { marketingEvent } from '@/lib/marketingEvents';
 import { DEMO_HOME_ID } from '@/lib/demoScreens';
 import { onDemoMessage, DEMO_MSG_SCREEN } from '@/lib/demoBridge';
 import MarketingDemoEmbed from '@/components/MarketingDemoEmbed';
+import TestReminderAdditions, { presentGuide } from '@/components/TestReminderAdditions';
 
 const VehicleCheck = lazy(() => import('./VehicleCheck'));
 /**
@@ -185,7 +186,8 @@ export default function Marketing() {
 
   const checkPage = pathname === '/website/vehicle-check';
   const businessPage = pathname === '/website/business';
-  const article = guides.find(item => pathname === `/website/guides/${item.slug}`);
+  const articleMatch = guides.find(item => pathname === `/website/guides/${item.slug}`);
+  const article = useMemo(() => presentGuide(articleMatch), [articleMatch]);
   const product = productPages.find(item => pathname === `/website/${item.slug}`);
   const childReminderPage = product?.slug === 'child-in-car-reminder';
   const accessibilityPage = product?.slug === 'accessibility';
@@ -277,6 +279,7 @@ export default function Marketing() {
       {childReminderPage && <MarketingChildReminderPage />}
       {landingPage && <MarketingSeoLandingPage product={product} />}
       {product && !childReminderPage && !accessibilityPage && !landingPage && <MarketingProductPage product={product} />}
+      <TestReminderAdditions article={article} product={product} />
       {!checkPage && !childReminderPage && <section id="download" className="cm-download"><div className="cm-wrap cm-download-simple"><span className="cm-kicker">הצעד הבא שלכם</span><p className="cm-download-lead">מורידים את Car Reminder, מוסיפים כלי ומרכזים את המועד הבא במקום אחד.</p><StoreLinks linkLocation={article ? 'guide_cta' : 'download'} /><Link className="cm-text-link" to="/Auth">מעדיפים דפדפן? לכניסה באתר <ArrowLeft size={17} /></Link></div></section>}
     </main>
     <footer className="cm-footer"><div className="cm-wrap"><Link className="cm-brand" to="/website"><img src={logo} width="35" height="35" alt="" />Car Reminder</Link><nav aria-label="מידע וקשר"><Link to="/Contact">יצירת קשר</Link><Link to="/PrivacyPolicy">מדיניות פרטיות</Link><Link to="/TermsOfService">תנאי שימוש</Link><Link to="/website/accessibility">הצהרת נגישות</Link><Link to="/Auth">כניסה לחשבון</Link></nav><span>תזכורות, מסמכים ותחזוקה לכל כלי תחבורה.</span></div></footer>
