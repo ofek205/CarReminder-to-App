@@ -197,6 +197,8 @@ describe('site gtag snippet', () => {
     expect(context.scripts).toHaveLength(1);
     expect(context.scripts[0].src).toBe(GTAG_SRC);
     expect(context.dataLayer).toBeUndefined();
+    context.history.pushState({}, '', '/Auth?code=secret');
+    expect(context['ga-disable-' + GA4_MEASUREMENT_ID]).toBe(true);
   });
 
   it('installs the click listener only once', () => {
