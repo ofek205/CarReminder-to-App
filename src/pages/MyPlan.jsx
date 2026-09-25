@@ -42,7 +42,8 @@ import { AI_ADVISOR, AI_FORUM, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { canReferToWeb, mayMentionPaidPlans } from '@/lib/billingGate';
-import { openStoreSubscriptionManagement, canOpenStoreSubscriptionManagement } from '@/lib/billing';
+import { openStoreSubscriptionManagement, billingPlatform } from '@/lib/billing';
+import { managementCopy } from '@/lib/billing/storeManagement';
 
 const UNLIMITED = 'ללא הגבלה';
 
@@ -298,7 +299,9 @@ export default function MyPlan() {
 
   // ── loaded ──────────────────────────────────────────────────────────────
   const isFree = plan.code === 'free';
-  const canOpenPlayManagement = canOpenStoreSubscriptionManagement();
+  // Where the subscription lives and what this phone may say about it.
+  // null for any plan no store holds (free, admin grant, grandfather).
+  const storeRow = managementCopy(subscription?.source, billingPlatform());
 
   // The count comes from my_vehicle_capacity(); the CAP comes from the plan.
   // Two sources on purpose: the plan is what this screen is about, and the
@@ -552,37 +555,36 @@ export default function MyPlan() {
             * shows a paid plan here, and sending that person to Play opens a
             * subscriptions list their plan is not in.
             */}
-          {subscription?.source === 'iap_google' && (
+          {storeRow && (
             <div className="mt-1 pt-3 border-t" style={{ borderColor: C.gray100 }}>
-              {/* ⚠️ THE CONTROL IS ANDROID-ONLY, THE SENTENCE IS NOT, AND THE
-                  SPLIT IS THE WHOLE POINT. §7 of the UX doc requires this to
-                  key off `source` rather than platform, so somebody who
+              {/* ⚠️ THE CONTROL IS PER STORE AND PER PHONE, THE SENTENCE IS NOT,
+                  AND THE SPLIT IS THE WHOLE POINT. §7 of the UX doc requires this
+                  to key off `source` rather than platform, so somebody who
                   bought on their phone and is reading in a browser still
-                  learns where the subscription lives. But the native sheet
-                  only exists on Android, so rendering the BUTTON everywhere
-                  would give that same person a control that silently does
-                  nothing, which is worse than not offering one. */}
-              {canOpenPlayManagement ? (
+                  learns where the subscription lives. But a store page only
+                  helps on the phone whose store holds the plan: Apple's list
+                  does not contain a Google subscription, and a button that
+                  opens it would read as "my subscription vanished". The whole
+                  decision, and every string, is managementCopy(). */}
+              {storeRow.canOpenHere ? (
                 <button
                   type="button"
-                  onClick={openStoreSubscriptionManagement}
+                  onClick={() => openStoreSubscriptionManagement()}
                   className="flex items-center justify-between w-full text-right"
                   style={{ minHeight: 44 }}
                 >
                   <span className="text-[13px] font-bold" style={{ color: C.primary }}>
-                    ניהול המנוי ב-Google Play
+                    {storeRow.title}
                   </span>
                   <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
                 </button>
               ) : (
                 <p className="text-[13px] font-bold" style={{ color: C.gray700 }}>
-                  המנוי מנוהל דרך Google Play
+                  {storeRow.title}
                 </p>
               )}
               <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: C.gray500 }}>
-                {canOpenPlayManagement
-                  ? 'שם אפשר לבטל, לשנות אמצעי תשלום או לעבור למסלול אחר. ביטול נשאר בתוקף עד סוף התקופה ששולמה.'
-                  : 'ביטול ושינוי אמצעי תשלום נעשים באפליקציה במכשיר האנדרואיד שבו נרכש המנוי.'}
+                {storeRow.detail}
               </p>
             </div>
           )}
