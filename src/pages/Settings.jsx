@@ -23,6 +23,7 @@ import useIsAdmin from '@/hooks/useIsAdmin';
 import { useFeatureFlag } from '@/lib/featureFlags';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
+import { isNative, isIOS } from '@/lib/capacitor';
 
 export default function Settings() {
   const { isBusiness, isOwner, isManager } = useWorkspaceRole();
@@ -45,7 +46,9 @@ export default function Settings() {
   // exercised on a real device. Hiding the row alone does nothing:
   // /SafetyReminder is reachable by URL.
   const isAdmin = useIsAdmin() === true;
-  const showSafetyEntry = !isBusiness && isAdmin;
+  // Never on iPhone (Ofek, 2026-09-25): the native iOS code is excluded
+  // from the build, see SafetyReminder.jsx, which blocks the page itself.
+  const showSafetyEntry = !isBusiness && isAdmin && !(isNative && isIOS);
 
   // "המסלול והחיוב" (monetization phase 2). Flag-gated because the screen
   // reads plan_limits and account_subscriptions, which do not exist until

@@ -1,3 +1,9 @@
+// ⚠️ EXCLUDED FROM THE BUILD SINCE 2026-09-25 (Ofek's decision: no child-safety
+// reminder on iPhone for now, Android keeps it). TRIPGUARD_IOS is never
+// defined, so nothing below is compiled. Kept, not deleted, so it can come
+// back: define TRIPGUARD_IOS (Build Settings, Active Compilation Conditions),
+// and lift the iOS gates in Settings.jsx and SafetyReminder.jsx together.
+#if TRIPGUARD_IOS
 import Foundation
 
 /// TripGuard config/state store (UserDefaults-backed), the Swift twin of
@@ -42,7 +48,7 @@ enum TripGuardStore {
     static func defaultConfig() -> [String: Any] {
         [
             "enabled": false,
-            "carDeviceIds": [],
+            "carDeviceIds": [String](),
             "activeDays": [0, 1, 2, 3, 4, 5, 6],
             "minTripMinutes": 2,
             "alertDelaySeconds": 0,
@@ -188,3 +194,5 @@ enum TripGuardStore {
         return arr
     }
 }
+
+#endif

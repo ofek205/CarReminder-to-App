@@ -19,9 +19,11 @@
 	<string>האפליקציה שומרת לאלבום שלך תמונות של מסמכים סרוקים וקבלות, כדי שיהיו זמינות גם מחוץ לאפליקציה.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>האפליקציה מציגה מוסכים, חנויות חלקים ותחנות בקרבת מיקומך הנוכחי. המיקום אינו נשמר בשרת.</string>
-	<!-- "Always" location. NEVER REQUESTED since 2026-09-25: TripGuard's
-	     location mode is off (TripGuardStore.detectionMode() is locked to
-	     "bluetooth"), so no code path in the app shows this prompt.
+	<!-- "Always" location. NEVER REQUESTED since 2026-09-25: TripGuard, its
+	     only user, is excluded from the iOS build (#if TRIPGUARD_IOS), and
+	     its location mode is locked off even when it is compiled back in
+	     (TripGuardStore.detectionMode() returns "bluetooth"), so no code
+	     path in the app shows this prompt.
 	     The key stays anyway, deliberately. @capacitor/geolocation's native
 	     library (IONGeolocationLib) carries its own requestAlwaysAuthorization
 	     call, so the symbol is in the binary whatever we do, and App Store

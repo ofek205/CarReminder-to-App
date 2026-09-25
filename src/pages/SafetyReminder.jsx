@@ -242,6 +242,26 @@ export default function SafetyReminder() {
     );
   }
 
+  // ── Not on iPhone, for anyone, admins included (Ofek, 2026-09-25). The
+  // native iOS code is excluded from the build, so on iOS the JS would fall
+  // back to tripGuard/web.js: fake paired devices and a green "protected"
+  // screen with nothing running. Checked BEFORE the admin gate, because an
+  // admin is exactly who would otherwise see that lie. Android is unchanged.
+  if (isNative && isIOS) {
+    return (
+      <div className="max-w-xl mx-auto p-4" dir="rtl">
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
+        <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
+          <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
+          <p className="font-bold text-base" style={{ color: C.text }}>עדיין לא זמין באייפון</p>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>
+            תזכורת הבטיחות זמינה כרגע באנדרואיד בלבד.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ⚠️ `isAdmin !== true`, NOT `!isAdmin`. The probe resolves to null while
   // in flight, and treating an unresolved answer as "allowed" is how a gate
   // leaks for precisely the users it exists to exclude.
