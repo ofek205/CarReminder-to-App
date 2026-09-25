@@ -525,9 +525,18 @@ export default function MyPlan() {
           {/* The meters above explain a limit and, until now, had nowhere to
               send anyone: "4 מתוך 5" states the boundary and offers no way to
               understand what lies past it. /Plans is that destination.
-              Platform-independent on purpose: navigating INSIDE the app is
-              not steering, so this is permitted on iOS too, unlike the
-              external-purchase note below. */}
+
+              ⚠️ HIDDEN ON iOS SINCE 2026-09-25, AND IT WAS NOT BEFORE.
+              The first version called this platform-independent, since
+              navigating inside the app is not steering. True of the link,
+              not of where it lands: /Plans prints ₪9 / ₪19 / ₪49 for plans
+              that iOS cannot sell, because StoreKit is not wired yet. A
+              price with nothing to press next to it reads to App Review as
+              a purchase that happens somewhere else (3.1.1). That is
+              exactly the question mayMentionPaidPlans() answers, so this
+              uses it rather than an isIOS check. When StoreKit ships, add
+              iapReady() here, the way VehicleCapReachedModal does. */}
+          {mayMentionPaidPlans() && (
           <Link
             to={createPageUrl('Plans')}
             className="flex items-center justify-between mt-4 pt-3 border-t"
@@ -538,6 +547,7 @@ export default function MyPlan() {
             </span>
             <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
           </Link>
+          )}
 
           {/**
             * ⚠️ THE CANCEL ROUTE, AND UNTIL NOW THERE WAS NOT ONE.

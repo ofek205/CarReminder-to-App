@@ -26,7 +26,13 @@ import Capacitor
 /// This is the iOS counterpart to `registerPlugin(TripGuardPlugin.class)` in
 /// MainActivity.java on Android.
 class MainViewController: CAPBridgeViewController {
-    override open func capacitorDidLoad() {
+    override func capacitorDidLoad() {
+        // TripGuard is excluded from the iOS build for now (see the header of
+        // TripGuardPlugin.swift). With no native plugin, JS falls back to the
+        // web mock, which is why Settings.jsx and SafetyReminder.jsx block
+        // the feature on iOS entirely.
+        #if TRIPGUARD_IOS
         bridge?.registerPluginInstance(TripGuardPlugin())
+        #endif
     }
 }

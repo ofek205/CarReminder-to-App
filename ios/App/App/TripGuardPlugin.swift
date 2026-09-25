@@ -1,3 +1,9 @@
+// ⚠️ EXCLUDED FROM THE BUILD SINCE 2026-09-25 (Ofek's decision: no child-safety
+// reminder on iPhone for now, Android keeps it). TRIPGUARD_IOS is never
+// defined, so nothing below is compiled. Kept, not deleted, so it can come
+// back: define TRIPGUARD_IOS (Build Settings, Active Compilation Conditions),
+// and lift the iOS gates in Settings.jsx and SafetyReminder.jsx together.
+#if TRIPGUARD_IOS
 import Foundation
 import UIKit
 import Capacitor
@@ -85,7 +91,7 @@ public class TripGuardPlugin: CAPPlugin, CAPBridgedPlugin {
     /// to special-case the platform: it already treats an empty array as
     /// "nothing to show".
     @objc func listPairedDevices(_ call: CAPPluginCall) {
-        call.resolve(["devices": []])
+        call.resolve(["devices": [String]()])
     }
 
     @objc func getStatus(_ call: CAPPluginCall) {
@@ -132,7 +138,11 @@ public class TripGuardPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve()
     }
 
-    @objc func checkPermissions(_ call: CAPPluginCall) {
+    // `override public`, like every Capacitor plugin that ships these two:
+    // CAPPlugin.h already declares checkPermissions: and requestPermissions:,
+    // so a plain declaration here is a redeclaration Swift refuses to compile.
+    // This file had never been compiled until the Appetize simulator build.
+    @objc override public func checkPermissions(_ call: CAPPluginCall) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let notif = Self.notificationStatusString(settings.authorizationStatus)
             call.resolve([
@@ -149,7 +159,7 @@ public class TripGuardPlugin: CAPPlugin, CAPBridgedPlugin {
     /// visibly does nothing, forever, on a safety feature they just tried to
     /// turn on. So: look at the state BEFORE asking, and when no prompt can
     /// possibly appear, send them to the one place that can still fix it.
-    @objc func requestPermissions(_ call: CAPPluginCall) {
+    @objc override public func requestPermissions(_ call: CAPPluginCall) {
         let wantsLocation = TripGuardStore.wantsLocation()
 
         UNUserNotificationCenter.current().getNotificationSettings { settings in
@@ -233,3 +243,5 @@ public class TripGuardPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 }
+
+#endif

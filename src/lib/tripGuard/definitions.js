@@ -56,6 +56,17 @@ export const TRIP_GUARD_REASONS = Object.freeze({
 });
 
 /**
+ * iOS location-based trip detection ("Always" location). OFF since 2026-09-25,
+ * by Ofek's decision: the app does not ask for "Always" location for now.
+ *
+ * This flag only hides the choice in the screen. The guarantee lives in the
+ * native code, TripGuardStore.detectionMode(), which is locked to "bluetooth"
+ * so that no stored config can bring the prompt back. Turning location mode
+ * on again needs BOTH changes, and a new iOS build.
+ */
+export const IOS_LOCATION_MODE_AVAILABLE = false;
+
+/**
  * Safety-first defaults: the widest possible active window so a forgetful
  * parent is covered unless they deliberately narrow it. `enabled` starts
  * false — the feature is opt-in behind the onboarding + disclaimer.
@@ -70,8 +81,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   minTripMinutes: 2,
   alertDelaySeconds: 0,
   escalateAfterSeconds: 30,
-  // 'both' by default on iOS: a forgetful parent is better served by the
-  // strongest available protection than by the smallest permission ask.
+  // 'bluetooth' while location mode is off (see IOS_LOCATION_MODE_AVAILABLE).
   // No effect on Android.
-  iosDetectionMode: 'both',
+  iosDetectionMode: 'bluetooth',
 });
