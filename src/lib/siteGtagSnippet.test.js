@@ -18,10 +18,19 @@ function boot(options = {}) {
     hash: options.hash || '',
     origin: (options.protocol || 'https:') + '//' + options.hostname,
   };
+  location.href = location.origin + location.pathname + location.search + location.hash;
+  const history = {
+    pushState() {},
+    replaceState() {},
+  };
   const context = {
     listeners,
     scripts,
     location,
+    history,
+    addEventListener(type, fn, capture) {
+      listeners.push({ type, fn, capture });
+    },
     document: {
       addEventListener(type, fn, capture) {
         listeners.push({ type, fn, capture });
@@ -31,7 +40,13 @@ function boot(options = {}) {
         return scripts.find(script => String(script.src || '').indexOf('googletagmanager.com/gtag/js') !== -1) || null;
       },
       createElement() {
-        return { async: false, src: '' };
+        return {
+          async: false,
+          src: '',
+          addEventListener(type, fn) {
+            listeners.push({ type, fn, capture: false });
+          },
+        };
       },
       head: {
         appendChild(node) { scripts.push(node); },
@@ -39,6 +54,7 @@ function boot(options = {}) {
     },
   };
   context.window = context;
+  context.URL = URL;
   if (options.native) context.Capacitor = { isNativePlatform: () => true };
   if (options.inFrame) {
     context.self = {};
@@ -87,19 +103,69 @@ describe('site gtag snippet', () => {
     expect(SITE_GTAG_SNIPPET.includes(GA4_MEASUREMENT_ID)).toBe(true);
   });
 
-  it('loads once on the production host and strips query and hash from page_location', () => {
+  it('loads once on `/` and strips query and hash from the single page view', () => {
     const context = boot({
       hostname: 'car-reminder.app',
-      pathname: '/Auth',
+      pathname: '/',
       search: '?code=secret',
       hash: '#access_token=secret',
     });
     expect(context.scripts.map(script => script.src)).toEqual([GTAG_SRC]);
     const config = gtagCalls(context).find(call => call[0] === 'config');
     expect(config[1]).toBe(GA4_MEASUREMENT_ID);
-    expect(config[2]).toEqual({ page_location: 'https://car-reminder.app/Auth' });
-    expect(context.listeners).toHaveLength(1);
+    expect(config[2]).toEqual({
+      send_page_view: false,
+      page_location: 'https://car-reminder.app/',
+    });
+    const views = gtagCalls(context).filter(call => call[1] === 'page_view');
+    expect(views).toEqual([[
+      'event',
+      'page_view',
+      { page_location: 'https://car-reminder.app/', page_path: '/' },
+    ]]);
+    expect(context.listeners[0].type).toBe('click');
     expect(context.listeners[0].capture).toBe(true);
+  });
+
+  it('does not load on app routes', () => {
+    for (const pathname of ['/Auth', '/Dashboard', '/VehicleDetail', '/JoinInvite', '/VehicleTransfer']) {
+      const context = boot({
+        hostname: 'car-reminder.app',
+        pathname,
+        search: '?token=secret',
+        hash: '#access_token=secret',
+      });
+      expect(context.scripts, pathname).toHaveLength(0);
+      expect(context.dataLayer, pathname).toBeUndefined();
+      expect(context['ga-disable-' + GA4_MEASUREMENT_ID], pathname).toBeUndefined();
+    }
+  });
+
+  it('stops collection when history leaves the measured path', () => {
+    const context = boot({ hostname: 'car-reminder.app', pathname: '/' });
+    const disableKey = 'ga-disable-' + GA4_MEASUREMENT_ID;
+    expect(context[disableKey]).toBeUndefined();
+    context.history.pushState({}, '', '/Dashboard?id=1');
+    expect(context[disableKey]).toBe(true);
+    expect(gtagCalls(context).filter(call => call[1] === 'page_view')).toHaveLength(1);
+
+    const replaced = boot({ hostname: 'car-reminder.app', pathname: '/website' });
+    replaced.history.replaceState({}, '', '/Auth?code=secret');
+    expect(replaced[disableKey]).toBe(true);
+
+    const popped = boot({ hostname: 'car-reminder.app', pathname: '/' });
+    popped.location.pathname = '/JoinInvite';
+    const pop = popped.listeners.find(listener => listener.type === 'popstate');
+    pop.fn();
+    expect(popped[disableKey]).toBe(true);
+
+    const rewrapped = boot({ hostname: 'car-reminder.app', pathname: '/' });
+    rewrapped.history.pushState = function () {};
+    const onLoad = rewrapped.listeners.find(listener => listener.type === 'load');
+    onLoad.fn();
+    rewrapped.history.pushState({}, '', '/VehicleTransfer?token=secret');
+    expect(rewrapped[disableKey]).toBe(true);
+    expect(gtagCalls(rewrapped).filter(call => call[1] === 'page_view')).toHaveLength(1);
   });
 
   it('also allows www.car-reminder.app', () => {

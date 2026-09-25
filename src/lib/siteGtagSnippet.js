@@ -10,8 +10,13 @@
  * once, in the head snippet, and a second copy would make every /website
  * page look like it loads gtag twice.
  *
- * The head snippet's config call is left untouched. This loader only calls
- * config on `/`, and only when no gtag script is already in the document.
+ * The head snippet's config call is left untouched. This loader calls config
+ * only when no gtag script is already in the document, and only on `/` or on
+ * a `/website` path. App routes such as `/Auth` and `/Dashboard` never load
+ * the tag. The config sends a single page view (`send_page_view: false`, then
+ * one explicit page_view) and does not follow SPA navigations. If history
+ * later moves to any other path, `ga-disable-<id>` is set before the original
+ * history method runs, so a later hit cannot carry an app URL.
  */
 
 export const GA4_MEASUREMENT_ID = 'G-6Q6XS6C8B0';
@@ -57,16 +62,51 @@ export const SITE_GTAG_SNIPPET = [
   '    native = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());',
   '  } catch (e) { native = false; }',
   '  if (native) return;',
+  '  var path = location.pathname || "";',
+  '  var onMeasuredPath = path === "/" || path === "/website" || path.indexOf("/website/") === 0;',
+  '  if (!onMeasuredPath) return;',
   '',
   '  window.__crGtag = true;',
   '  var measurementId = "' + GA4_MEASUREMENT_ID + '";',
+  '  var disableKey = "ga-disable-" + measurementId;',
+  '  function blockAppPath(nextUrl) {',
+  '    var nextPath = path;',
+  '    if (typeof nextUrl === "string" && nextUrl) {',
+  '      try { nextPath = new URL(nextUrl, location.href).pathname; } catch (e) { nextPath = path; }',
+  '    }',
+  '    var stillMeasured = nextPath === "/" || nextPath === "/website" || nextPath.indexOf("/website/") === 0;',
+  '    if (!stillMeasured) window[disableKey] = true;',
+  '  }',
+  '  function wrapHistory(name) {',
+  '    try {',
+  '      var orig = history[name];',
+  '      if (typeof orig !== "function" || orig.__crGaWrapped) return;',
+  '      var wrapped = function (state, title, url) {',
+  '        blockAppPath(url);',
+  '        return orig.apply(this, arguments);',
+  '      };',
+  '      wrapped.__crGaWrapped = true;',
+  '      history[name] = wrapped;',
+  '    } catch (e) {}',
+  '  }',
+  '  wrapHistory("pushState");',
+  '  wrapHistory("replaceState");',
+  '  window.addEventListener("popstate", function () { blockAppPath(location.pathname); }, true);',
   '  window.dataLayer = window.dataLayer || [];',
   '  window.gtag = function () { window.dataLayer.push(arguments); };',
   '  window.gtag("js", new Date());',
-  '  window.gtag("config", measurementId, { page_location: location.origin + location.pathname });',
+  '  var pageLocation = location.origin + path;',
+  '  window.gtag("config", measurementId, { send_page_view: false, page_location: pageLocation });',
+  '  window.gtag("event", "page_view", { page_location: pageLocation, page_path: path });',
   '  var script = document.createElement("script");',
   '  script.async = true;',
   '  script.src = "https://www.googletagmanager.com/gtag/js?id=" + measurementId;',
+  '  if (typeof script.addEventListener === "function") {',
+  '    script.addEventListener("load", function () {',
+  '      wrapHistory("pushState");',
+  '      wrapHistory("replaceState");',
+  '    });',
+  '  }',
   '  document.head.appendChild(script);',
   '})();',
 ].join('\n');
