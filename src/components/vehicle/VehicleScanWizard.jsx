@@ -16,6 +16,7 @@ import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import { maybeRequestStoreReview } from '@/lib/storeReview';
 import { toast } from 'sonner';
 import useFileUpload from '@/hooks/useFileUpload';
 import useAccountPlan from '@/hooks/useAccountPlan';
@@ -417,6 +418,8 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       // Save document
       await saveScanAsDocument(vehicle?.id);
 
+      // Fire-and-forget. Navigation below is not delayed.
+      maybeRequestStoreReview('vehicle_added');
       setSaving(false);
       handleClose();
       navigate(createPageUrl(`VehicleDetail?id=${vehicle.id}`));

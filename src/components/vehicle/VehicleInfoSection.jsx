@@ -10,6 +10,7 @@ import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCirc
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { dal } from '@/lib/dal';
+import { maybeRequestStoreReview } from '@/lib/storeReview';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
@@ -355,6 +356,9 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
       // true, which is why setStep moved down here from the top of the
       // function.
       setStep('done');
+      // Renewing the test or insurance date is the reminder "done" moment.
+      // Fire-and-forget. The dialog still auto-closes on its own timer.
+      maybeRequestStoreReview('reminder_renewed');
       // Auto-close only when there is nothing to read. A failed upload
       // leaves the dialog open so the message doesn't vanish in 800ms.
       if (!docFailed) setTimeout(() => { onClose(); reset(); }, 800);

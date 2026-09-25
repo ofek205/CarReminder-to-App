@@ -64,6 +64,7 @@ import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
 import { countPlateLookup } from '@/lib/usageCounters';
+import { maybeRequestStoreReview } from '@/lib/storeReview';
 import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
 import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -1027,6 +1028,8 @@ export default function AddVehicle() {
       if (saved) {
         hapticFeedback('medium');
         setShowGuestSignup(true);
+        // Fire-and-forget. Must not delay the guest signup prompt.
+        maybeRequestStoreReview(selectedMethod === 'plate' ? 'vehicle_added_plate' : 'vehicle_added');
       } else {
         hapticFeedback('heavy');
         // A real failure now, not a full store: quota is handled above.
@@ -1087,6 +1090,8 @@ export default function AddVehicle() {
       draft.clearDraft();
       hapticFeedback('medium');
       setShowSuccess(true);
+      // Fire-and-forget. Must not delay the success screen.
+      maybeRequestStoreReview(selectedMethod === 'plate' ? 'vehicle_added_plate' : 'vehicle_added');
     } catch (err) {
       console.error('Vehicle save error:', err);
       hapticFeedback('heavy');
