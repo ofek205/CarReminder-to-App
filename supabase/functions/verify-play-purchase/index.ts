@@ -33,6 +33,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
+import { willRenewFrom } from '../_shared/googlePlay.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -241,6 +242,16 @@ serve(async (req) => {
   if (grantErr) {
     return json({ granted: false, reason: 'grant_failed', detail: grantErr.message }, 200, cors);
   }
+
+  // Record whether it renews. Best effort for the same reason as the
+  // acknowledgement below: the entitlement is written, and a failure here
+  // (say, before supabase-plans-edge-cases-2026-09-25.sql runs) must not turn
+  // a successful purchase into a failed-looking one. play-rtdn corrects it
+  // on the next notification anyway.
+  await admin.rpc('set_iap_auto_renew', {
+    p_account_id: accountId,
+    p_auto_renew: willRenewFrom(sub as Record<string, unknown>),
+  });
 
   // Acknowledgement is best effort and deliberately cannot fail the response.
   // The entitlement is already written, so the user has what they paid for.
