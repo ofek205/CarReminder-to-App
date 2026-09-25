@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { marketingEvent } from '@/lib/marketingEvents';
+import { appStoreUrl, googlePlayUrl } from '@/lib/storeLinks';
 import MarketingSectionBody from '@/components/MarketingSectionBody';
 
 /**
@@ -28,9 +29,7 @@ function LandingCtas({ ctas, slug }) {
   return <div className="cm-actions cm-landing-ctas">
     {ctas.map((cta, index) => {
       if (cta.type === 'store') {
-        const href = cta.store === 'apple'
-          ? 'https://apps.apple.com/app/carreminder/id6764073107'
-          : 'https://play.google.com/store/apps/details?id=com.carreminder.app';
+        const href = cta.store === 'apple' ? appStoreUrl('hero') : googlePlayUrl('hero');
         return <a key={index} className="cm-landing-store" data-link-location="hero" href={href} target="_blank" rel="noopener noreferrer"
           onClick={() => { marketingEvent('store_click', `${slug}_${cta.store}`); }}>
           <img src={`/marketing/${cta.store === 'apple' ? 'apple' : 'google-play'}.svg`} width="20" height="23" alt="" />
