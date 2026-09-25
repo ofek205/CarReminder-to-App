@@ -44,10 +44,10 @@ describe('managementCopy', () => {
     expect(managementCopy('iap_apple', 'web').canOpenHere).toBe(false);
   });
 
-  it('keeps the Android wording exactly as it shipped', () => {
+  it('keeps the Android wording, minus the plan switch Play cannot do', () => {
     expect(managementCopy('iap_google', 'android')).toMatchObject({
       title: 'ניהול המנוי ב-Google Play',
-      detail: 'שם אפשר לבטל, לשנות אמצעי תשלום או לעבור למסלול אחר. ביטול נשאר בתוקף עד סוף התקופה ששולמה.',
+      detail: 'שם אפשר לבטל או לשנות אמצעי תשלום. ביטול נשאר בתוקף עד סוף התקופה ששולמה.',
     });
     expect(managementCopy('iap_google', 'web')).toMatchObject({
       title: 'המנוי מנוהל דרך Google Play',
@@ -65,6 +65,12 @@ describe('managementCopy', () => {
 
   it('does not promise a payment-method control on Apple\'s subscriptions page', () => {
     expect(managementCopy('iap_apple', 'ios').detail).not.toMatch(/אמצעי תשלום/);
+  });
+
+  it('never promises a plan switch where Play is the store', () => {
+    // Play's subscription centre cannot switch products.
+    expect(managementCopy('iap_google', 'android').detail).not.toMatch(/מסלול אחר|שינוי המסלול/);
+    expect(managementCopy('iap_google', 'ios').detail).not.toMatch(/מסלול אחר|שינוי המסלול/);
   });
 
   it('uses one neutral pair for the other phone, in both directions', () => {

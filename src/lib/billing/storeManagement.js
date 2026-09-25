@@ -58,10 +58,13 @@ export function managementCopy(source, platform) {
   const canOpenHere = native === store;
 
   if (canOpenHere && store === STORE.GOOGLE) {
+    // ⚠️ NO "לעבור למסלול אחר". Play's subscription centre cancels and
+    // changes the payment method; it cannot switch between products. A plan
+    // change on Play is an in-app replacement flow, which we do not have.
     return {
       store, canOpenHere,
       title: 'ניהול המנוי ב-Google Play',
-      detail: 'שם אפשר לבטל, לשנות אמצעי תשלום או לעבור למסלול אחר. ביטול נשאר בתוקף עד סוף התקופה ששולמה.',
+      detail: 'שם אפשר לבטל או לשנות אמצעי תשלום. ביטול נשאר בתוקף עד סוף התקופה ששולמה.',
     };
   }
   if (canOpenHere && store === STORE.APPLE) {
@@ -77,14 +80,16 @@ export function managementCopy(source, platform) {
   }
 
   // The other phone. Neutral in both directions, because the iOS half may
-  // not name Google or Android at all. An unrecognised native platform lands
+  // not name Google or Android at all. It promises only what BOTH stores do
+  // from the phone: cancel, and change the payment method. Switching plans
+  // is Apple-only, so it is not claimed here. An unrecognised native platform lands
   // here too: a store whose rules we do not know gets the quiet answer, the
   // same choice billingGate makes.
   if (platform !== 'web') {
     return {
       store, canOpenHere,
       title: 'המנוי מנוהל בחנות שבה נרכש',
-      detail: 'ביטול ושינוי המסלול נעשים במכשיר שבו נרכש המנוי.',
+      detail: 'ביטול ושינוי אמצעי תשלום נעשים במכשיר שבו נרכש המנוי.',
     };
   }
 
