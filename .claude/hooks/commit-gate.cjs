@@ -98,13 +98,6 @@ const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes, single use
  * blocks every gated command, and approve.cjs refuses to write a token at all.
  * Nobody gets a silent allow, and the fix is one line here.
  *
- * Cursor cloud agents do not put CLAUDE_CODE_SESSION_ID in the hook process.
- * The shell that runs approve.cjs does have CURSOR_CONVERSATION_ID, and the
- * hook payload session_id is that same conversation id. approve.cjs therefore
- * reads the env var, and this hook reads the payload only when neither env
- * var is set. A Claude session id still wins, including when it is present
- * but invalid, so a bad Claude id cannot silently switch keys.
- *
  * WHAT THIS STILL DOES NOT FIX
  * ----------------------------
  * The token authorizes a SESSION for ten minutes, not a specific diff. Inside
@@ -132,24 +125,12 @@ const SESSION_ID_RE = /^[A-Za-z0-9._-]{8,200}$/;
  * `env` is injectable so the tests can exercise the missing and malformed
  * cases without mutating the real process environment.
  */
-function sessionIdFrom(raw) {
+function resolveSessionId(env) {
+  const raw = (env || process.env).CLAUDE_CODE_SESSION_ID;
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
   if (!SESSION_ID_RE.test(id)) return null;
   return id;
-}
-
-function resolveSessionId(env, payloadSessionId) {
-  const source = env || process.env;
-  // A string that fails the charset check must stay a block. Falling through
-  // to another id would let a rejected Claude id pick a different key.
-  if (typeof source.CLAUDE_CODE_SESSION_ID === 'string') {
-    return sessionIdFrom(source.CLAUDE_CODE_SESSION_ID);
-  }
-  if (typeof source.CURSOR_CONVERSATION_ID === 'string') {
-    return sessionIdFrom(source.CURSOR_CONVERSATION_ID);
-  }
-  return sessionIdFrom(payloadSessionId);
 }
 
 /**
@@ -298,7 +279,7 @@ function main() {
   // any earlier would mean a missing env var blocked every Bash call in the
   // session instead of only the gated ones — fail-closed is the contract for
   // the commands this gate guards, not a licence to break the whole tool.
-  const sessionId = resolveSessionId(undefined, payload?.session_id);
+  const sessionId = resolveSessionId();
   if (sessionId === null) {
     block(
       'The gate could not identify this Claude session.\n\n' +
