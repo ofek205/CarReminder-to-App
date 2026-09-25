@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
         <ArrowRight className="w-4 h-4" /> חזרה
       </button>
       <h1 className="text-2xl font-bold mb-6">מדיניות פרטיות - CarReminder</h1>
-      <p className="text-xs mb-4" style={{ color: C.gray400 }}>עודכן לאחרונה: אפריל 2026</p>
+      <p className="text-xs mb-4" style={{ color: C.gray400 }}>עודכן לאחרונה: <span dir="ltr">25.9.2026</span></p>
 
       <div className="space-y-5 text-sm leading-relaxed" style={{ color: C.gray700 }}>
         <section>
@@ -86,6 +86,25 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="text-base font-bold mb-2">6. קהילה ותוכן משתמשים</h2>
           <p>פוסטים בקהילה גלויים לכל המשתמשים. ניתן לדווח על תוכן פוגעני ולחסום משתמשים. תוכן AI נוצר אוטומטית ומסומן בתווית "AI".</p>
+        </section>
+
+        <section>
+          <h2 className="text-base font-bold mb-2">שימוש ב-Google Analytics</h2>
+          <p>
+            אתר השיווק (הדף הראשי והעמודים תחת <span dir="ltr">/website</span>) משתמש ב-<strong>Google Analytics</strong> של <strong>Google LLC</strong>, כדי להבין את השימוש באתר באופן אנונימי ומצרפי. האפליקציה עצמה לא משתמשת ב-Google Analytics.
+          </p>
+          <p className="mt-2">
+            הנתונים כוללים עמודים שנצפו, לחיצות על כפתורי ההורדה לחנויות, סוג מכשיר ודפדפן, ומיקום משוער. האיסוף נעשה באמצעות עוגיות או טכנולוגיה דומה.
+          </p>
+          <p className="mt-2">
+            לא נשלחים ל-Google Analytics שמות, מספרי טלפון, נתוני רכב או נתוני חשבון באפליקציה.
+          </p>
+          <p className="mt-2">
+            Google שומרת את הנתונים 14 חודשים. אפשר לקרוא את{' '}
+            <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: C.primary, textDecoration: 'underline' }}>מדיניות הפרטיות של Google</a>
+            {' '}ולבטל את המדידה באמצעות{' '}
+            <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer" style={{ color: C.primary, textDecoration: 'underline' }}>תוסף הביטול של Google Analytics</a>.
+          </p>
         </section>
 
         <section>
