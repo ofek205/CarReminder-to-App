@@ -370,6 +370,9 @@ describe('appleBackend() identity', () => {
       expect(typeof b[m], m).toBe('function');
     }
     expect(b.store).toBe('apple');
+    expect(b.productIds).toEqual(APPLE_PRODUCT_IDS);
+    // It files its own gap report, so the hook must stay quiet.
+    expect(b.reportsCatalogueGaps).toBe(true);
   });
 
   it('connects, because the Swift always answers yes', async () => {

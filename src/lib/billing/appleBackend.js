@@ -140,6 +140,9 @@ export function buildAppleBackend() {
     /** Which store this is. The Play backend predates the field. */
     store: 'apple',
     productIds: APPLE_PRODUCT_IDS,
+    // listProducts() reports every missing id with the storefront, so the
+    // hook's generic "catalogue empty" report would only be a duplicate.
+    reportsCatalogueGaps: true,
 
     async connect() {
       // ⚠️ ALWAYS TRUE ON iOS, AND NOT BECAUSE StoreKit WAS ASKED. The Swift

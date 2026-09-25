@@ -34,6 +34,16 @@ def capacitor_pods
   # then hangs silently — the call routes through Capacitor's plugin
   # registry, finds no native handler, and the promise never resolves.
   pod 'CapacitorCommunityAppleSignIn', :path => '../../node_modules/@capacitor-community/apple-sign-in'
+  # StoreKit 2 (App Store subscriptions). The THIRD time this footgun would
+  # have bitten: @capgo/native-purchases has been in package.json since Play
+  # Billing, Android links it through gradle, and it was never added here.
+  # Without this line the iOS app has no native purchase bridge at all, and
+  # the JS falls back to the plugin's web stub, which cannot sell anything.
+  # Inert until the JS returns the Apple backend on iOS (docs/plan-apple-iap.md
+  # §4); before that its only effect is a Transaction.updates listener at
+  # launch with nothing to find. Never compiled locally (no Mac): the first
+  # iOS CI build is the compile check, and it fails before the upload step.
+  pod 'CapgoNativePurchases',         :path => '../../node_modules/@capgo/native-purchases'
 end
 
 target 'App' do
