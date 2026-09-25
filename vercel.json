@@ -177,6 +177,11 @@
       "destination": "/website/test-insurance-reminders/index.html"
     },
     {
+      "source": "/website/:path*",
+      "destination": "/website/404/index.html",
+      "statusCode": 404
+    },
+    {
       "source": "/((?!\\.well-known|assets|icons|sw\\.js|manifest\\.json|.+\\.(?:xml|js|css|json|png|jpg|jpeg|svg|webp|woff2?|ico|pdf|html|map)).*)",
       "destination": "/index.html"
     }

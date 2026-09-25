@@ -27,6 +27,35 @@ const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;
  */
 const GA4_SNIPPET = `<script async src="https://www.googletagmanager.com/gtag/js?id=G-6Q6XS6C8B0"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-6Q6XS6C8B0');</script>`;
 
+/**
+ * Static page for unknown /website URLs.
+ *
+ * It is not a marketing route: those are listed, canonical, and usually
+ * indexable. This page is always noindex, has no canonical, and is left
+ * out of the sitemap. The app bundle is stripped so hydration cannot
+ * replace the links with the SPA shell. Shell comments are stripped too,
+ * because they are not content and some of them contain long dashes.
+ * Native builds still start at dist/index.html; this file is only served
+ * by the website 404 rewrite.
+ */
+function renderWebsiteNotFound(template, marketingCss) {
+  const markup = `<div class="cm-site" dir="rtl"><a class="cm-skip" href="#cm-main">דילוג לתוכן</a><header class="cm-header"><div class="cm-wrap cm-nav"><a href="/website" class="cm-brand"><img src="/marketing/logo.webp" width="44" height="44" alt="" /><span>Car Reminder</span></a></div></header><main id="cm-main"><section class="cm-section"><div class="cm-wrap"><h1>העמוד לא נמצא</h1><p>הכתובת הזו לא קיימת באתר.</p><div class="cm-actions"><a class="cm-button cm-gold" href="/website">לאתר</a><a class="cm-button" href="/website#guides">למדריכים</a></div></div></section></main></div>`;
+  let html = template.replace(/<div id="root">[\s\S]*?(?=\s*<style>\s*@keyframes cr-boot-spin)/, `<div id="root">${markup}</div>`);
+  if (!html.includes(markup)) throw new Error('Cannot locate the application root for the website 404 page');
+  html = html.replace(/<title>.*?<\/title>/, '<title>העמוד לא נמצא | Car Reminder</title>')
+    .replace(/<meta name="description"[^>]*>/, '<meta name="description" content="הכתובת הזו לא קיימת באתר. אפשר לחזור לעמוד הבית או לעבור למדריכים." />')
+    .replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />');
+  html = html.replace('</head>', `${marketingCss.map(name => `<link rel="stylesheet" href="/assets/${name}" />`).join('')}<meta name="robots" content="noindex" /></head>`);
+  html = html.replace(/<link rel="modulepreload"[^>]*>/gi, '');
+  html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  html = html.replace(/<!--[\s\S]*?-->/g, '');
+  html = html.replace(/\/\*[\s\S]*?\*\//g, '');
+  if (/<script\b/i.test(html)) throw new Error('Website 404 page still contains a script');
+  if (!html.includes('content="noindex"')) throw new Error('Website 404 page is missing noindex');
+  if (/[\u2013\u2014]/.test(html)) throw new Error('Website 404 page contains a long dash');
+  return html;
+}
+
 // The SPA shell gets SITE_GTAG_SNIPPET during the same build, via
 // transformIndexHtml below. Prerender copies dist/index.html, so every
 // /website page inherits that script. The snippet bails out when this
@@ -128,6 +157,10 @@ export function marketingPrerender() {
           await fs.mkdir(path.dirname(destination), { recursive: true });
           await fs.writeFile(destination, html);
         }
+        const notFoundHtml = renderWebsiteNotFound(template, marketingCss);
+        const notFoundDest = path.join(output, 'website', '404', 'index.html');
+        await fs.mkdir(path.dirname(notFoundDest), { recursive: true });
+        await fs.writeFile(notFoundDest, notFoundHtml);
         if (origin) {
           const urls = marketingRoutes.filter(route => route !== '/website/vehicle-check').map(route => `<url><loc>${escape(origin + route)}</loc></url>`).join('');
           await fs.writeFile(path.join(output, 'website/sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
@@ -150,7 +183,7 @@ export function marketingPrerender() {
         await fs.writeFile(path.join(output, 'robots.txt'), origin
           ? `User-agent: *\nAllow: /\n\nSitemap: ${origin}/website/sitemap.xml\n`
           : 'User-agent: *\nDisallow: /\n');
-        console.info(`Marketing: rendered ${marketingRoutes.length} local pages (${origin ? 'configured canonical origin' : 'noindex preview'}), robots.txt ${origin ? 'allows crawling' : 'disallows all'}.`);
+        console.info(`Marketing: rendered ${marketingRoutes.length} local pages (${origin ? 'configured canonical origin' : 'noindex preview'}), robots.txt ${origin ? 'allows crawling' : 'disallows all'}, plus a noindex website 404.`);
       } finally { await server.close(); }
     },
   };

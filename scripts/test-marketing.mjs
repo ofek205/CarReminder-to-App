@@ -130,4 +130,48 @@ for (const route of marketingRoutes) {
 const catchAll = vercel.rewrites[vercel.rewrites.length - 1];
 assert.ok(catchAll.source.startsWith('/((?!'), 'the catch-all rewrite must stay last, or the routes above never match');
 
-console.log(`Marketing checks passed: ${pages.size} pages, crawlable copy, headings, links, assets, report privacy, punctuation, ${multiLineHeadings} spaced line breaks, title/description budgets.`);
+/*
+ * Unknown /website URLs must not fall through to the app shell.
+ *
+ * The rule sits directly before the catch-all, after every real page
+ * rewrite, and asks Vercel for status 404 with the static page. The page
+ * stays out of marketingRoutes so it is neither canonical nor listed.
+ */
+const soft404 = vercel.rewrites[vercel.rewrites.length - 2];
+assert.equal(soft404.source, '/website/:path*');
+assert.equal(soft404.destination, '/website/404/index.html');
+assert.equal(soft404.statusCode, 404);
+assert.ok(!marketingRoutes.includes('/website/404'), 'the 404 page must not become a marketing route');
+for (const route of marketingRoutes) {
+  const index = vercel.rewrites.findIndex(rule => rule.source.replace(/\/$/, '') === route);
+  assert.ok(index >= 0 && index < vercel.rewrites.length - 2, `${route}: rewrite must stay ahead of the website 404 rule`);
+}
+const notFound = await fs.readFile(path.join('dist', 'website', '404', 'index.html'), 'utf8');
+assert.equal((notFound.match(/<h1(?:\s|>)/g) || []).length, 1, 'website 404: one primary heading');
+assert.ok(notFound.includes('<meta name="robots" content="noindex"'), 'website 404: noindex in the initial HTML');
+assert.ok(notFound.includes('href="/website"'), 'website 404: link to the marketing home');
+assert.ok(notFound.includes('href="/website#guides"'), 'website 404: link to the guides section');
+assert.ok(pages.get('/website').includes('id="guides"'), 'website 404: guides target exists on the home page');
+assert.ok(!notFound.includes('rel="canonical"'), 'website 404: no canonical');
+assert.ok(!notFound.includes('id="cr-boot-fallback"'), 'website 404: no boot screen');
+assert.ok(!/<script\b/i.test(notFound), 'website 404: static, so the SPA cannot replace it');
+assert.ok(!/[\u2013\u2014]/.test(notFound), 'website 404: no long dashes');
+for (const match of notFound.matchAll(/(?:src|href)="(\/(?:assets|marketing)\/[^"?#]+)"/g)) {
+  await fs.access(path.join('dist', match[1]));
+}
+try {
+  const sitemap = await fs.readFile(path.join('dist', 'website', 'sitemap.xml'), 'utf8');
+  assert.ok(!sitemap.includes('/website/404'), 'website 404 must not be in the sitemap');
+} catch (err) {
+  if (err.code !== 'ENOENT') throw err;
+}
+const unmatched = await fs.readFile('src/lib/UnmatchedNoindex.jsx', 'utf8');
+const appSource = await fs.readFile('src/App.jsx', 'utf8');
+assert.ok(unmatched.includes("setAttribute('content', 'noindex')"), 'unmatched routes set robots noindex');
+assert.ok(unmatched.includes('el.remove()'), 'unmatched routes remove the noindex tag on the way out');
+const star = appSource.indexOf('path="*"');
+const marker = appSource.indexOf('<UnmatchedNoindex');
+assert.ok(star !== -1 && marker > star, 'noindex is mounted only on the unmatched route');
+assert.ok(!/[\u2013\u2014]/.test(unmatched), 'UnmatchedNoindex: no long dashes');
+
+console.log(`Marketing checks passed: ${pages.size} pages, crawlable copy, headings, links, assets, report privacy, punctuation, ${multiLineHeadings} spaced line breaks, title/description budgets, website 404.`);

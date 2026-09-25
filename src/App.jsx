@@ -7,6 +7,7 @@ import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
+import UnmatchedNoindex from './lib/UnmatchedNoindex';
 import ViewAsRouteGuard from '@/components/shared/ViewAsRouteGuard';
 import { PinGate } from '@/components/shared/PinLock';
 import AppUpdateGate from '@/components/shared/AppUpdateGate';
@@ -330,6 +331,7 @@ function App() {
               ))}
               <Route path="*" element={
                 <LayoutWrapper currentPageName="NotFound">
+                  <UnmatchedNoindex />
                   <PageNotFound />
                 </LayoutWrapper>
               } />
