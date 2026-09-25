@@ -1,3 +1,9 @@
+// ⚠️ EXCLUDED FROM THE BUILD SINCE 2026-09-25 (Ofek's decision: no child-safety
+// reminder on iPhone for now, Android keeps it). TRIPGUARD_IOS is never
+// defined, so nothing below is compiled. Kept, not deleted, so it can come
+// back: define TRIPGUARD_IOS (Build Settings, Active Compilation Conditions),
+// and lift the iOS gates in Settings.jsx and SafetyReminder.jsx together.
+#if TRIPGUARD_IOS
 import Foundation
 import AVFoundation
 
@@ -111,3 +117,5 @@ final class TripGuardBluetoothMonitor {
         return regex.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) != nil
     }
 }
+
+#endif
