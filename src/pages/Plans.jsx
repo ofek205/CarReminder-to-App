@@ -369,6 +369,77 @@ export function isStoreManaged(subscription, plan) {
   return subscription?.source === 'iap_google' && plan?.priceIlsMonth > 0;
 }
 
+/**
+ * The reassurance under the meters when an account holds MORE than its plan
+ * includes, which is what a downgrade or an expired subscription leaves
+ * behind. Without it the strip says "12 מתוך 5" in amber and nothing else,
+ * which reads as "something is about to be taken away". Nothing is: every cap
+ * in this project only ever refuses an ADD.
+ *
+ * @param meters  the strip's meters ({ meter: { used, limit } })
+ */
+export function overCapNote(meters) {
+  const over = (meters || []).some(({ meter }) => meter && meter.limit !== null && meter.used > meter.limit);
+  return over ? 'יש לך יותר ממה שהמסלול הנוכחי כולל. שום דבר לא נמחק, ומה שיש נשאר שלך.' : null;
+}
+
+/**
+ * The warning on a SMALLER plan's open row, one line per dimension the
+ * account would be over.
+ *
+ * ⚠️ SAID BEFORE THE DECISION, NOT AFTER IT. A subscriber holding 25 vehicles
+ * who opens the 15-vehicle plan saw "(במקום 30)" and nothing about what the
+ * move would mean for the 10 above it. The answer is reassuring and it still
+ * has to be said: nothing is deleted, and nothing new can be added.
+ *
+ * @param plan  the plan being looked at
+ * @param held  { vehicles, documents }, each a number or null when unknown
+ */
+export function downgradeWarnings(plan, held) {
+  if (!plan || !held) return [];
+  const lines = [];
+  const check = (count, cap, noun) => {
+    if (count === null || count === undefined || cap === null || cap === undefined) return;
+    if (count > cap) {
+      lines.push(`יש לך ${count} ${noun}, ובמסלול הזה אפשר עד ${cap}. שום דבר לא יימחק, אבל אי אפשר יהיה להוסיף עוד.`);
+    }
+  };
+  check(held.vehicles, plan.maxVehicles, 'כלי תחבורה');
+  check(held.documents, plan.maxDocuments, 'מסמכים');
+  return lines;
+}
+
+/** "12.10.2026", or null for a missing or unreadable date. */
+function formatDay(iso) {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? new Date(t).toLocaleDateString('he-IL') : null;
+}
+
+/**
+ * The sentence for somebody who has ALREADY cancelled and is waiting out the
+ * paid period, or null when that is not the situation.
+ *
+ * ⚠️ manageNote TELLS PEOPLE TO CANCEL, WHICH THIS PERSON HAS DONE. Shown
+ * "מבטלים את המנוי ב-Google Play" a second time, they reasonably conclude the
+ * first cancellation did not register. These say what is already true and
+ * when it takes effect.
+ *
+ * @param target      the plan on the open row
+ * @param current     the account's plan
+ * @param periodEnd   subscription.currentPeriodEnd
+ */
+export function lapsingNote(target, current, periodEnd) {
+  const day = formatDay(periodEnd);
+  if (!target || !current || !day) return null;
+  if (target.code === current.code) {
+    return `המנוי בוטל ויישאר פעיל עד ${day}. אם התחרטת, אפשר לחדש אותו ב-Google Play.`;
+  }
+  if (target.priceIlsMonth === 0) {
+    return `המנוי כבר בוטל. ב-${day} החשבון יעבור לחינם, ומה שיש בו נשאר.`;
+  }
+  return `המנוי כבר בוטל. אחרי ${day} אפשר לבחור כאן את המסלול החדש.`;
+}
+
 /** The sentence on the account's own row. */
 export function currentNote(plan, storeManaged) {
   return storeManaged && plan?.priceIlsMonth > 0
@@ -478,16 +549,27 @@ function Meter({ label, meter }) {
  * today's AI questions, this month's vehicle checks, which account), and
  * this is the one door to it.
  */
-function StatusStrip({ plan, meters }) {
+function StatusStrip({ plan, meters, endsOn }) {
+  const overCap = overCapNote(meters);
   return (
     <section className="rounded-2xl px-3.5 pt-3 pb-1 space-y-2.5" style={{ background: C.light }} aria-label="המסלול שלך">
-      <p className="text-[14px]" style={{ color: C.gray800 }}>
-        המסלול שלך: <span className="font-bold" style={{ color: C.primary }}>{plan.labelHe}</span>
-      </p>
+      <div className="space-y-0.5">
+        <p className="text-[14px]" style={{ color: C.gray800 }}>
+          המסלול שלך: <span className="font-bold" style={{ color: C.primary }}>{plan.labelHe}</span>
+        </p>
+        {endsOn && (
+          <p className="text-[12px] font-medium" style={{ color: C.warnDark }}>
+            המנוי בוטל ויסתיים ב-<Num>{endsOn}</Num>
+          </p>
+        )}
+      </div>
       {meters.length > 0 && (
         <div className="grid grid-cols-2 gap-4">
           {meters.map((m) => <Meter key={m.label} label={m.label} meter={m.meter} />)}
         </div>
+      )}
+      {overCap && (
+        <p className="text-[12px] leading-snug" style={{ color: C.warnDark }}>{overCap}</p>
       )}
       <Link
         to={createPageUrl('MyPlan')}
@@ -572,7 +654,7 @@ function ManageBlock({ note, canOpen }) {
   );
 }
 
-function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, vehicleNote, action, reduceMotion, rowRef }) {
+function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, vehicleNote, warnings, action, reduceMotion, rowRef }) {
   const extrasGain = gain && reference?.priceIlsMonth === 0 && plan.priceIlsMonth > 0;
   return (
     // ⚠️ TRANSFORM ONLY, NEVER OPACITY. Found in the preview: the animation
@@ -643,6 +725,14 @@ function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, v
           {extrasLine(plan, isBusiness)}
         </p>
       </div>
+
+      {warnings && warnings.length > 0 && (
+        <div className="rounded-xl px-3 py-2.5 space-y-1" style={{ background: C.warnSubtle }}>
+          {warnings.map((w) => (
+            <p key={w} className="text-[12px] leading-snug" style={{ color: C.warnDark }}>{w}</p>
+          ))}
+        </div>
+      )}
 
       {action}
     </motion.section>
@@ -787,6 +877,10 @@ export default function Plans() {
 
   const storeManaged = isStoreManaged(subscription, known ? currentPlan : null);
   const canOpenManagement = canOpenStoreSubscriptionManagement();
+  // Cancelled in the store and waiting out the paid period. Only an explicit
+  // `false` counts: null means the store never told us.
+  const lapsing = storeManaged && subscription?.autoRenew === false;
+  const held = { vehicles: vehiclesHeld, documents: documents.count };
 
   const priceFor = (p) => {
     if (p.priceIlsMonth === 0) return null;
@@ -819,11 +913,12 @@ export default function Plans() {
         </div>
       );
     }
+    const lapsed = lapsing ? lapsingNote(p, currentPlan, subscription?.currentPeriodEnd) : null;
     if (kind === 'current') {
-      return <ManageBlock note={currentNote(p, storeManaged)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} />;
+      return <ManageBlock note={lapsed || currentNote(p, storeManaged)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} />;
     }
     if (kind === 'manage') {
-      return <ManageBlock note={manageNote(p)} canOpen={canOpenManagement} />;
+      return <ManageBlock note={lapsed || manageNote(p)} canOpen={canOpenManagement} />;
     }
     if (kind === 'purchase') {
       const stateForCard = isActive ? purchaseState
@@ -886,7 +981,13 @@ export default function Plans() {
           </div>
         )}
 
-        {known && <StatusStrip plan={currentPlan} meters={meters} />}
+        {known && (
+          <StatusStrip
+            plan={currentPlan}
+            meters={meters}
+            endsOn={lapsing ? formatDay(subscription?.currentPeriodEnd) : null}
+          />
+        )}
 
         <Legend />
 
@@ -923,6 +1024,7 @@ export default function Plans() {
                 // its own zone, so the header stays quiet: one price per row.
                 price={offering ? null : price}
                 vehicleNote={isCurrent ? personalNote(currentPlan.maxVehicles, p.maxVehicles) : null}
+                warnings={known && !isCurrent ? downgradeWarnings(p, held) : []}
                 action={actionFor(p)}
                 reduceMotion={reduceMotion}
               />

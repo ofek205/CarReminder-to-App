@@ -26,7 +26,7 @@ const {
   capLabel, advisorLabel, personalNote, unavailableCopy, labelStatesPrice,
   catalogPriceAllowed, COLUMNS, cellValue, detailValue, deltaNote, extrasLine,
   NEAR_FULL, usageMeter, recommendPlan, defaultOpenCode, actionKind,
-  manageNote, currentNote, isStoreManaged,
+  manageNote, currentNote, isStoreManaged, overCapNote, downgradeWarnings, lapsingNote,
 } = await import('./Plans');
 
 // The live catalogue as of 2026-09-25, after supabase-plans-redesign.
@@ -387,6 +387,73 @@ describe('manageNote and currentNote', () => {
     expect(currentNote(P9, true)).toContain('Google Play');
     expect(currentNote(P9, false)).not.toContain('Google Play');
     expect(currentNote(FREE, true)).not.toContain('Google Play');
+  });
+});
+
+// ── downgrades, cancellations, and holding more than the plan ───────────
+
+describe('overCapNote', () => {
+  it('reassures an account holding more than its plan, which is what a downgrade leaves', () => {
+    // ⚠️ "12 מתוך 5" in amber with nothing under it reads as "something is
+    // about to be taken". Every cap here only refuses an ADD.
+    const note = overCapNote([{ meter: { used: 12, limit: 5 } }]);
+    expect(note).toContain('שום דבר לא נמחק');
+  });
+
+  it('is silent at or under the cap, against an unlimited cap, and with nothing known', () => {
+    expect(overCapNote([{ meter: { used: 5, limit: 5 } }])).toBeNull();
+    expect(overCapNote([{ meter: { used: 90, limit: null } }])).toBeNull();
+    expect(overCapNote([])).toBeNull();
+    expect(overCapNote(undefined)).toBeNull();
+  });
+});
+
+describe('downgradeWarnings', () => {
+  it('says what a smaller plan would mean BEFORE the move, one line per dimension', () => {
+    const lines = downgradeWarnings(P9, { vehicles: 25, documents: 20 });
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('25');
+    expect(lines[0]).toContain('15');
+    expect(lines[0]).toContain('שום דבר לא יימחק');
+    expect(lines[1]).toContain('מסמכים');
+  });
+
+  it('warns about the free plan too, which is where a cancellation lands', () => {
+    expect(downgradeWarnings(FREE, { vehicles: 12, documents: 1 })).toHaveLength(1);
+  });
+
+  it('is silent when everything fits, against unlimited caps, and when counts are unknown', () => {
+    expect(downgradeWarnings(P19, { vehicles: 12, documents: 20 })).toEqual([]);
+    expect(downgradeWarnings(P49, { vehicles: 500, documents: 900 })).toEqual([]);
+    expect(downgradeWarnings(P9, { vehicles: null, documents: null })).toEqual([]);
+    expect(downgradeWarnings(null, { vehicles: 25 })).toEqual([]);
+  });
+});
+
+describe('lapsingNote', () => {
+  const END = '2026-10-12T10:00:00Z';
+
+  it('never tells somebody who already cancelled to cancel again', () => {
+    // ⚠️ manageNote says "מבטלים את המנוי ב-Google Play". Shown that a
+    // second time, a person concludes the first cancellation did not work.
+    for (const target of [FREE, P9, P19]) {
+      const note = lapsingNote(target, P9, END);
+      expect(note, target.code).toBeTruthy();
+      expect(note, target.code).not.toContain('מבטלים');
+    }
+  });
+
+  it('names the date, and says what happens on it', () => {
+    expect(lapsingNote(FREE, P9, END)).toContain('יעבור לחינם');
+    expect(lapsingNote(P19, P9, END)).toContain('אפשר לבחור כאן');
+    expect(lapsingNote(P9, P9, END)).toContain('אפשר לחדש');
+    expect(lapsingNote(P9, P9, END)).toMatch(/\d/);
+  });
+
+  it('says nothing rather than print an empty or invalid date', () => {
+    expect(lapsingNote(P9, P9, null)).toBeNull();
+    expect(lapsingNote(P9, P9, 'not a date')).toBeNull();
+    expect(lapsingNote(null, P9, END)).toBeNull();
   });
 });
 

@@ -34,6 +34,8 @@ import { useAuth } from '@/components/shared/GuestContext';
 
 export const ACCOUNT_PLAN_QUERY_KEY = 'account-plan';
 
+const SUB_COLUMNS = 'plan, status, current_period_end, grace_until, source';
+
 export default function useAccountPlan() {
   const { accountId } = useAccountRole();
   const { isGuest } = useAuth();
@@ -58,14 +60,21 @@ export default function useAccountPlan() {
       const plan = Array.isArray(planData) ? planData[0] : planData;
       if (!plan) throw new Error('account_plan returned no row');
 
-      const { data: sub, error: subErr } = await withTimeout(
+      const readSub = (columns) => withTimeout(
         supabase
           .from('account_subscriptions')
-          .select('plan, status, current_period_end, grace_until, source')
+          .select(columns)
           .eq('account_id', accountId)
           .maybeSingle(),
         'account_subscription',
       );
+      let { data: sub, error: subErr } = await readSub(`${SUB_COLUMNS}, auto_renew`);
+      // ⚠️ auto_renew ARRIVES WITH supabase-plans-edge-cases-2026-09-25.sql.
+      // Until that runs, asking for it is "column does not exist" (42703),
+      // and without this retry the whole plan would fail to load for every
+      // user of a client that shipped first. Asked again without it, the
+      // screen simply says nothing about renewal, which is its NULL meaning.
+      if (subErr?.code === '42703') ({ data: sub, error: subErr } = await readSub(SUB_COLUMNS));
       if (subErr) throw subErr;
 
       // A missing row is NOT an error. Accounts created after the phase-1
@@ -112,6 +121,9 @@ export default function useAccountPlan() {
       source:           s.source,
       currentPeriodEnd: s.current_period_end,
       graceUntil:       s.grace_until,
+      // true / false from the store, null when unknown (and for every row
+      // not bought through a store). Only `false` changes any wording.
+      autoRenew:        typeof s.auto_renew === 'boolean' ? s.auto_renew : null,
     } : null,
 
     // Whether the account is inside a grace window right now. Computed here

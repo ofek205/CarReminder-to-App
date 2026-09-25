@@ -132,7 +132,23 @@ export function meteredValue(used, cap, withUsage, fallback) {
   return withUsage(used, cap);
 }
 
-export function statusBadge(status) {
+/**
+ * ⚠️ A CANCELLED STORE SUBSCRIPTION IS STILL `active` UNTIL IT ENDS, AND
+ * THAT IS CORRECT: the plan stays until the paid period is over. What was
+ * wrong is the badge and the date line, which said "פעיל" and "מתחדש ב..."
+ * to the person who had just cancelled. `autoRenew` (from the store, via
+ * supabase-plans-edge-cases-2026-09-25.sql) is what tells the two apart, and
+ * only an explicit `false` changes anything: null means unknown.
+ */
+const LAPSING = { text: 'לא יתחדש', bg: C.warnSubtle, fg: C.warnDark };
+
+/** The words in front of the period-end date. */
+export function periodEndPrefix(autoRenew) {
+  return autoRenew === false ? 'המנוי בוטל. פעיל עד' : 'מתחדש ב';
+}
+
+export function statusBadge(status, autoRenew = null) {
+  if (autoRenew === false && (status === 'active' || !status)) return LAPSING;
   // An unrecognised status must not silently render as "פעיל". Showing the
   // raw value is ugly and correct: it says "we do not know", which is
   // information, where a green "active" would be a claim.
@@ -385,8 +401,8 @@ export default function MyPlan() {
                 </p>
               </div>
               {subscription?.currentPeriodEnd && !isFree && (
-                <p className="text-[12px] mt-1.5" style={{ color: C.gray500 }}>
-                  מתחדש ב
+                <p className="text-[12px] mt-1.5" style={{ color: subscription.autoRenew === false ? C.warnDark : C.gray500 }}>
+                  {periodEndPrefix(subscription.autoRenew)}
                   <span dir="ltr" className="mx-1">
                     {new Date(subscription.currentPeriodEnd).toLocaleDateString('he-IL')}
                   </span>
@@ -394,7 +410,7 @@ export default function MyPlan() {
               )}
             </div>
             {(() => {
-              const badge = statusBadge(subscription?.status);
+              const badge = statusBadge(subscription?.status, subscription?.autoRenew);
               return (
                 <span
                   className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full"

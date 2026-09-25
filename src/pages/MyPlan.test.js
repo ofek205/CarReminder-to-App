@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { valueDir, statusBadge, vehiclesLabel, meteredValue } from './MyPlan';
+import { valueDir, statusBadge, vehiclesLabel, meteredValue, periodEndPrefix } from './MyPlan';
+
+describe('a cancelled subscription that has not ended yet', () => {
+  it('stops saying it renews', () => {
+    // ⚠️ The regression: somebody who had just cancelled read "מתחדש ב...".
+    expect(periodEndPrefix(false)).toBe('המנוי בוטל. פעיל עד');
+    expect(periodEndPrefix(false)).not.toContain('מתחדש');
+  });
+
+  it('keeps the renewal wording when it renews, or when nobody knows', () => {
+    expect(periodEndPrefix(true)).toBe('מתחדש ב');
+    expect(periodEndPrefix(null)).toBe('מתחדש ב');
+    expect(periodEndPrefix(undefined)).toBe('מתחדש ב');
+  });
+
+  it('swaps the green "פעיל" badge for "לא יתחדש"', () => {
+    expect(statusBadge('active', false).text).toBe('לא יתחדש');
+    expect(statusBadge('active', true).text).toBe('פעיל');
+    expect(statusBadge('active', null).text).toBe('פעיל');
+    // Other statuses already say what they are and are left alone.
+    expect(statusBadge('past_due', false).text).toBe('תשלום לא עבר');
+  });
+});
 
 describe('valueDir', () => {
   it('is ltr only for purely numeric or symbolic values', () => {
