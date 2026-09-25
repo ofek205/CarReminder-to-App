@@ -227,6 +227,26 @@ describe('session id resolution', () => {
       expect(resolveSessionId({ CLAUDE_CODE_SESSION_ID: value })).toBeNull();
     }
   });
+
+  it('uses the Cursor conversation id when Claude Code did not export one', () => {
+    expect(resolveSessionId({ CURSOR_CONVERSATION_ID: 'bc-11111111-2222-4333-8444-555555555555' })).toBe(
+      'bc-11111111-2222-4333-8444-555555555555'
+    );
+  });
+
+  it('does not let a Cursor id replace an explicit Claude id', () => {
+    expect(resolveSessionId({
+      CLAUDE_CODE_SESSION_ID: '4d1595ef-8305-4860-ae1d-f98c2c67828c',
+      CURSOR_CONVERSATION_ID: 'bc-11111111-2222-4333-8444-555555555555',
+    })).toBe('4d1595ef-8305-4860-ae1d-f98c2c67828c');
+  });
+
+  it('does not fall through to Cursor when the Claude id is present but invalid', () => {
+    expect(resolveSessionId({
+      CLAUDE_CODE_SESSION_ID: 'short',
+      CURSOR_CONVERSATION_ID: 'bc-11111111-2222-4333-8444-555555555555',
+    })).toBeNull();
+  });
 });
 
 describe('token path derivation', () => {
@@ -315,8 +335,10 @@ describe('the gate as a spawned process', () => {
   /** `sessionId: null` means the variable is absent, not empty. */
   const run = (command, sessionId, input) => {
     const env = { ...process.env };
-    if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
-    else env.CLAUDE_CODE_SESSION_ID = sessionId;
+    if (sessionId === null) {
+      delete env.CLAUDE_CODE_SESSION_ID;
+      delete env.CURSOR_CONVERSATION_ID;
+    } else env.CLAUDE_CODE_SESSION_ID = sessionId;
 
     return spawnSync(process.execPath, [GATE], {
       input: input === undefined ? JSON.stringify(payload(command)) : input,
@@ -384,6 +406,36 @@ describe('the gate as a spawned process', () => {
 
   it('allows an ungated command without needing a token', () => {
     expect(run('git status --short', nextId('ungated')).status).toBe(0);
+  });
+
+  it('accepts the Cursor conversation id from the hook payload when the env has none', () => {
+    // Cursor's hook runner strips CURSOR_CONVERSATION_ID. The payload still
+    // carries that same id, and approve.cjs can read it from the shell env.
+    const id = nextId('cursor-payload');
+    put(id, Date.now());
+    const body = payload('git commit -m x');
+    body.conversation_id = id;
+    const env = { ...process.env };
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CURSOR_CONVERSATION_ID;
+    const r = spawnSync(process.execPath, [GATE], {
+      input: JSON.stringify(body),
+      env,
+      encoding: 'utf8',
+    });
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(tokenPath(id))).toBe(false);
+  });
+
+  it('does not let a payload conversation id override the env session', () => {
+    const envId = nextId('env-owns');
+    const other = nextId('payload-other');
+    put(other, Date.now());
+    const body = payload('git commit -m x');
+    body.conversation_id = other;
+    const r = run('git commit -m x', envId, JSON.stringify(body));
+    expect(r.status).toBe(2);
+    expect(fs.existsSync(tokenPath(other))).toBe(true);
   });
 
   it('blocks a gated command when the session cannot be identified', () => {
@@ -455,8 +507,10 @@ describe('the gate as a spawned process', () => {
 
   const approve = (sessionId) => {
     const env = { ...process.env };
-    if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
-    else env.CLAUDE_CODE_SESSION_ID = sessionId;
+    if (sessionId === null) {
+      delete env.CLAUDE_CODE_SESSION_ID;
+      delete env.CURSOR_CONVERSATION_ID;
+    } else env.CLAUDE_CODE_SESSION_ID = sessionId;
     return spawnSync(process.execPath, [APPROVE], { env, encoding: 'utf8' });
   };
 

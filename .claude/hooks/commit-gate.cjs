@@ -125,12 +125,23 @@ const SESSION_ID_RE = /^[A-Za-z0-9._-]{8,200}$/;
  * `env` is injectable so the tests can exercise the missing and malformed
  * cases without mutating the real process environment.
  */
-function resolveSessionId(env) {
-  const raw = (env || process.env).CLAUDE_CODE_SESSION_ID;
+function readSessionId(raw) {
   if (typeof raw !== 'string') return null;
   const id = raw.trim();
   if (!SESSION_ID_RE.test(id)) return null;
   return id;
+}
+
+function resolveSessionId(env) {
+  const source = env || process.env;
+  // Claude Code puts the id in the environment. An explicit value, even an
+  // invalid one, does not fall through to another id. Cursor's shell has
+  // CURSOR_CONVERSATION_ID instead. The hook process often has neither; main()
+  // then uses the same conversation id from the hook payload.
+  if (typeof source.CLAUDE_CODE_SESSION_ID === 'string') {
+    return readSessionId(source.CLAUDE_CODE_SESSION_ID);
+  }
+  return readSessionId(source.CURSOR_CONVERSATION_ID);
 }
 
 /**
@@ -279,7 +290,11 @@ function main() {
   // any earlier would mean a missing env var blocked every Bash call in the
   // session instead of only the gated ones — fail-closed is the contract for
   // the commands this gate guards, not a licence to break the whole tool.
-  const sessionId = resolveSessionId();
+  // Env first. Cursor's hook runner strips CURSOR_CONVERSATION_ID but sends the
+  // same value as payload.conversation_id. approve.cjs reads the env var, so
+  // the two halves still hash the same id. A Claude env id never reaches this.
+  let sessionId = resolveSessionId();
+  if (sessionId === null) sessionId = readSessionId(payload?.conversation_id);
   if (sessionId === null) {
     block(
       'The gate could not identify this Claude session.\n\n' +
