@@ -1,14 +1,14 @@
 # הערות לבודק של אפל
 
-נכתב 2026-09-25. הטקסט לבודק באנגלית, כי זו השפה שהבודקים קוראים. ההוראות אליך בעברית.
+נכתב 2026-09-25, עודכן 2026-09-26: השורה בהגדרות פותחת עכשיו את מסך המסלולים ישירות, לחיצה אחת פחות. הטקסט לבודק באנגלית, כי זו השפה שהבודקים קוראים. ההוראות אליך בעברית.
 
 ## לפני שמדביקים: שלושה תנאים
 
 | # | מה | למה |
 |---|---|---|
-| 1 | שני דגלים דלוקים בזמן הבדיקה | בלי הראשון הבודק לא מוצא את מסך המסלול בהגדרות. בלי השני אין כפתור קנייה |
-| 2 | חשבון הדגמה אישי, לא עסקי, במסלול החינמי | בחשבון עסקי השורה של המסלול לא מופיעה בהגדרות, ובמסלול בתשלום אין מה לקנות |
-| 3 | כפתור שחזור רכישות גלוי במסך המסלולים | אפל פוסלת בדרך כלל מנוי בלי כפתור כזה. הכפתור בנוי, בענף של חיבור המסך לאפל, ויופיע אחרי המיזוג |
+| 1 | שני דגלים דלוקים בזמן הבדיקה | בלי הראשון אין שורה של המסלול בהגדרות. בלי השני השורה פותחת את מסך המסלול הנוכחי, בלי רשימת המסלולים ובלי כפתור קנייה |
+| 2 | חשבון הדגמה אישי, לא עסקי, במסלול החינמי | ההערות מתארות את הדרך בחשבון אישי. בחשבון עסקי השורה נמצאת בקבוצה אחרת במסך ההגדרות, ובמסלול בתשלום אין מה לקנות |
+| 3 | גרסה שנבנתה אחרי 25 בספטמבר | הקנייה דרך אפל, כפתור שחזור הרכישות והדרך הקצרה למסך המסלולים נכנסו לקוד ב-25 בספטמבר אחר הצהריים. גרסה שנבנתה לפני כן לא מכילה אותם, ובלי כפתור שחזור אפל פוסלת בדרך כלל את המנוי |
 
 ```
 monetization_ui_enabled
@@ -43,9 +43,8 @@ Please use the account in the Sign-In Information fields. It is a personal accou
 WHERE TO FIND THE SUBSCRIPTIONS
 1. Sign in with the demo account.
 2. Tap the menu icon at the top of the screen, then "הגדרות" (Settings).
-3. Tap "המסלול והחיוב" (Plan and billing).
-4. Tap "השוואת המסלולים" (Compare plans).
-5. The "המסלולים" (Plans) screen lists four plans. Tap a paid plan to open it. Its price is loaded from StoreKit, and "בחר מסלול" (Choose plan) opens the StoreKit purchase sheet.
+3. Tap "המסלול והחיוב" (Plan and billing). This opens the "המסלולים" (Plans) screen, which lists four plans.
+4. Tap a paid plan to open it. Its price is loaded from StoreKit, and "בחר מסלול" (Choose plan) opens the StoreKit purchase sheet.
 The same screen also opens from the message shown when the free plan's vehicle limit is reached.
 
 SUBSCRIPTIONS
@@ -70,7 +69,7 @@ Menu > "הגדרות" (Settings) > "פרופיל ורישיון" (Profile and li
 Contact: support@car-reminder.app
 ```
 
-✅ **כפתור השחזור בנוי,** מתחת לרשימת המסלולים, ולכן החלק על שחזור רכישות נכון ברגע שהענף ממוזג.
+✅ **כפתור השחזור קיים בקוד,** מתחת לרשימת המסלולים. הוא מופיע כשיש מה לקנות והחשבון כבר נטען, ולכן בחשבון ההדגמה הוא גלוי.
 
 ---
 
@@ -83,15 +82,15 @@ Contact: support@car-reminder.app
 | `Review Information` → `Review Notes` |
 
 ```text
-Monthly auto-renewable subscription in the "CarReminder Plans" group. It raises the account's limits to 15 vehicles, 15 documents and 50 AI questions per day. Purchased from the Plans screen: Menu > Settings > "המסלול והחיוב" > "השוואת המסלולים", then tap "מסלול מורחב" and "בחר מסלול".
+Monthly auto-renewable subscription in the "CarReminder Plans" group. It raises the account's limits to 15 vehicles, 15 documents and 50 AI questions per day. Purchased from the Plans screen: Menu > Settings > "המסלול והחיוב", then tap "מסלול מורחב" and "בחר מסלול".
 ```
 
 ```text
-Monthly auto-renewable subscription in the "CarReminder Plans" group. It raises the account's limits to 30 vehicles, 40 documents and 200 AI questions per day. Purchased from the Plans screen: Menu > Settings > "המסלול והחיוב" > "השוואת המסלולים", then tap "מסלול מקצועי" and "בחר מסלול".
+Monthly auto-renewable subscription in the "CarReminder Plans" group. It raises the account's limits to 30 vehicles, 40 documents and 200 AI questions per day. Purchased from the Plans screen: Menu > Settings > "המסלול והחיוב", then tap "מסלול מקצועי" and "בחר מסלול".
 ```
 
 ```text
-Monthly auto-renewable subscription in the "CarReminder Plans" group. It removes the limit on vehicles and documents and allows 500 AI questions per day. Purchased from the Plans screen: Menu > Settings > "המסלול והחיוב" > "השוואת המסלולים", then tap "מסלול ללא הגבלה" and "בחר מסלול".
+Monthly auto-renewable subscription in the "CarReminder Plans" group. It removes the limit on vehicles and documents and allows 500 AI questions per day. Purchased from the Plans screen: Menu > Settings > "המסלול והחיוב", then tap "מסלול ללא הגבלה" and "בחר מסלול".
 ```
 
 ---
