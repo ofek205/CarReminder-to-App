@@ -217,8 +217,15 @@ export function reportError(type, error, extra) {
     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
     user_id: readCurrentUserId(),
     extra: cleanExtra,
-    created_at: new Date().toISOString(),
-    timestamp: Date.now(), // legacy field for localStorage reader
+    // NO created_at. The column is TIMESTAMPTZ DEFAULT now() on the server,
+    // and sending one from here handed the row the DEVICE clock instead.
+    // Phones with a wrong date wrote rows dated in the FUTURE — we found six
+    // app_version groups up to 19 days ahead — and a future row passes every
+    // `created_at > now() - interval` filter forever. That silently poisoned
+    // each "errors in the last N days" query and the admin Bugs tab with it.
+    // The device clock is not lost: it is still captured below, which is what
+    // the localStorage reader has always used.
+    timestamp: Date.now(), // device clock, ms. Read by the localStorage fallback.
   };
 
   pushLocal(entry);

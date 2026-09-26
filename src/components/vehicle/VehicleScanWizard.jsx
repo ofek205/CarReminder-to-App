@@ -50,7 +50,7 @@ const FIELD_LABELS = {
 };
 
 // steps: upload | preview | complete | compare | saving
-export default function VehicleScanWizard({ open, onClose, vehicles = [], accountId, userId, onUpdateVehicle, onExtracted }) {
+export default function VehicleScanWizard({ open, onClose, vehicles = [], accountId, onUpdateVehicle, onExtracted }) {
   const navigate = useNavigate();
   const [step, setStep] = useState('upload');
   const [mode, setMode] = useState('new'); // new | update
@@ -88,7 +88,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   // yet when the file is picked. `{accountId}/uploads` is the path the
   // Storage policy already accepts for exactly that case, and every member
   // of the account can read it.
-  const { upload: uploadScanDoc } = useFileUpload({ accountId, userId, mode: 'doc' });
+  const { upload: uploadScanDoc } = useFileUpload({ accountId, mode: 'doc' });
 
   /**
    * File the scanned licence as a document on `vehicleId`.
