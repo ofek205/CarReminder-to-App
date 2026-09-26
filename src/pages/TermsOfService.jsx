@@ -87,8 +87,8 @@ export default function TermsOfService() {
           is never offered a second store's purchase (isStoreManaged). Change
           the behaviour and this section changes with it.
 
-          DRAFT pending Ofek's approval and a lawyer's review, see
-          docs/plan-apple-iap.md §5.
+          Wording approved by Ofek on 2026-09-26. Legal text: reword only with
+          his approval, not as a copy edit.
         */}
         <section>
           <h2 className="text-base font-bold mb-2">7. מסלולים, מנויים ותשלום</h2>
