@@ -19,6 +19,7 @@
  */
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { isNative } from '@/lib/capacitor';
 
 const SEEN_PREFIX = 'release_ann_seen_';
 // Small settle delay so the popup doesn't race the first paint / splash.
@@ -28,7 +29,12 @@ export default function useReleaseAnnouncement(enabled = true) {
   const [state, setState] = useState({ ready: false, show: false, announcement: null });
 
   useEffect(() => {
-    if (!enabled) {
+    // Apps only (Ofek, 2026-09-26). The server already hides the row from
+    // the website, except from admins, whose write policy also lets them
+    // read every row; this check covers them too. The native builds in the
+    // stores do not have this line, which is why the targeting lives on
+    // the server.
+    if (!enabled || !isNative) {
       setState({ ready: true, show: false, announcement: null });
       return undefined;
     }
