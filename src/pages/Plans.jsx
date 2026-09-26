@@ -34,11 +34,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Car, FileText, Sparkles, CornerDownLeft } from 'lucide-react';
+import { Car, FileText, Sparkles, CornerDownLeft, ChevronLeft } from 'lucide-react';
 import PageShell from '@/components/business/system/PageShell';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { createPageUrl } from '@/utils';
-import { supabase } from '@/lib/supabase';
 import { C } from '@/lib/designTokens';
 import usePlanCatalog from '@/hooks/usePlanCatalog';
 import useAccountPlan, { ACCOUNT_PLAN_QUERY_KEY } from '@/hooks/useAccountPlan';
@@ -51,13 +50,19 @@ import {
   getBillingBackend,
   openStoreSubscriptionManagement,
   canOpenStoreSubscriptionManagement,
+  billingFlagKey,
+  billingPlatform,
 } from '@/lib/billing';
+import { storeOfSource, nativeStoreOf, STORE } from '@/lib/billing/storeManagement';
+import { storeCopy, ELSEWHERE } from '@/lib/billing/storeCopy';
+import { verifierFor } from '@/lib/billing/verify';
 import { PurchaseState, mayOfferPurchase } from '@/lib/billing/purchaseMachine';
 import { usePurchaseFlow } from '@/hooks/usePurchaseFlow';
 import { useFeatureFlag } from '@/lib/featureFlags';
 import useAccountRole from '@/hooks/useAccountRole';
 import PurchaseAction from '@/components/plans/PurchaseAction';
 import VerifyingBanner from '@/components/plans/VerifyingBanner';
+import RestoreControl from '@/components/plans/RestoreControl';
 
 // ── pure helpers, exported for testing ──────────────────────────────────
 //
@@ -345,15 +350,20 @@ export function actionKind({ plan, isCurrent, isGuest, offering, storeManaged, i
  * a move between products, and a move started in the app needs a replacement
  * mode our plugin does not have.
  */
-export function manageNote(target) {
-  if (target?.priceIlsMonth === 0) {
-    return 'כדי לחזור לחינם מבטלים את המנוי ב-Google Play. המסלול הנוכחי נשאר פעיל עד סוף התקופה ששולמה.';
-  }
-  return 'עדיין אי אפשר לעבור מסלול מתוך האפליקציה. מבטלים ב-Google Play, ובסוף התקופה ששולמה בוחרים כאן את המסלול החדש.';
+//
+// ⚠️ PER STORE SINCE THE APP STORE. Apple's subscriptions page DOES switch
+// between plans in one group (an upgrade at once, a cheaper plan at the next
+// renewal), so its sentence says so; Play's still may not. `voice` is
+// 'elsewhere' when this phone holds a subscription from the OTHER store,
+// where naming it would mean naming Google inside an iPhone app (2.3.10).
+export function manageNote(target, store = STORE.GOOGLE, voice = 'store') {
+  if (voice === 'elsewhere') return ELSEWHERE.otherNote;
+  const copy = storeCopy(store);
+  return target?.priceIlsMonth === 0 ? copy.toFreeNote : copy.toPaidNote;
 }
 
 /**
- * Does Google hold a live subscription for this account right now?
+ * Does a store (Google or Apple) hold a live subscription for this account now?
  *
  * ⚠️ GATED ON THE SOURCE, NOT ON "is on a paid plan". An admin grant also
  * puts an account on p19, and sending that person to Play would open a
@@ -365,15 +375,135 @@ export function manageNote(target) {
  * but the source stays. Keyed on source alone, that person would be told
  * forever that switching is not possible, with nothing live to switch from.
  */
+//
+// ⚠️ ANY STORE, SINCE THE APP STORE, AND THAT IS THE DOUBLE-CHARGE GUARD.
+// An Apple subscriber opening the app on Android, or a Google one on an
+// iPhone, holds a live paid plan all the same. Keyed on Google alone, that
+// person was offered the other store's sheet on every row: two stores, two
+// charges, one account.
 export function isStoreManaged(subscription, plan) {
-  return subscription?.source === 'iap_google' && plan?.priceIlsMonth > 0;
+  return storeOfSource(subscription?.source) !== null && plan?.priceIlsMonth > 0;
+}
+
+/**
+ * How this phone may speak about the store that holds the subscription.
+ * 'store' names it (it is this phone's own store, or a browser, where no
+ * store rule applies). 'elsewhere' is the other phone, or a platform we do
+ * not recognise, and names nothing.
+ *
+ * @param {'google'|'apple'|null} heldBy
+ * @param {'android'|'ios'|'web'|'other'} platform
+ */
+export function noteVoice(heldBy, platform) {
+  if (!heldBy) return 'store';
+  if (platform === 'web') return 'store';
+  return nativeStoreOf(platform) === heldBy ? 'store' : 'elsewhere';
+}
+
+/**
+ * May the "שחזור רכישות" control appear at all?
+ *
+ * Wherever a purchase is on offer, including for a subscriber: restore is
+ * how a second phone or a reinstall recovers the plan, and actionKind's
+ * double-purchase guard has nothing to say about it. Never for a guest,
+ * who has no account to restore into.
+ */
+export function showRestoreControl(offering, isGuest) {
+  return offering === true && !isGuest;
+}
+
+/**
+ * While the sheet is open or the server is verifying, a second flow must
+ * not start beside the first, so the control steps out of the way.
+ */
+export function restoreControlHidden(purchaseState) {
+  return purchaseState === PurchaseState.SHEET_OPEN || purchaseState === PurchaseState.VERIFYING;
+}
+
+/**
+ * The reassurance under the meters when an account holds MORE than its plan
+ * includes, which is what a downgrade or an expired subscription leaves
+ * behind. Without it the strip says "12 מתוך 5" in amber and nothing else,
+ * which reads as "something is about to be taken away". Nothing is: every cap
+ * in this project only ever refuses an ADD.
+ *
+ * @param meters  the strip's meters ({ meter: { used, limit } })
+ */
+export function overCapNote(meters) {
+  const over = (meters || []).some(({ meter }) => meter && meter.limit !== null && meter.used > meter.limit);
+  return over ? 'יש לך יותר ממה שהמסלול הנוכחי כולל. שום דבר לא נמחק, ומה שיש נשאר שלך.' : null;
+}
+
+/**
+ * The warning on a SMALLER plan's open row, one line per dimension the
+ * account would be over.
+ *
+ * ⚠️ SAID BEFORE THE DECISION, NOT AFTER IT. A subscriber holding 25 vehicles
+ * who opens the 15-vehicle plan saw "(במקום 30)" and nothing about what the
+ * move would mean for the 10 above it. The answer is reassuring and it still
+ * has to be said: nothing is deleted, and nothing new can be added.
+ *
+ * @param plan  the plan being looked at
+ * @param held  { vehicles, documents }, each a number or null when unknown
+ */
+export function downgradeWarnings(plan, held) {
+  if (!plan || !held) return [];
+  const lines = [];
+  const check = (count, cap, noun) => {
+    if (count === null || count === undefined || cap === null || cap === undefined) return;
+    if (count > cap) {
+      lines.push(`יש לך ${count} ${noun}, ובמסלול הזה אפשר עד ${cap}. שום דבר לא יימחק, אבל אי אפשר יהיה להוסיף עוד.`);
+    }
+  };
+  check(held.vehicles, plan.maxVehicles, 'כלי תחבורה');
+  check(held.documents, plan.maxDocuments, 'מסמכים');
+  return lines;
+}
+
+/** "12.10.2026", or null for a missing or unreadable date. */
+function formatDay(iso) {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? new Date(t).toLocaleDateString('he-IL') : null;
+}
+
+/**
+ * The sentence for somebody who has ALREADY cancelled and is waiting out the
+ * paid period, or null when that is not the situation.
+ *
+ * ⚠️ manageNote TELLS PEOPLE TO CANCEL, WHICH THIS PERSON HAS DONE. Shown
+ * "מבטלים את המנוי ב-Google Play" a second time, they reasonably conclude the
+ * first cancellation did not register. These say what is already true and
+ * when it takes effect.
+ *
+ * ⚠️ THE STORE IS NAMED ONLY ON ITS OWN PHONE. The resume hint names where
+ * the subscription lives; on the other platform (voice 'elsewhere', see
+ * noteVoice) it is left out, because iOS may not name Google (2.3.10) and a
+ * store the phone cannot open is not a route anyway.
+ *
+ * @param target      the plan on the open row
+ * @param current     the account's plan
+ * @param periodEnd   subscription.currentPeriodEnd
+ * @param store       which store holds it (STORE.GOOGLE / STORE.APPLE)
+ * @param voice       'store' or 'elsewhere', from noteVoice
+ */
+export function lapsingNote(target, current, periodEnd, store = STORE.GOOGLE, voice = 'store') {
+  const day = formatDay(periodEnd);
+  if (!target || !current || !day) return null;
+  if (target.code === current.code) {
+    return voice === 'elsewhere'
+      ? `המנוי בוטל ויישאר פעיל עד ${day}.`
+      : `המנוי בוטל ויישאר פעיל עד ${day}. אם התחרטת, אפשר לחדש אותו ב-${storeCopy(store).name}.`;
+  }
+  if (target.priceIlsMonth === 0) {
+    return `המנוי כבר בוטל. ב-${day} החשבון יעבור לחינם, ומה שיש בו נשאר.`;
+  }
+  return `המנוי כבר בוטל. אחרי ${day} אפשר לבחור כאן את המסלול החדש.`;
 }
 
 /** The sentence on the account's own row. */
-export function currentNote(plan, storeManaged) {
-  return storeManaged && plan?.priceIlsMonth > 0
-    ? 'זה המסלול שלך. ביטול ושינוי אמצעי תשלום נעשים ב-Google Play.'
-    : 'זה המסלול שלך כרגע.';
+export function currentNote(plan, storeManaged, store = STORE.GOOGLE, voice = 'store') {
+  if (!(storeManaged && plan?.priceIlsMonth > 0)) return 'זה המסלול שלך כרגע.';
+  return voice === 'elsewhere' ? ELSEWHERE.currentNote : storeCopy(store).currentNote;
 }
 
 // ── presentation ────────────────────────────────────────────────────────
@@ -469,17 +599,47 @@ function Meter({ label, meter }) {
 }
 
 /** "Where you stand": the plan, and how full it is. The screen's first read. */
-function StatusStrip({ plan, meters }) {
+/**
+ * "Where you stand": the plan, how full it is, and the way to the details.
+ *
+ * ⚠️ THE LINK TO /MyPlan LIVES HERE SINCE 2026-09-25. Settings used to open
+ * /MyPlan, which linked here; Ofek asked for the plans in one tap, so the
+ * order flipped. /MyPlan keeps what this strip leaves out (renewal date,
+ * today's AI questions, this month's vehicle checks, which account), and
+ * this is the one door to it.
+ */
+function StatusStrip({ plan, meters, endsOn }) {
+  const overCap = overCapNote(meters);
   return (
-    <section className="rounded-2xl px-3.5 pt-3 pb-3.5 space-y-2.5" style={{ background: C.light }} aria-label="המסלול שלך">
-      <p className="text-[14px]" style={{ color: C.gray800 }}>
-        המסלול שלך: <span className="font-bold" style={{ color: C.primary }}>{plan.labelHe}</span>
-      </p>
+    <section className="rounded-2xl px-3.5 pt-3 pb-1 space-y-2.5" style={{ background: C.light }} aria-label="המסלול שלך">
+      <div className="space-y-0.5">
+        <p className="text-[14px]" style={{ color: C.gray800 }}>
+          המסלול שלך: <span className="font-bold" style={{ color: C.primary }}>{plan.labelHe}</span>
+        </p>
+        {endsOn && (
+          <p className="text-[12px] font-medium" style={{ color: C.warnDark }}>
+            המנוי בוטל ויסתיים ב-<Num>{endsOn}</Num>
+          </p>
+        )}
+      </div>
       {meters.length > 0 && (
         <div className="grid grid-cols-2 gap-4">
           {meters.map((m) => <Meter key={m.label} label={m.label} meter={m.meter} />)}
         </div>
       )}
+      {overCap && (
+        <p className="text-[12px] leading-snug" style={{ color: C.warnDark }}>{overCap}</p>
+      )}
+      <Link
+        to={createPageUrl('MyPlan')}
+        className="flex items-center justify-between min-h-[44px] border-t text-[13px] font-bold"
+        style={{ borderColor: C.border, color: C.primary }}
+      >
+        <span>פרטי המנוי והניצול</span>
+        {/* No rtl:rotate-180. In RTL "forward" points left, which is how
+            every Settings row draws it; rotated, this read as a back arrow. */}
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </Link>
     </section>
   );
 }
@@ -535,25 +695,25 @@ function ClosedRow({ plan, isCurrent, isRec, price, priceLoading, onOpen }) {
   );
 }
 
-function ManageBlock({ note, canOpen }) {
+function ManageBlock({ note, canOpen, store }) {
   return (
     <div className="space-y-2.5">
       <p className="text-[13px] leading-relaxed" style={{ color: C.gray700 }}>{note}</p>
       {canOpen && (
         <button
           type="button"
-          onClick={openStoreSubscriptionManagement}
+          onClick={() => openStoreSubscriptionManagement()}
           className="w-full h-12 rounded-2xl text-[15px] font-bold bg-white"
           style={{ color: C.primary, border: `1.5px solid ${C.primary}` }}
         >
-          ניהול המנוי ב-Google Play
+          {storeCopy(store).manageButton}
         </button>
       )}
     </div>
   );
 }
 
-function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, vehicleNote, action, reduceMotion, rowRef }) {
+function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, vehicleNote, warnings, action, reduceMotion, rowRef }) {
   const extrasGain = gain && reference?.priceIlsMonth === 0 && plan.priceIlsMonth > 0;
   return (
     // ⚠️ TRANSFORM ONLY, NEVER OPACITY. Found in the preview: the animation
@@ -625,6 +785,14 @@ function OpenRow({ plan, reference, gain, isCurrent, isRec, isBusiness, price, v
         </p>
       </div>
 
+      {warnings && warnings.length > 0 && (
+        <div className="rounded-xl px-3 py-2.5 space-y-1" style={{ background: C.warnSubtle }}>
+          {warnings.map((w) => (
+            <p key={w} className="text-[12px] leading-snug" style={{ color: C.warnDark }}>{w}</p>
+          ))}
+        </div>
+      )}
+
       {action}
     </motion.section>
   );
@@ -641,25 +809,6 @@ function SkeletonScreen() {
       ))}
     </div>
   );
-}
-
-/**
- * Hand the purchase token to the server, which asks Google about it.
- *
- * ⚠️ IT RETURNS `data.granted`, NOT "the call succeeded". The function
- * answers HTTP 200 with `granted:false` for every rejection, deliberately.
- *
- * ⚠️ AND ANY FAILURE HERE RESOLVES TO PENDING, NOT FAILED. By the time this
- * runs the card is charged, so a throw, a rejection and a timeout all mean
- * the same thing: the money arrived, activation is late. See
- * lib/billing/purchaseMachine.afterVerification.
- */
-async function verifyPurchase({ purchaseToken, productId, accountId }) {
-  const { data, error } = await supabase.functions.invoke('verify-play-purchase', {
-    body: { purchaseToken, productId, accountId },
-  });
-  if (error) return false;
-  return data?.granted === true;
 }
 
 export default function Plans() {
@@ -679,8 +828,15 @@ export default function Plans() {
   //
   // ⚠️ AND WITH THE FLAG OFF NOTHING CAN BE BOUGHT. Everything that sells is
   // behind `offering`, which also needs a billing backend on this platform.
-  const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
-  const offering = mayOfferPurchase(billingFlag, getBillingBackend() !== null);
+  //
+  // ⚠️ THE PLATFORM'S OWN FLAG: apple_billing_enabled on an iPhone, so
+  // switching Play on can never open the StoreKit sheet with it.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
+  const backend = getBillingBackend();
+  const offering = mayOfferPurchase(billingFlag, backend !== null);
+  // Whose sheet and whose server. The Play backend predates `store`.
+  const purchaseStore = backend?.store === 'apple' ? STORE.APPLE : STORE.GOOGLE;
+  const platform = billingPlatform();
 
   /**
    * ⚠️ WITHOUT THIS, PAYING US CHANGED NOTHING THE USER COULD SEE.
@@ -699,7 +855,10 @@ export default function Plans() {
   const { state: purchaseState, products, activeProductId, online, buy, restore } = usePurchaseFlow({
     enabled: offering,
     accountId,
-    verifyPurchase,
+    // ⚠️ ROUTED BY STORE. A StoreKit transaction sent to verify-play-purchase
+    // is "not found" at Google and leaves a charged user in PENDING for ever.
+    // verifierFor() returns one stable function per store. See lib/billing/verify.
+    verifyPurchase: verifierFor(backend?.store),
     onGranted,
   });
 
@@ -720,7 +879,7 @@ export default function Plans() {
 
   if (catalog.isLoading) {
     return (
-      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="MyPlan">
+      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="Settings">
         <SkeletonScreen />
       </PageShell>
     );
@@ -731,7 +890,7 @@ export default function Plans() {
   // and treating it as "still loading" is how a screen spins forever.
   if (catalog.isError || !free) {
     return (
-      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="MyPlan">
+      <PageShell title="המסלולים" subtitle="מה כל מסלול כולל" backTo="Settings">
         <SystemErrorBanner
           message="לא הצלחנו לטעון את המסלולים. בדוק את החיבור לאינטרנט ונסה שוב."
           onRetry={catalog.refetch}
@@ -767,7 +926,16 @@ export default function Plans() {
     : defaultOpenCode(plans, known ? currentPlan.code : null, recCode);
 
   const storeManaged = isStoreManaged(subscription, known ? currentPlan : null);
-  const canOpenManagement = canOpenStoreSubscriptionManagement();
+  // Which store holds it, and whether THIS phone may open that store's page
+  // or even name it. An iPhone holding a Google subscription can do neither.
+  const heldBy = storeManaged ? storeOfSource(subscription?.source) : null;
+  const voice = noteVoice(heldBy, platform);
+  const canOpenManagement = canOpenStoreSubscriptionManagement()
+    && heldBy !== null && heldBy === nativeStoreOf(platform);
+  // Cancelled in the store and waiting out the paid period. Only an explicit
+  // `false` counts: null means the store never told us.
+  const lapsing = storeManaged && subscription?.autoRenew === false;
+  const held = { vehicles: vehiclesHeld, documents: documents.count };
 
   const priceFor = (p) => {
     if (p.priceIlsMonth === 0) return null;
@@ -800,11 +968,14 @@ export default function Plans() {
         </div>
       );
     }
+    const lapsed = lapsing
+      ? lapsingNote(p, currentPlan, subscription?.currentPeriodEnd, heldBy, voice)
+      : null;
     if (kind === 'current') {
-      return <ManageBlock note={currentNote(p, storeManaged)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} />;
+      return <ManageBlock note={lapsed || currentNote(p, storeManaged, heldBy, voice)} canOpen={storeManaged && p.priceIlsMonth > 0 && canOpenManagement} store={heldBy} />;
     }
     if (kind === 'manage') {
-      return <ManageBlock note={manageNote(p)} canOpen={canOpenManagement} />;
+      return <ManageBlock note={lapsed || manageNote(p, heldBy, voice)} canOpen={canOpenManagement} store={heldBy} />;
     }
     if (kind === 'purchase') {
       const stateForCard = isActive ? purchaseState
@@ -816,8 +987,10 @@ export default function Plans() {
           state={stateForCard}
           priceFormatted={product?.priceFormatted}
           offline={!online}
+          store={purchaseStore}
           onBuy={() => product && buy(product.productId)}
-          onRestore={restore}
+          // A tap, so iOS may sync with Apple first (see appleBackend).
+          onRestore={() => restore({ manual: true })}
         />
       );
     }
@@ -833,7 +1006,7 @@ export default function Plans() {
     <PageShell
       title="המסלולים"
       subtitle={isGuest ? 'מצב אורח' : offering ? 'בחר את המסלול שמתאים לך' : 'מה כל מסלול כולל'}
-      backTo="MyPlan"
+      backTo="Settings"
     >
       <div className="space-y-3.5">
 
@@ -867,7 +1040,13 @@ export default function Plans() {
           </div>
         )}
 
-        {known && <StatusStrip plan={currentPlan} meters={meters} />}
+        {known && (
+          <StatusStrip
+            plan={currentPlan}
+            meters={meters}
+            endsOn={lapsing ? formatDay(subscription?.currentPeriodEnd) : null}
+          />
+        )}
 
         <Legend />
 
@@ -904,12 +1083,26 @@ export default function Plans() {
                 // its own zone, so the header stays quiet: one price per row.
                 price={offering ? null : price}
                 vehicleNote={isCurrent ? personalNote(currentPlan.maxVehicles, p.maxVehicles) : null}
+                warnings={known && !isCurrent ? downgradeWarnings(p, held) : []}
                 action={actionFor(p)}
                 reduceMotion={reduceMotion}
               />
             );
           })}
         </div>
+
+        {/* ⚠️ THE VISIBLE RESTORE, which Apple expects for any subscription.
+            Below the list and above the closing line, so it never competes
+            with the open row's button. */}
+        {/* And only once the account is known: a tap before that queried
+            with no account and answered "nothing found", which was false. */}
+        {showRestoreControl(offering, isGuest) && !!accountId && (
+          <RestoreControl
+            hidden={restoreControlHidden(purchaseState)}
+            online={online}
+            onRestore={restore}
+          />
+        )}
 
         {/* Closes on what the reader already has, not on what they lack. */}
         <p className="text-[12px] leading-relaxed px-1" style={{ color: C.gray500 }}>

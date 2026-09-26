@@ -64,6 +64,7 @@ import {
   getAccessToken,
   getSubscriptionState,
   entitlementFrom,
+  willRenewFrom,
   externalAccountIdFrom,
   PACKAGE_NAME,
 } from '../_shared/googlePlay.ts';
@@ -133,6 +134,41 @@ async function resolveAccountId(
   return acct?.id ? (acct.id as string) : null;
 }
 
+/**
+ * Is this notification about a subscription OTHER than the one the account
+ * is paying for now?
+ *
+ * ⚠️ THE BUG THIS CLOSES: TWO SUBSCRIPTIONS, ONE ROW. Somebody cancels ₪9
+ * and buys ₪19 while the ₪9 period is still running (the only way to switch
+ * plans that exists today). The row now holds the ₪19 token. When the ₪9
+ * token then sends CANCELED or EXPIRED, resolveAccountId misses on the token
+ * and falls back to the external account id, which finds the SAME account,
+ * and the old notification was applied to it: EXPIRED revoked the plan of a
+ * person paying ₪19, and CANCELED-with-time-left re-granted ₪9 over it.
+ *
+ * So a notification that matched only by account id is ignored while the
+ * account holds a DIFFERENT, still-live store subscription. When it holds
+ * none, the fallback still does its job: a brand new token whose
+ * notification beats the client's own verification.
+ */
+async function supersededBy(
+  admin: Admin,
+  accountId: string,
+  purchaseToken: string,
+): Promise<boolean> {
+  const { data: row } = await admin
+    .from('account_subscriptions')
+    .select('source, plan, external_subscription_id, current_period_end')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (!row) return false;
+  const current = row.external_subscription_id as string | null;
+  const isStore = row.source === 'iap_google' || row.source === 'iap_apple';
+  const periodEnd = row.current_period_end ? Date.parse(row.current_period_end as string) : NaN;
+  const live = row.plan !== 'free' && (!Number.isFinite(periodEnd) || periodEnd > Date.now());
+  return isStore && live && !!current && current !== purchaseToken;
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
@@ -193,6 +229,9 @@ serve(async (req) => {
   if (voided) {
     const accountId = await resolveAccountId(admin, purchaseToken, null);
     if (!accountId) return json({ ok: true, ignored: 'unknown_token' }, 200);
+    if (await supersededBy(admin, accountId, purchaseToken)) {
+      return json({ ok: true, ignored: 'not_current_subscription', reason: 'voided' }, 200);
+    }
     const { error } = await admin.rpc('revoke_iap_entitlement', {
       p_account_id: accountId,
       p_reason: 'play_voided_purchase',
@@ -233,6 +272,11 @@ serve(async (req) => {
     return json({ ok: true, ignored: 'unknown_token', state }, 200);
   }
 
+  // An old subscription's news must not overwrite the one being paid for now.
+  if (await supersededBy(admin, accountId, purchaseToken)) {
+    return json({ ok: true, ignored: 'not_current_subscription', state }, 200);
+  }
+
   // ── 5. apply it ───────────────────────────────────────────────────────
   if (entitled) {
     // Covers renewal, recovery, restart, grace and a cancellation that still
@@ -246,7 +290,18 @@ serve(async (req) => {
       p_external_sub_id: purchaseToken,
     });
     if (error) return json({ error: 'grant_failed', detail: error.message }, 500);
-    return json({ ok: true, action: 'granted', state, expiry }, 200);
+
+    // Whether it renews, which is what turns "מתחדש ב..." into "פעיל עד..."
+    // the moment somebody cancels. ⚠️ NEVER FATAL: the grant above is what
+    // the user paid for, and a 500 here would make Pub/Sub redeliver the
+    // notification for as long as this call keeps failing, for example
+    // before supabase-plans-edge-cases-2026-09-25.sql has been applied.
+    const willRenew = willRenewFrom(lookup.sub);
+    const { error: renewErr } = await admin.rpc('set_iap_auto_renew', {
+      p_account_id: accountId,
+      p_auto_renew: willRenew,
+    });
+    return json({ ok: true, action: 'granted', state, expiry, willRenew, renewRecorded: !renewErr }, 200);
   }
 
   const { error } = await admin.rpc('revoke_iap_entitlement', {

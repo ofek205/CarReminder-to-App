@@ -10,21 +10,8 @@ export function marketingEvent(name, placement) {
   }
 }
 
-/**
- * GA4 store-click event, alongside (not instead of) marketingEvent above —
- * this is the actual analytics collector, that one is still the inert
- * placeholder its own comment describes. `store` is 'apple' or 'google';
- * `href` is the real store URL, echoed back so it shows up in GA4 without
- * needing a lookup. No-ops if gtag hasn't loaded (it always has on a
- * /website/* page, since marketing-prerender.mjs injects it into every
- * one, but this is called from shared components too, defensively).
- */
-export function trackStoreClickGA4(store, href) {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function') return;
-  const isApple = store === 'apple';
-  window.gtag('event', isApple ? 'app_store_click' : 'play_store_click', {
-    link_url: href,
-    store: isApple ? 'app_store' : 'google_play',
-    page_path: window.location.pathname,
-  });
-}
+// GA4 store clicks are not sent from React. src/lib/siteGtagSnippet.js
+// installs one document listener that emits app_store_click and
+// play_store_click. A gtag() call in an onClick handler would send the
+// same event a second time. marketingEvent() above stays the inert
+// in-app signal it has always been.

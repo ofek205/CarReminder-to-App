@@ -6,7 +6,8 @@ import {
   HelpCircle, Image, Mail, MapPin, MessageCircle, Music2, Phone,
   Settings, ShieldCheck, Smartphone,
 } from 'lucide-react';
-import { marketingEvent, trackStoreClickGA4 } from '@/lib/marketingEvents';
+import { marketingEvent } from '@/lib/marketingEvents';
+import { appStoreUrl, googlePlayUrl } from '@/lib/storeLinks';
 
 const faqs = [
   ['האם זו מערכת למניעת שכחת ילדים ברכב?', 'Car Reminder היא אפליקציית תזכורת וכלי עזר נוסף. היא אינה חיישן ואינה יודעת אם יש ילד ברכב. בסיום הנסיעה היא מזכירה לכם לבדוק את המושב האחורי.'],
@@ -19,14 +20,14 @@ const faqs = [
 ];
 
 function PlatformLinks() {
-  const appleHref = 'https://apps.apple.com/app/carreminder/id6764073107';
-  const googleHref = 'https://play.google.com/store/apps/details?id=com.carreminder.app';
-  return <div className="cm-child-platform-links" onClick={() => marketingEvent('store_click', 'child_reminder')} aria-label="הורדת Car Reminder">
-    <a href={appleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('apple', appleHref)}>
+  const appleHref = appStoreUrl('page_cta');
+  const googleHref = googlePlayUrl('page_cta');
+  return <div className="cm-child-platform-links" data-link-location="page_cta" onClick={() => marketingEvent('store_click', 'child_reminder')} aria-label="הורדת Car Reminder">
+    <a href={appleHref} target="_blank" rel="noopener noreferrer">
       <img src="/marketing/apple.svg" width="18" height="21" alt="" />
       <span>App Store</span>
     </a>
-    <a href={googleHref} target="_blank" rel="noopener noreferrer" onClick={() => trackStoreClickGA4('google', googleHref)}>
+    <a href={googleHref} target="_blank" rel="noopener noreferrer">
       <img src="/marketing/google-play.svg" width="18" height="21" alt="" />
       <span>Google Play</span>
     </a>

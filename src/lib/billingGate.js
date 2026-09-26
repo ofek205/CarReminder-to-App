@@ -169,12 +169,16 @@ export function capWallAction(kind, opts = {}) {
   //            stops the flip to 'iap' silently deleting a helpful sentence
   //            from four cap walls that were never in breach.
   //
-  //   iOS:     3.1.1(a) covers prose, so until StoreKit exists we may not
-  //            name a paid plan at all. Unchanged.
+  //   iOS:     3.1.1(a) covers prose. Naming our own plan is ordinary once
+  //            the StoreKit sheet can sell it in the app, and a hint at an
+  //            outside purchase while it cannot. So on iOS BOTH answers
+  //            follow iapReady, unlike Android, where Play's rule is about
+  //            the Billing library being in the build (the "hybrid").
   //
   // The CTA is the separate question, and the one `iapReady` answers: a
   // button may only appear where a sheet can actually open.
   if (isAndroid) return { cta: iapReady ? 'plan' : null, mayMentionPlans: true };
+  if (isIOS) return { cta: iapReady ? 'plan' : null, mayMentionPlans: iapReady };
   return { cta: null, mayMentionPlans: false };
 }
 
@@ -189,9 +193,13 @@ export function capWallAction(kind, opts = {}) {
  * there" is steering. Android may now do the first and must not do the
  * second, so a single gate can no longer answer both.
  */
-export function mayMentionPaidPlans() {
+export function mayMentionPaidPlans(opts = {}) {
   const surface = billingSurface();
   if (surface === WEB) return true;
+  // ⚠️ iOS FOLLOWS iapReady, SEE capWallAction. Omitting the option keeps
+  // the fail-closed answer, so a caller that never learned about StoreKit
+  // stays silent rather than naming a plan the app cannot sell.
+  if (surface === IAP && isIOS) return opts.iapReady === true;
   // ⚠️ ENUMERATED, NOT `!== IAP`. The first version was written as
   // `billingSurface() !== IAP || isAndroid`, which quietly returned TRUE for
   // an unrecognised native platform, because 'none' is also not 'iap'. A
@@ -199,4 +207,22 @@ export function mayMentionPaidPlans() {
   // and a negation gave it the permissive answer by default.
   if (surface === IAP) return isAndroid;
   return false;
+}
+
+/**
+ * Which screen "המסלול והחיוב" opens: 'Plans' or 'MyPlan'.
+ *
+ * ⚠️ /Plans ONLY WHERE PAID PLANS MAY BE MENTIONED. Ofek, 2026-09-25: the
+ * entry used to land on /MyPlan, whose main job had become a link to /Plans.
+ * But /Plans lists paid plans by name, and on iOS before StoreKit that is a
+ * plan nothing in the app can buy, which App Review reads as a purchase
+ * elsewhere (3.1.1). So the order flips only where mayMentionPaidPlans says
+ * so, and /MyPlan keeps being the plan screen everywhere else. Settings and
+ * /MyPlan both ask this one function, so they cannot disagree about which
+ * screen is the parent.
+ *
+ * @param {object} [opts]  passed through to mayMentionPaidPlans
+ */
+export function planEntryPage(opts) {
+  return mayMentionPaidPlans(opts) ? 'Plans' : 'MyPlan';
 }

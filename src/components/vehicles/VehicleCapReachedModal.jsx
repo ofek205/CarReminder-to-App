@@ -35,7 +35,7 @@ import { Briefcase, Truck, Users, X, ArrowLeft, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { C } from '@/lib/designTokens';
 import { capWallAction } from '@/lib/billingGate';
-import { iapReady } from '@/lib/billing';
+import { iapReady, billingFlagKey } from '@/lib/billing';
 import { useFeatureFlag } from '@/lib/featureFlags';
 
 const PERKS = [
@@ -46,8 +46,13 @@ const PERKS = [
 // The paid-plan variant. Deliberately NOT the business-account perks: from
 // ₪9 the business interface is included, so listing it as the reward for
 // upgrading would misdescribe what the money buys (spec ח-2).
+//
+// ⚠️ NO NUMBERS IN THE PERK, AND IT SAID "עד 10, 30" UNTIL 2026-09-25. ₪9
+// had been 15 since 09-11, so the wall under-sold the very plan it pointed
+// at. Every limit lives in plan_limits and /Plans prints it from there; a
+// number typed here goes stale the next time a cap is tuned.
 const PLAN_PERKS = [
-  { Icon: Truck,   t: 'תקרה גבוהה יותר', d: 'עד 10, 30, או בלי הגבלה' },
+  { Icon: Truck,   t: 'תקרה גבוהה יותר', d: 'יותר כלי תחבורה בכל מסלול, עד ללא הגבלה' },
   { Icon: Sparkles, t: 'כל היכולות פתוחות', d: 'היועץ, הבדיקות, השיתופים והממשק העסקי' },
 ];
 
@@ -61,9 +66,11 @@ const PLAN_PERKS = [
  */
 export default function VehicleCapReachedModal({ open, onClose, capacity, kind = 'personal', planCap = null }) {
   const navigate = useNavigate();
-  // ⚠️ ABOVE THE EARLY RETURN. `if (!open) return null` sits two lines down,
+  // ⚠️ ABOVE THE EARLY RETURN. `if (!open) return null` sits just below,
   // so a hook placed after it would run on some renders and not others.
-  const { enabled: billingFlag } = useFeatureFlag('play_billing_enabled');
+  // ⚠️ THE PLATFORM'S OWN FLAG. iOS reads apple_billing_enabled, so turning
+  // Play on can never put a Play-era purchase button on an iPhone wall.
+  const { enabled: billingFlag } = useFeatureFlag(billingFlagKey());
   if (!open) return null;
 
   const isPlan = kind === 'plan';
@@ -83,13 +90,16 @@ export default function VehicleCapReachedModal({ open, onClose, capacity, kind =
     navigate(createPageUrl('CreateBusinessWorkspace'));
   };
 
-  // ⚠️ THE DESTINATION FOLLOWS THE SHEET. /MyPlan states the limit the user
-  // just hit, which is the right landing place when nothing can be bought.
-  // Once a Play sheet exists, sending them there makes them hunt for the
-  // purchase one screen further on, so the wall leads to /Plans instead.
+  // ⚠️ ALWAYS /Plans NOW. This used to send the not-yet-purchasable case to
+  // /MyPlan, because /Plans then showed only the offer and /MyPlan showed
+  // the limit the user had just hit. Since 2026-09-25 /Plans opens with that
+  // same limit in its status strip, and Settings opens it directly, so a
+  // detour through /MyPlan is one more screen to hunt through. The button
+  // only renders when action.cta === 'plan', which already encodes "plans
+  // may be mentioned here" (never on iOS before StoreKit).
   const goPlan = () => {
     onClose?.();
-    navigate(createPageUrl(action.cta === 'plan' && iapReady(billingFlag) ? 'Plans' : 'MyPlan'));
+    navigate(createPageUrl('Plans'));
   };
 
   return (
@@ -190,10 +200,10 @@ export default function VehicleCapReachedModal({ open, onClose, capacity, kind =
             </button>
           )}
           {action.cta === 'plan' && (
-            /* ⚠️ THE LABEL IS DELIBERATELY NOT "שדרג". /MyPlan is
-               display-only until phase 6, so a button promising an upgrade
-               would lead to a screen that cannot perform one. It says what
-               actually happens: you see your plan and its limits. */
+            /* ⚠️ THE LABEL IS DELIBERATELY NOT "שדרג". On the web and on
+               Android with the flag off, /Plans shows the plans without
+               selling one, so a button promising an upgrade would lead to a
+               screen that cannot perform it. It says what actually happens. */
             <button
               type="button"
               onClick={goPlan}
@@ -204,7 +214,7 @@ export default function VehicleCapReachedModal({ open, onClose, capacity, kind =
                 boxShadow: '0 8px 20px rgba(16,185,129,0.30)',
               }}
             >
-              המסלול והמגבלות שלי <ArrowLeft className="h-4 w-4" />
+              לצפייה במסלולים <ArrowLeft className="h-4 w-4" />
             </button>
           )}
           <button

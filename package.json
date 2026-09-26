@@ -1,7 +1,7 @@
 {
   "name": "car-reminders",
   "private": true,
-  "version": "6.5.14",
+  "version": "6.5.15",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.0.0",
+    "@capacitor-community/in-app-review": "^8.0.0",
     "@capacitor/android": "^8.3.0",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",

@@ -15,7 +15,8 @@
  * promotion) blocked for non-admins, so the request flow is the only path.
  */
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { mayMentionPaidPlans } from '@/lib/billingGate';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, Loader2, ArrowRight, Clock, AlertTriangle,
@@ -597,6 +598,29 @@ function RequestForm({ mode, latestRequest, onRequested }) {
               style={{ background: '#FFFFFF', borderColor: C.successLight }}
             />
           </Field>
+
+          {/* ⚠️ SAID BEFORE THE REQUEST, AND ONLY WHERE A PAID PLAN MAY BE
+              NAMED. Ofek, 2026-09-25: the request stays open to everyone,
+              but the business interface belongs to the paid plans, whose
+              price follows the size of the fleet, and somebody asking for a
+              business account should know that before they ask rather than
+              after they are approved. On iOS before StoreKit a plan cost is
+              exactly the mention 3.1.1 forbids, so there the line is absent
+              (mayMentionPaidPlans, the same gate /MyPlan and /Plans use). */}
+          {mayMentionPaidPlans() && (
+            <div className="rounded-xl px-3.5 py-3 space-y-1.5" style={{ background: C.infoSubtle }}>
+              <p className="text-[12px] leading-relaxed" style={{ color: C.infoDark }}>
+                פתיחת חשבון עסקי מתאפשרת בהתאם לתנאי המסלולים ולעלויות שלהם, שנקבעים לפי גודל הצי.
+              </p>
+              <Link
+                to={createPageUrl('Plans')}
+                className="inline-flex items-center min-h-[32px] text-[12px] font-bold underline underline-offset-2"
+                style={{ color: C.infoDark }}
+              >
+                לצפייה במסלולים
+              </Link>
+            </div>
+          )}
 
           <button
             type="submit"

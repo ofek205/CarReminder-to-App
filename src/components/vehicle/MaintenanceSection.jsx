@@ -23,6 +23,7 @@ import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
 import { scheduleLocalNotification } from '@/lib/notificationChannels';
 import { dal } from '@/lib/dal';
+import { maybeRequestStoreReview } from '@/lib/storeReview';
 import { reportUserError } from '@/lib/crashReporter';
 import ManufacturerScheduleCard from './ManufacturerScheduleCard';
 import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
@@ -462,6 +463,12 @@ export default function MaintenanceSection({ vehicle }) {
         savedRowId = inserted?.id || null;
       }
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
+
+      // A new treatment log is the "marked done" moment. Edits and repairs
+      // are not. Fire-and-forget so the dialog still closes on its own.
+      if (!editingId && dialogType === 'טיפול') {
+        maybeRequestStoreReview('treatment_done');
+      }
 
       // Fire-and-forget: schedule the local OS notification + log a
       // bell entry so the user sees a "reminder added" trail in-app.

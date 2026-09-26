@@ -26,8 +26,10 @@ const {
   capLabel, advisorLabel, personalNote, unavailableCopy, labelStatesPrice,
   catalogPriceAllowed, COLUMNS, cellValue, detailValue, deltaNote, extrasLine,
   NEAR_FULL, usageMeter, recommendPlan, defaultOpenCode, actionKind,
-  manageNote, currentNote, isStoreManaged,
+  manageNote, currentNote, isStoreManaged, noteVoice, overCapNote, downgradeWarnings, lapsingNote,
+  showRestoreControl, restoreControlHidden,
 } = await import('./Plans');
+const { PurchaseState } = await import('@/lib/billing/purchaseMachine');
 
 // The live catalogue as of 2026-09-25, after supabase-plans-redesign.
 const FREE = {
@@ -390,6 +392,84 @@ describe('manageNote and currentNote', () => {
   });
 });
 
+// ── downgrades, cancellations, and holding more than the plan ───────────
+
+describe('overCapNote', () => {
+  it('reassures an account holding more than its plan, which is what a downgrade leaves', () => {
+    // ⚠️ "12 מתוך 5" in amber with nothing under it reads as "something is
+    // about to be taken". Every cap here only refuses an ADD.
+    const note = overCapNote([{ meter: { used: 12, limit: 5 } }]);
+    expect(note).toContain('שום דבר לא נמחק');
+  });
+
+  it('is silent at or under the cap, against an unlimited cap, and with nothing known', () => {
+    expect(overCapNote([{ meter: { used: 5, limit: 5 } }])).toBeNull();
+    expect(overCapNote([{ meter: { used: 90, limit: null } }])).toBeNull();
+    expect(overCapNote([])).toBeNull();
+    expect(overCapNote(undefined)).toBeNull();
+  });
+});
+
+describe('downgradeWarnings', () => {
+  it('says what a smaller plan would mean BEFORE the move, one line per dimension', () => {
+    const lines = downgradeWarnings(P9, { vehicles: 25, documents: 20 });
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('25');
+    expect(lines[0]).toContain('15');
+    expect(lines[0]).toContain('שום דבר לא יימחק');
+    expect(lines[1]).toContain('מסמכים');
+  });
+
+  it('warns about the free plan too, which is where a cancellation lands', () => {
+    expect(downgradeWarnings(FREE, { vehicles: 12, documents: 1 })).toHaveLength(1);
+  });
+
+  it('is silent when everything fits, against unlimited caps, and when counts are unknown', () => {
+    expect(downgradeWarnings(P19, { vehicles: 12, documents: 20 })).toEqual([]);
+    expect(downgradeWarnings(P49, { vehicles: 500, documents: 900 })).toEqual([]);
+    expect(downgradeWarnings(P9, { vehicles: null, documents: null })).toEqual([]);
+    expect(downgradeWarnings(null, { vehicles: 25 })).toEqual([]);
+  });
+});
+
+describe('lapsingNote', () => {
+  const END = '2026-10-12T10:00:00Z';
+
+  it('never tells somebody who already cancelled to cancel again', () => {
+    // ⚠️ manageNote says "מבטלים את המנוי ב-Google Play". Shown that a
+    // second time, a person concludes the first cancellation did not work.
+    for (const target of [FREE, P9, P19]) {
+      const note = lapsingNote(target, P9, END);
+      expect(note, target.code).toBeTruthy();
+      expect(note, target.code).not.toContain('מבטלים');
+    }
+  });
+
+  it('names the date, and says what happens on it', () => {
+    expect(lapsingNote(FREE, P9, END)).toContain('יעבור לחינם');
+    expect(lapsingNote(P19, P9, END)).toContain('אפשר לבחור כאן');
+    expect(lapsingNote(P9, P9, END)).toContain('אפשר לחדש');
+    expect(lapsingNote(P9, P9, END)).toMatch(/\d/);
+  });
+
+  it('names the store that holds it, and none on the other phone', () => {
+    // ⚠️ iOS may not name Google (2.3.10), and an App Store subscriber must
+    // not be sent to Google Play to resume.
+    expect(lapsingNote(P9, P9, END, 'apple')).toContain('App Store');
+    expect(lapsingNote(P9, P9, END, 'apple')).not.toContain('Google');
+    expect(lapsingNote(P9, P9, END, 'google')).toContain('Google Play');
+    const elsewhere = lapsingNote(P9, P9, END, 'google', 'elsewhere');
+    expect(elsewhere).not.toContain('Google');
+    expect(elsewhere).not.toContain('App Store');
+  });
+
+  it('says nothing rather than print an empty or invalid date', () => {
+    expect(lapsingNote(P9, P9, null)).toBeNull();
+    expect(lapsingNote(P9, P9, 'not a date')).toBeNull();
+    expect(lapsingNote(null, P9, END)).toBeNull();
+  });
+});
+
 describe('Ofek\'s rule: no copy says two plans are the same', () => {
   it('holds for every string the helpers can produce', () => {
     const strings = [
@@ -401,6 +481,75 @@ describe('Ofek\'s rule: no copy says two plans are the same', () => {
     expect(strings.length).toBeGreaterThan(40);
     for (const s of strings) {
       for (const word of FORBIDDEN) expect(s, s).not.toContain(word);
+    }
+  });
+});
+
+describe('the App Store, and the other phone', () => {
+  const apple = { source: 'iap_apple' };
+
+  it('treats a live Apple subscription as store-managed, so no second purchase is offered', () => {
+    // The double-charge guard: keyed on Google alone, an Apple subscriber
+    // opening the app on Android was handed Play's sheet on every row.
+    expect(isStoreManaged(apple, P9)).toBe(true);
+    expect(isStoreManaged(apple, FREE)).toBe(false);
+  });
+
+  it('names the store on its own phone and in a browser, and nothing on the other phone', () => {
+    expect(noteVoice('apple', 'ios')).toBe('store');
+    expect(noteVoice('google', 'android')).toBe('store');
+    expect(noteVoice('apple', 'web')).toBe('store');
+    expect(noteVoice('google', 'ios')).toBe('elsewhere');
+    expect(noteVoice('apple', 'android')).toBe('elsewhere');
+    expect(noteVoice('google', 'other')).toBe('elsewhere');
+    expect(noteVoice(null, 'ios')).toBe('store');
+  });
+
+  it('tells an Apple subscriber that switching happens in the App Store', () => {
+    expect(manageNote(P19, 'apple')).toMatch(/App Store/);
+    expect(manageNote(P19, 'apple')).toMatch(/שדרוג מתחיל מיד/);
+    expect(manageNote(FREE, 'apple')).toMatch(/עד סוף התקופה ששולמה/);
+    expect(currentNote(P9, true, 'apple')).toMatch(/App Store/);
+  });
+
+  it('never names Google or Android in a note an iPhone can render (Guideline 2.3.10)', () => {
+    for (const heldBy of ['google', 'apple']) {
+      const voice = noteVoice(heldBy, 'ios');
+      for (const p of ALL) {
+        for (const text of [manageNote(p, heldBy, voice), currentNote(p, true, heldBy, voice)]) {
+          expect(text, heldBy + '/' + p.code).not.toMatch(/google|play|android|גוגל|אנדרואיד/i);
+        }
+      }
+    }
+  });
+
+  it('keeps every Android sentence byte-identical to before', () => {
+    for (const p of ALL) {
+      expect(manageNote(p, 'google', 'store')).toBe(manageNote(p));
+      expect(currentNote(p, true, 'google', 'store')).toBe(currentNote(p, true));
+    }
+  });
+});
+
+describe('the visible restore control', () => {
+  it('appears wherever a purchase is on offer, for everyone signed in', () => {
+    expect(showRestoreControl(true, false)).toBe(true);
+    // A subscriber too: restore is how a second phone recovers the plan.
+  });
+
+  it('never appears for a guest, or where nothing can be bought', () => {
+    expect(showRestoreControl(true, true)).toBe(false);
+    expect(showRestoreControl(false, false)).toBe(false);
+    // undefined while the flag loads must not flash the control.
+    expect(showRestoreControl(undefined, false)).toBe(false);
+  });
+
+  it('steps aside while the sheet is open or the server is verifying', () => {
+    expect(restoreControlHidden(PurchaseState.SHEET_OPEN)).toBe(true);
+    expect(restoreControlHidden(PurchaseState.VERIFYING)).toBe(true);
+    for (const s of [PurchaseState.IDLE, PurchaseState.PENDING, PurchaseState.DEFERRED,
+      PurchaseState.FAILED, PurchaseState.SUCCESS, PurchaseState.UNAVAILABLE, PurchaseState.LOADING_PRODUCTS]) {
+      expect(restoreControlHidden(s), s).toBe(false);
     }
   });
 });
