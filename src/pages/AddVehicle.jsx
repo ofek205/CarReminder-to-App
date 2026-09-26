@@ -40,7 +40,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
 import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Info } from "lucide-react";
-import { lookupVehicleByPlate } from "../services/vehicleLookup";
+import { lookupVehicleByPlate, isGovRegistryDownError } from "../services/vehicleLookup";
 import LeasingCompanyField from '@/components/vehicle/LeasingCompanyField';
 import { isLeasingOwnership } from '@/constants/leasingCompanies';
 import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy, CME_LICENCE_WORD } from "../components/shared/DateStatusUtils";
@@ -828,8 +828,10 @@ export default function AddVehicle() {
       }
 
       applyLookupResult(result);
-    } catch (_) {
-      setLookupStatus('error');
+    } catch (err) {
+      // The ministry's registry is down: say so rather than a generic
+      // error. See isMainRegistryDown in vehicleLookup.
+      setLookupStatus(isGovRegistryDownError(err) ? 'registry_down' : 'error');
     }
   };
 
@@ -1679,6 +1681,15 @@ export default function AddVehicle() {
                     >
                       או השאר פנייה ואנחנו נבדוק
                     </a>
+                  </div>
+                </div>
+              )}
+              {lookupStatus === 'registry_down' && (
+                <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-700" />
+                  <div className="flex-1 text-xs leading-relaxed">
+                    <p className="font-bold text-sm">משרד התחבורה לא זמין כרגע</p>
+                    <p className="mt-1">יש תקלה במאגר הרכבים של משרד התחבורה, ולכן אי אפשר למלא את פרטי הרכב אוטומטית. התקלה אצלם ולא אצלנו. אפשר להמשיך ולמלא ידנית למטה, או לנסות שוב מאוחר יותר.</p>
                   </div>
                 </div>
               )}
