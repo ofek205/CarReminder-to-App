@@ -38,10 +38,12 @@
 //   APNS_KEY_ID               (10-char Key ID from the .p8 filename)
 //   APNS_TEAM_ID              (10-char Team ID from developer.apple.com)
 //   APNS_BUNDLE_ID            ("com.carreminders.app")
-//   APNS_USE_SANDBOX          ("true" for TestFlight / dev builds, "false"
-//                              for App Store. Apple uses different push
-//                              hosts per environment — wrong one returns
-//                              BadDeviceToken silently.)
+//   APNS_USE_SANDBOX          ("false" for TestFlight AND the App Store,
+//                              both are signed for distribution and use the
+//                              production host; "true" only for a build
+//                              installed from Xcode. Anything but exactly
+//                              "true" means production. The wrong host
+//                              returns BadDeviceToken silently.)
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -325,9 +327,24 @@ serve(async (req) => {
     return json({ sent: 0, failed: 0, pruned: 0, errors: [], reason: 'no devices' }, 200);
   }
 
+  // ⚠️ A STORE-UPDATE NOTICE GOES ONLY TO THE STORE IT IS ABOUT (2026-09-26).
+  // broadcast_app_update picks every USER holding an iOS token, but the row it
+  // writes is per user, and this function used to fan out to every device of
+  // that user. So "update to 6.5.14 in the App Store" reached the Android
+  // phone of anyone who owns both. Scoped to type 'app_update' on purpose:
+  // no other notification carries a platform that means "only this store".
+  const onlyPlatform = data?.type === 'app_update'
+    && (data?.platform === 'ios' || data?.platform === 'android')
+    ? data.platform as string
+    : null;
+  const targets = onlyPlatform ? rows.filter((r) => r.platform === onlyPlatform) : rows;
+  if (targets.length === 0) {
+    return json({ sent: 0, failed: 0, pruned: 0, errors: [], reason: `no ${onlyPlatform} devices` }, 200);
+  }
+
   const summary: DispatchSummary = { sent: 0, failed: 0, pruned: 0, errors: [] };
 
-  for (const row of rows) {
+  for (const row of targets) {
     try {
       let result;
       if (row.platform === 'android') {
