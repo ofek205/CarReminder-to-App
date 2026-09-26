@@ -120,9 +120,13 @@ defineCommand('admin.broadcastAppUpdate', {
 
 defineCommand('admin.publishReleaseAnnouncement', {
   ...adminRpc, table: 'app_config',
-  run: ({ title, body, clear, keepId }) =>
+  // p_platforms needs supabase-release-announcement-platform-target-2026-09-26.sql.
+  // Sent only when given, so a clear (no target) still matches the 5-arg RPC
+  // through its default.
+  run: ({ title, body, clear, keepId, platforms }) =>
     adminSupabase.rpc('publish_release_announcement', {
       p_title: title, p_body: body, p_clear: !!clear, p_keep_id: keepId,
+      ...(Array.isArray(platforms) ? { p_platforms: platforms } : {}),
     }),
 });
 

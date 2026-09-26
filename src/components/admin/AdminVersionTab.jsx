@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Cell } from 'recharts';
 import { C } from '@/lib/designTokens';
+import { ANN_ALL_PLATFORMS, ANN_PLATFORM_OPTIONS, annTargets, annTargetLabel } from '@/lib/releaseAnnouncementTargets';
 
 /**
  * AdminVersionTab — version update management panel.
@@ -59,6 +60,10 @@ export default function AdminVersionTab() {
   // Release announcement ("what's new" popup) — admin-published, shown once.
   const [announcement, setAnnouncement] = useState({ title: '', body: '' });
   const [publishedAnn, setPublishedAnn] = useState(null);
+  // Who the popup is for. The server shows the row only to a matching app
+  // (see supabase-release-announcement-platform-target-2026-09-26.sql); the
+  // website never shows it.
+  const [annPlatforms, setAnnPlatforms] = useState(ANN_ALL_PLATFORMS);
   const [annBusy, setAnnBusy] = useState(false);
 
   // ── Fetch current config + version distribution ───────────────────
@@ -88,6 +93,8 @@ export default function AdminVersionTab() {
         ? annRes.data.value : null;
       setPublishedAnn(annVal);
       setAnnouncement({ title: annVal?.title || '', body: annVal?.body || '' });
+      // A row from before targeting has no `platforms`: it reached every app.
+      setAnnPlatforms(annTargets(annVal));
     } catch (err) {
       console.error('Failed to fetch app versions:', err);
       toast.error('שגיאה בטעינת נתוני גרסאות');
@@ -165,6 +172,10 @@ export default function AdminVersionTab() {
       toast.error('יש להזין טקסט להודעה');
       return;
     }
+    if (annPlatforms.length === 0) {
+      toast.error('יש לבחור לפחות מכשיר אחד');
+      return;
+    }
     setAnnBusy(true);
     try {
       const { error } = await dal.run('admin.publishReleaseAnnouncement', {
@@ -172,11 +183,13 @@ export default function AdminVersionTab() {
         body,
         clear: false,
         keepId,
+        platforms: annPlatforms,
       });
       if (error) throw error;
+      const who = annTargetLabel(annPlatforms);
       toast.success(keepId
-        ? 'ההודעה עודכנה בשקט — מי שכבר ראה אותה לא יראה שוב'
-        : 'ההודעה פורסמה — תופיע לכל משתמש פעם אחת בכניסה הבאה');
+        ? `ההודעה עודכנה בשקט (${who}). מי שכבר ראה אותה לא יראה שוב`
+        : `ההודעה פורסמה (${who}). תופיע פעם אחת בכניסה הבאה לאפליקציה`);
       await fetchConfig();
     } catch (err) {
       console.error('Publish announcement failed:', err);
@@ -195,6 +208,7 @@ export default function AdminVersionTab() {
       if (error) throw error;
       toast.success('ההודעה הופסקה — לא תוצג יותר');
       setAnnouncement({ title: '', body: '' });
+      setAnnPlatforms(ANN_ALL_PLATFORMS);
       await fetchConfig();
     } catch (err) {
       console.error('Clear announcement failed:', err);
@@ -396,6 +410,7 @@ export default function AdminVersionTab() {
               <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
               <div className="text-gray-600">
                 <span className="font-bold text-gray-700">הודעה פעילה</span>
+                <span className="text-gray-500">{' · '}{annTargetLabel(annTargets(publishedAnn))}</span>
                 {publishedAnn.published_at && (
                   <span className="text-gray-400">
                     {' · פורסמה '}
@@ -410,6 +425,40 @@ export default function AdminVersionTab() {
               אין הודעה פעילה — לא יוצג פופ-אפ
             </div>
           )}
+
+          {/* Target. Checkboxes, not a single choice: both is a real option,
+              and it is also what a row from before targeting means. */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-gray-600">למי להציג</label>
+            <div className="flex gap-2">
+              {ANN_PLATFORM_OPTIONS.map((opt) => {
+                const on = annPlatforms.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={on}
+                    disabled={annBusy}
+                    onClick={() => setAnnPlatforms((cur) => (
+                      cur.includes(opt.id) ? cur.filter((x) => x !== opt.id) : [...cur, opt.id].sort()
+                    ))}
+                    className="flex-1 h-10 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                    style={{
+                      background: on ? C.primary + '14' : C.card,
+                      borderColor: on ? C.primary : C.border,
+                      color: on ? C.primary : C.muted,
+                    }}
+                  >
+                    {on && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 leading-relaxed">
+              באתר ההודעה לא מוצגת בכלל. יש הודעה פעילה אחת בכל רגע: פרסום חדש מחליף את הקודמת גם במכשיר השני, אצל מי שעוד לא ראה אותה.
+            </p>
+          </div>
 
           {/* Title (optional) */}
           <div className="space-y-2">
@@ -449,7 +498,7 @@ export default function AdminVersionTab() {
               <>
                 <Button
                   onClick={() => handlePublishAnnouncement(true)}
-                  disabled={annBusy || !announcement.body.trim()}
+                  disabled={annBusy || !announcement.body.trim() || annPlatforms.length === 0}
                   className="flex-1 min-w-[120px] gap-2 text-xs font-bold h-10"
                   style={{ backgroundColor: annBusy ? undefined : C.primary, color: annBusy ? undefined : '#fff' }}
                 >
@@ -459,7 +508,7 @@ export default function AdminVersionTab() {
                 <Button
                   variant="outline"
                   onClick={() => handlePublishAnnouncement(false)}
-                  disabled={annBusy || !announcement.body.trim()}
+                  disabled={annBusy || !announcement.body.trim() || annPlatforms.length === 0}
                   className="flex-1 min-w-[120px] gap-2 text-xs font-bold h-10"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -469,7 +518,7 @@ export default function AdminVersionTab() {
             ) : (
               <Button
                 onClick={() => handlePublishAnnouncement(false)}
-                disabled={annBusy || !announcement.body.trim()}
+                disabled={annBusy || !announcement.body.trim() || annPlatforms.length === 0}
                 className="flex-1 gap-2 text-xs font-bold h-10"
                 style={{ backgroundColor: annBusy ? undefined : C.primary, color: annBusy ? undefined : '#fff' }}
               >
