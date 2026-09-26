@@ -152,11 +152,12 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   // the hook's "missing accountId" check never fires.
   // Pass current vehicle_id (form or URL param) so the upload lands at
   // {accountId}/{vehicleId}/... — the path the bucket RLS policy
-  // expects. Falls back to scans/{userId} when neither vehicle is set.
+  // expects. With no vehicle yet it lands at {accountId}/uploads, which
+  // every member of the account can read; there is no personal-path
+  // fallback any more, the hook refuses instead.
   const { upload: hookUpload, uploading, error: uploadError, reset: resetUpload } = useFileUpload({
     accountId,
     vehicleId: form.vehicle_id || vehicleIdParam || undefined,
-    userId,
     mode: 'doc',
     maxMB: 5,
   });
@@ -1375,7 +1376,7 @@ function AuthDocuments({ vehicleIdParam }) {
   const attachInputRef = useRef(null);
   const attachTargetRef = useRef(null);
   const [attachingId, setAttachingId] = useState(null);
-  const { upload: attachUpload } = useFileUpload({ accountId, userId, mode: 'doc' });
+  const { upload: attachUpload } = useFileUpload({ accountId, mode: 'doc' });
 
   // Same gate the page's own "הוסף מסמך" action uses. Without it a viewer
   // saw a paperclip, the upload SUCCEEDED (Storage RLS keys on account
@@ -1782,7 +1783,6 @@ function AuthDocuments({ vehicleIdParam }) {
         onClose={() => setShowScanWizard(false)}
         vehicles={vehicles}
         accountId={accountId}
-        userId={userId}
         onNewVehicleData={() => {}}
         onUpdateVehicle={() => { queryClient.invalidateQueries({ queryKey: ['documents'] }); setShowScanWizard(false); }}
       />
