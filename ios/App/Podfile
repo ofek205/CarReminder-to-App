@@ -34,6 +34,9 @@ def capacitor_pods
   # then hangs silently — the call routes through Capacitor's plugin
   # registry, finds no native handler, and the promise never resolves.
   pod 'CapacitorCommunityAppleSignIn', :path => '../../node_modules/@capacitor-community/apple-sign-in'
+  # In-app review (SKStoreReviewController / Play In-App Review).
+  # cap sync does not add pods. Without this line the iOS bridge is missing.
+  pod 'CapacitorCommunityInAppReview', :path => '../../node_modules/@capacitor-community/in-app-review'
   # StoreKit 2 (App Store subscriptions). The THIRD time this footgun would
   # have bitten: @capgo/native-purchases has been in package.json since Play
   # Billing, Android links it through gradle, and it was never added here.

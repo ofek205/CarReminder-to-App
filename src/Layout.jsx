@@ -22,6 +22,7 @@ import UpdateAvailableBanner from "@/components/shared/UpdateAvailableBanner";
 import ReviewManager from "@/components/shared/ReviewManager";
 import ReviewPopup from "@/components/shared/ReviewPopup";
 import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
+import { feedbackPromptAllowed } from "@/lib/storeReview";
 import PopupEngine from "@/components/shared/PopupEngine";
 import { SafeComponent } from "@/components/shared/SafeComponent";
 import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
@@ -703,9 +704,12 @@ function DraggableA11yButton({ onClick }) {
 // where the user isn't authenticated yet.
 function ScheduledReviewPrompt({ user }) {
   const { shouldPrompt, markPrompted } = useReviewPromptSchedule(user);
+  // Same session as a native store review: keep this popup closed.
+  // The schedule itself is unchanged, so a later session can still show it.
+  const open = feedbackPromptAllowed(shouldPrompt);
   return (
     <ReviewPopup
-      open={shouldPrompt}
+      open={open}
       onClose={markPrompted}
       userId={user?.id}
       userEmail={user?.email}
