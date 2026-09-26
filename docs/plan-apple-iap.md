@@ -1,6 +1,6 @@
 # Apple / StoreKit subscriptions: plan
 
-Status 2026-09-25: slice 1 merged (`feat/apple-iap`, PR #67). Slice 2a on `feat/apple-iap-wiring` (PR #68). **Slice 2b on `feat/apple-iap-plans`**, stacked on the approved `/Plans` redesign + 2a: iOS is wired. Merge order: redesign, then 2a, then 2b. Everything stays behind `apple_billing_enabled` (off), so only an admin on an iOS build sees a purchase. See §5.
+Status 2026-09-25: **merged** (PR #75, af4cf91d, main == staging). All client and server code is in; still inert: functions not deployed, SQL not applied, no native build, apple_billing_enabled absent. Remaining work is Apple setup, deploy, a TestFlight build and the device test (runbook). Terms section waits on feat/terms-subscriptions.
 Companion: [runbook-app-store-connect-iap.md](runbook-app-store-connect-iap.md) (Ofek's App Store Connect checklist, in Hebrew).
 Android history this mirrors: `docs/spec-monetization-play-billing.md`, `docs/ux-play-billing-purchase.md`.
 
@@ -158,7 +158,7 @@ Playbook: ux (deferred inline, not a banner), designer (`C.infoDark`, inline lin
 
 ### Known issues before App Review, none blocking a merge
 
-1. 🔴 **`TermsOfService` has no subscription terms at all.** Apple requires the Terms link in the purchase flow and in the listing, and the page it points to must cover auto-renewal, price, cancellation. Legal text is Ofek's to approve.
+1. ✅ **Subscription terms: section 7 of `TermsOfService`**, on `feat/terms-subscriptions`, wording approved by Ofek 2026-09-26. Names no store or platform (2.3.10). Must be merged before submission: the listing links to that page and Apple reads it.
 2. Device-only: the StoreKit sheet, cancellation on a Hebrew device, Ask to Buy, `manageSubscriptions`, and that the plugin compiles and registers (Podfile, slice 2a).
 3. After switching plans in Apple's page, /Plans updates within the 60-second `useAccountPlan` staleTime, not instantly.
 
