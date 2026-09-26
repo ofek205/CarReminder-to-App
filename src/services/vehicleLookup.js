@@ -128,6 +128,75 @@ const API_BASE = (() => {
   return isLocalDev ? DEV_PROXY : DATA_GOV_DIRECT;
 })();
 
+//  Ministry outage: "not found" vs "the registry is down"
+//
+// On 2026-09-25 the ministry uploaded the private and light-commercial
+// registry (RESOURCE_ID) as usual, an 874 MB file, but data.gov.il never
+// loaded it into the searchable table: it held 0 rows for over a day. Every
+// ordinary car then came back "not found", and the app told the user to
+// check the number they typed and suggested the car had skipped its test
+// for two years. Neither was true; the ministry was down.
+//
+// So when a full-length plate is found nowhere, lookupVehicleByPlate asks
+// whether that registry is actually serving before calling it a miss, and
+// throws GovRegistryDownError if it isn't. A throw, not a null, so it can't
+// be cached or counted as a quota lookup, and every caller's existing
+// error path already stops instead of acting on "no such vehicle".
+//
+// It normally holds ~4.1M rows. Under a million means empty or still
+// loading (the nightly reload refills it from zero): either way, a miss
+// there says nothing about the plate.
+const MAIN_REGISTRY_MIN_ROWS = 1_000_000;
+const REGISTRY_HEALTH_TTL_MS = 5 * 60 * 1000;
+let mainRegistryHealth = null;   // { down: boolean, at: number }
+
+export class GovRegistryDownError extends Error {
+  constructor() {
+    super('מאגר הרכבים של משרד התחבורה לא זמין כרגע');
+    this.name = 'GovRegistryDownError';
+    this.code = 'gov_registry_down';
+  }
+}
+
+export function isGovRegistryDownError(err) {
+  return err?.code === 'gov_registry_down';
+}
+
+/**
+ * Is the main registry empty or still loading? true only on a definite
+ * answer from data.gov.il. A failed or odd response returns false: without
+ * evidence we don't blame the ministry, and the caller keeps its ordinary
+ * "not found". Definite answers are cached for five minutes, so a bulk add
+ * of fifty plates asks once.
+ */
+export async function isMainRegistryDown() {
+  if (mainRegistryHealth && Date.now() - mainRegistryHealth.at < REGISTRY_HEALTH_TTL_MS) {
+    return mainRegistryHealth.down;
+  }
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(RESOURCE_ID)}&limit=0`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return false;
+    const json = await res.json();
+    const total = json?.result?.total;
+    if (!json?.success || typeof total !== 'number') return false;
+    const down = total < MAIN_REGISTRY_MIN_ROWS;
+    mainRegistryHealth = { down, at: Date.now() };
+    return down;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// For tests: forget the cached answer.
+export function resetMainRegistryHealth() {
+  mainRegistryHealth = null;
+}
+
 //  Input validation
 /**
  * Israeli plates are 7-8 digits (optionally dash-separated). Construction
@@ -1407,7 +1476,12 @@ export async function lookupVehicleByPlate(plate) {
     if (personalImportRecordRaw) source = 'personal_import';
   }
 
-  if (!records && !personalImportRecordRaw) return null;
+  if (!records && !personalImportRecordRaw) {
+    // Short plates (collectors, צמ"ה) never touch the main registry, so its
+    // state says nothing about them. See isMainRegistryDown above.
+    if (!isShort && await isMainRegistryDown()) throw new GovRegistryDownError();
+    return null;
+  }
 
   // CME records key on mispar_tzama, all other tiers on mispar_rechev.
   let record;

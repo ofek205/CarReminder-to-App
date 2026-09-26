@@ -18,7 +18,7 @@ import AccidentPrintReport, { AccidentPrintStyles } from '../components/accident
 import AccidentReportModal from '../components/accidents/AccidentReportModal';
 import { getCurrentPosition } from '@/lib/capacitor';
 import { Link } from 'react-router-dom';
-import { lookupVehicleByPlate } from '../services/vehicleLookup';
+import { lookupVehicleByPlate, isGovRegistryDownError } from '../services/vehicleLookup';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { freezeMessageFor } from '@/lib/rpcErrors';
@@ -294,8 +294,10 @@ export default function AddAccident() {
         return;
       }
       applyLookupFields(result);
-    } catch (_) {
-      setLookupStatus('error');
+    } catch (err) {
+      // The ministry's registry is down: say so rather than a generic
+      // error. See isMainRegistryDown in vehicleLookup.
+      setLookupStatus(isGovRegistryDownError(err) ? 'registry_down' : 'error');
     }
   };
 
@@ -668,6 +670,9 @@ export default function AddAccident() {
             )}
             {lookupStatus === 'not_found' && (
               <p className="text-xs text-amber-600 mt-1">לא נמצא במאגר - המספר יישמר כמו שהוא</p>
+            )}
+            {lookupStatus === 'registry_down' && (
+              <p className="text-xs text-amber-600 mt-1">משרד התחבורה לא זמין כרגע בגלל תקלה אצלם, המספר יישמר כמו שהוא</p>
             )}
             {lookupStatus === 'error' && (
               <p className="text-xs text-red-600 mt-1">שגיאה בחיפוש - המספר יישמר כמו שהוא</p>
