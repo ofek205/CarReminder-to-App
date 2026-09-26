@@ -17,25 +17,16 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
 import { isGrantedMember } from '@/lib/enums';
 import { viewAsErrorText } from '@/lib/viewAsError';
-
-const PERSONAL_LABEL = 'החשבון הפרטי שלי';
-
-// "שלי" is a lie during an admin view-as session — the personal workspace
-// listed there belongs to the account being viewed, not to the admin reading
-// the screen. Naming it "mine" is the single most misleading string in the
-// impersonation flow: it makes the admin's own account look present in a
-// list that never contained it.
-const PERSONAL_LABEL_VIEW_AS = 'חשבון פרטי';
-
-function workspaceLabel(m, isViewAs = false) {
-  if (m.account_type === 'business') {
-    return m.account_name || 'חשבון עסקי';
-  }
-  return isViewAs ? PERSONAL_LABEL_VIEW_AS : PERSONAL_LABEL;
-}
+import { workspaceLabel } from '@/lib/workspaceLabel';
+import { useAuth } from '@/components/shared/GuestContext';
 
 export default function WorkspaceSwitcher() {
   const { memberships, activeWorkspaceId, activeWorkspace, switchTo, isGuest, isViewAs } = useWorkspace();
+  // The same context WorkspaceContext already consumes, so this subscribes to
+  // nothing new. Needed because a workspace is only "שלי" when its
+  // owner_user_id is the signed-in user.
+  const { user } = useAuth();
+  const viewerId = user?.id || null;
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -62,7 +53,7 @@ export default function WorkspaceSwitcher() {
   const hasMultiple = memberships.length > 1;
 
   const ActiveIcon = activeWorkspace?.account_type === 'business' ? Briefcase : UserIcon;
-  const activeLabel = activeWorkspace ? workspaceLabel(activeWorkspace, isViewAs) : '...';
+  const activeLabel = activeWorkspace ? workspaceLabel(activeWorkspace, isViewAs, viewerId) : '...';
 
   return (
     <div ref={wrapRef} className="relative" dir="rtl">
@@ -151,7 +142,7 @@ export default function WorkspaceSwitcher() {
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
                       <span className={`flex-1 text-xs truncate ${isActive ? 'font-bold text-[#2D5233]' : 'text-gray-700'}`}>
-                        {workspaceLabel(m, isViewAs)}
+                        {workspaceLabel(m, isViewAs, viewerId)}
                       </span>
                       {isActive && <Check className="h-4 w-4 text-[#2D5233] shrink-0" />}
                     </button>
