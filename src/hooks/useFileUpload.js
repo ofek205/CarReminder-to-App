@@ -14,7 +14,7 @@
  *
  *   const { upload, uploading, error, progress, reset } = useFileUpload({
  *     accountId,
- *     vehicleId,        // optional — falls back to scans/{accountId} bucket prefix
+ *     vehicleId,        // optional — without it the path is {accountId}/uploads
  *     mode: 'doc',      // 'doc' (image+pdf) or 'photo' (image-only)
  *     maxMB: 10,
  *   });
@@ -58,13 +58,6 @@ export default function useFileUpload({
   // The Storage RLS policy only checks the FIRST folder against the
   // user's account_members list, so anything after that is free.
   subPath,
-  // userId: required for the orphan/scan path (when neither vehicleId
-  // nor subPath is set). The bucket policy only accepts `scans/{user_id}`
-  // for that branch — passing only accountId lands at `scans/{accountId}`
-  // which the policy rejects. Real fix: callsites that legitimately
-  // need pre-vehicle uploads should pass userId so we hit the policy
-  // correctly.
-  userId,
   mode = 'doc',
   maxMB = 10,
 } = {}) {
@@ -106,26 +99,39 @@ export default function useFileUpload({
         // owning account but not yet the vehicleId (e.g. AddVehicle's
         // photo, picked before the row is created).
         //
-        // CRITICAL: this MUST be checked BEFORE the scans/{userId} branch
-        // below, even when the caller also passes userId. A photo saved
-        // under scans/{userId} is signable ONLY by that exact uploader
-        // (the Storage RLS `scans/{uid}` branch matches folder[2] against
-        // auth.uid()). The moment the vehicle is viewed under a different
-        // account or identity — account migration, a second account,
-        // sharing — createSignedUrl is denied and the image silently
-        // breaks. Anchoring on account_id keeps the photo readable by
-        // EVERY member of the account that owns the vehicle.
-        // (Regression: 26 vehicles had photos stuck at scans/{old-uid}
-        // and broke after the 2026-05-31 account migrations.)
+        // Anchoring on account_id is what keeps the file readable by EVERY
+        // member of the account that owns the vehicle. A file written under
+        // the personal scans/{uid} prefix instead is signable ONLY by that
+        // exact uploader, because the Storage policy matches folder[2]
+        // against auth.uid() — so it breaks the moment the vehicle is viewed
+        // under a different identity: a second account, a share, an admin
+        // viewing as the user, or an account migration.
+        // (Regression: 26 vehicles had photos stuck at scans/{old-uid} and
+        // broke after the 2026-05-31 account migrations. The else branch
+        // below is why that can no longer happen here.)
         pathPrefix = `${accountId}/uploads`;
-      } else if (userId) {
-        // True pre-account fallback ONLY — reached when no accountId has
-        // resolved yet (brand-new user mid-provisioning). scans/{userId}
-        // is the policy-approved path for that case; a later save should
-        // re-home the file to the account path once the account exists.
-        pathPrefix = `scans/${userId}`;
       } else {
-        throw new Error('useFileUpload: missing accountId or userId');
+        // There is deliberately NO scans/{userId} fallback here any more.
+        //
+        // It existed for a brand-new user mid-provisioning, but a null
+        // accountId cannot distinguish that from "the account has simply not
+        // loaded yet" — which is the common case — so the branch fired during
+        // an ordinary race. Every file that took it became readable ONLY by
+        // the uploader, because the Storage policy matches scans/{uid}
+        // against auth.uid(). 21 document rows are stuck like that today:
+        // the ROW belongs to the account, the FILE sits outside it, so a
+        // co-owner, a shared driver or an admin viewing as the user gets a
+        // card that refuses to open and no error anywhere. The identical
+        // class already cost 26 vehicle photos in the May account migration,
+        // which is what the comment above this one is about.
+        //
+        // Refusing is the lesser evil. accountId resolves within a moment and
+        // a retry succeeds, whereas a silent success writes a file that can
+        // never be shared and that nothing detects afterwards.
+        //
+        // Genuinely personal uploads (licence scan, expense receipt, vessel
+        // scan) still go through the uploadScanFile helper and are unaffected.
+        throw new Error('החשבון עדיין נטען. אפשר לנסות שוב בעוד רגע.');
       }
 
       // Compress images before upload. PDFs and other docs pass through
@@ -149,7 +155,7 @@ export default function useFileUpload({
     } finally {
       setUploading(false);
     }
-  }, [accountId, vehicleId, subPath, userId, mode, maxMB]);
+  }, [accountId, vehicleId, subPath, mode, maxMB]);
 
   return { upload, uploading, progress, error, reset };
 }
