@@ -128,7 +128,13 @@ jobs:
           #                         of the account being credited. Deployed OFF
           #                         it would take an unauthenticated purchase
           #                         token and grant a plan on it.
-          elif printf '%s\n' ai-proxy send-email admin-impersonate verify-play-purchase | grep -qx "$FN"; then
+          #   verify-apple-purchase 401 "not_authenticated" + auth.getUser, then
+          #                         403 "not_your_account" unless the caller
+          #                         is a member of the account. Its only
+          #                         caller is the signed-in app, so ON costs
+          #                         nothing and keeps the gateway in front of
+          #                         the function's own check.
+          elif printf '%s\n' ai-proxy send-email admin-impersonate verify-play-purchase verify-apple-purchase | grep -qx "$FN"; then
             NEEDS=on
 
           # Anything else has not been determined. Silence is NOT evidence of
