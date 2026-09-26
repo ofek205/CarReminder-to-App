@@ -41,7 +41,7 @@ import useFeatureUsage, { LIFETIME, MONTH, DAY } from '@/hooks/useFeatureUsage';
 import { AI_ADVISOR, AI_FORUM, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { canReferToWeb, mayMentionPaidPlans } from '@/lib/billingGate';
+import { canReferToWeb, mayMentionPaidPlans, planEntryPage } from '@/lib/billingGate';
 import { openStoreSubscriptionManagement, billingPlatform, billingFlagKey, iapReady } from '@/lib/billing';
 import { useFeatureFlag } from '@/lib/featureFlags';
 import { managementCopy } from '@/lib/billing/storeManagement';
@@ -134,7 +134,23 @@ export function meteredValue(used, cap, withUsage, fallback) {
   return withUsage(used, cap);
 }
 
-export function statusBadge(status) {
+/**
+ * ⚠️ A CANCELLED STORE SUBSCRIPTION IS STILL `active` UNTIL IT ENDS, AND
+ * THAT IS CORRECT: the plan stays until the paid period is over. What was
+ * wrong is the badge and the date line, which said "פעיל" and "מתחדש ב..."
+ * to the person who had just cancelled. `autoRenew` (from the store, via
+ * supabase-plans-edge-cases-2026-09-25.sql) is what tells the two apart, and
+ * only an explicit `false` changes anything: null means unknown.
+ */
+const LAPSING = { text: 'לא יתחדש', bg: C.warnSubtle, fg: C.warnDark };
+
+/** The words in front of the period-end date. */
+export function periodEndPrefix(autoRenew) {
+  return autoRenew === false ? 'המנוי בוטל. פעיל עד' : 'מתחדש ב';
+}
+
+export function statusBadge(status, autoRenew = null) {
+  if (autoRenew === false && (status === 'active' || !status)) return LAPSING;
   // An unrecognised status must not silently render as "פעיל". Showing the
   // raw value is ugly and correct: it says "we do not know", which is
   // information, where a green "active" would be a claim.
@@ -206,6 +222,20 @@ export default function MyPlan() {
 
   const accountName = activeWorkspace?.account_name || 'החשבון שלי';
 
+  /**
+   * Is this page the detail view under /Plans, or the plan screen itself?
+   *
+   * The same question Settings asks, through the same function, so the two
+   * cannot disagree about which screen is the parent. Where /Plans is the
+   * entry (Android, the web), this page is reached from its "פרטי המנוי
+   * והניצול" link, carries that name and goes back to /Plans. On iOS before
+   * StoreKit it stays the plan screen, reached from Settings and going back
+   * to it, exactly as before. The 3.1.1 reason is at planEntryPage.
+   */
+  const plansParent = planEntryPage({ iapReady: iapReady(billingFlag) }) === 'Plans';
+  const pageTitle = plansParent ? 'פרטי המנוי והניצול' : 'המסלול והחיוב';
+  const backTo = plansParent ? 'Plans' : 'Settings';
+
   const retry = () => {
     qc.invalidateQueries({ queryKey: [ACCOUNT_PLAN_QUERY_KEY] });
     refetch();
@@ -219,7 +249,7 @@ export default function MyPlan() {
     // it: "מסלול נשמר בחשבון" as a subtitle above a card headed
     // "המסלול נשמר בחשבון" said the same thing twice.
     return (
-      <PageShell title="המסלול והחיוב" subtitle="מצב אורח" backTo="Settings">
+      <PageShell title={pageTitle} subtitle="מצב אורח" backTo={backTo}>
         <Card>
           <div className="flex items-start gap-2.5">
             <UserPlus className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.primary }} />
@@ -252,7 +282,7 @@ export default function MyPlan() {
   // No numbers. Not zeros, not dashes. See the header note.
   if (isError) {
     return (
-      <PageShell title="המסלול והחיוב" subtitle={accountName} backTo="Settings">
+      <PageShell title={pageTitle} subtitle={accountName} backTo={backTo}>
         <Card>
           <div className="flex items-start gap-2.5">
             <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.error }} />
@@ -282,7 +312,7 @@ export default function MyPlan() {
   // ── loading ─────────────────────────────────────────────────────────────
   if (isLoading || !plan) {
     return (
-      <PageShell title="המסלול והחיוב" subtitle={accountName} backTo="Settings">
+      <PageShell title={pageTitle} subtitle={accountName} backTo={backTo}>
         <div className="space-y-3">
           <Card>
             <div className="animate-pulse space-y-3">
@@ -348,7 +378,7 @@ export default function MyPlan() {
   // name twice. The error and loading states DO use it, because they have
   // no identity row.
   return (
-    <PageShell title="המסלול והחיוב" backTo="Settings">
+    <PageShell title={pageTitle} backTo={backTo}>
       <div className="space-y-3">
 
         {/* Account identity. Required, not decorative: the plan is per
@@ -379,8 +409,8 @@ export default function MyPlan() {
                 </p>
               </div>
               {subscription?.currentPeriodEnd && !isFree && (
-                <p className="text-[12px] mt-1.5" style={{ color: C.gray500 }}>
-                  מתחדש ב
+                <p className="text-[12px] mt-1.5" style={{ color: subscription.autoRenew === false ? C.warnDark : C.gray500 }}>
+                  {periodEndPrefix(subscription.autoRenew)}
                   <span dir="ltr" className="mx-1">
                     {new Date(subscription.currentPeriodEnd).toLocaleDateString('he-IL')}
                   </span>
@@ -388,7 +418,7 @@ export default function MyPlan() {
               )}
             </div>
             {(() => {
-              const badge = statusBadge(subscription?.status);
+              const badge = statusBadge(subscription?.status, subscription?.autoRenew);
               return (
                 <span
                   className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full"
@@ -530,32 +560,13 @@ export default function MyPlan() {
             />
           </div>
 
-          {/* The meters above explain a limit and, until now, had nowhere to
-              send anyone: "4 מתוך 5" states the boundary and offers no way to
-              understand what lies past it. /Plans is that destination.
-
-              ⚠️ HIDDEN ON iOS SINCE 2026-09-25, AND IT WAS NOT BEFORE.
-              The first version called this platform-independent, since
-              navigating inside the app is not steering. True of the link,
-              not of where it lands: /Plans prints ₪9 / ₪19 / ₪49 for plans
-              that iOS cannot sell, because StoreKit is not wired yet. A
-              price with nothing to press next to it reads to App Review as
-              a purchase that happens somewhere else (3.1.1). That is
-              exactly the question mayMentionPaidPlans() answers, so this
-              uses it rather than an isIOS check. When StoreKit ships, add
-              iapReady() here, the way VehicleCapReachedModal does. */}
-          {mayMentionPaidPlans() && (
-          <Link
-            to={createPageUrl('Plans')}
-            className="flex items-center justify-between mt-4 pt-3 border-t"
-            style={{ borderColor: C.gray100, minHeight: 44 }}
-          >
-            <span className="text-[13px] font-bold" style={{ color: C.primary }}>
-              השוואת המסלולים
-            </span>
-            <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
-          </Link>
-          )}
+          {/* ⚠️ NO "השוואת המסלולים" LINK HERE ANY MORE, AND THAT IS THE
+              POINT. Ofek, 2026-09-25: it was one extra tap between Settings
+              and the screen people came for. Wherever paid plans may be
+              mentioned, Settings now opens /Plans directly and this page is
+              its detail view, so the back button already leads to the plans.
+              On iOS before StoreKit the link was hidden anyway, for the 3.1.1
+              reason recorded at planEntryPage in billingGate. */}
 
           {/**
             * ⚠️ THE CANCEL ROUTE, AND UNTIL NOW THERE WAS NOT ONE.
