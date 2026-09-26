@@ -32,7 +32,7 @@ import { checkVehicleCapRoom, isCapRefusal } from '@/lib/vehicleCapRoom';
 import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { lookupVehicleByPlate, isGovRegistryDownError } from '@/services/vehicleLookup';
 import { LEASING_COMPANIES, canonicalizeLeasingCompany } from '@/constants/leasingCompanies';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { createPageUrl } from '@/utils';
@@ -57,6 +57,9 @@ async function lookupOne(plate, attempts = 3) {
     try {
       return await lookupVehicleByPlate(plate);
     } catch (err) {
+      // A ministry outage lasts hours, not seconds: retrying only fires
+      // another ten registry requests per plate at a server that's down.
+      if (isGovRegistryDownError(err)) throw err;
       lastErr = err;
       if (a < attempts - 1) await sleep(400 * 2 ** a + Math.floor(Math.random() * 250));
     }
@@ -282,7 +285,11 @@ async function lookupAll(inputRows, onProgress, opts = {}) {
           }
           return { ...item, data: raw, matches: null, error: null };
         } catch (err) {
-          return { ...item, data: null, matches: null, error: err?.message || 'lookup_failed' };
+          return {
+            ...item, data: null, matches: null,
+            error: err?.message || 'lookup_failed',
+            errorCode: isGovRegistryDownError(err) ? 'gov_registry_down' : null,
+          };
         } finally {
           done++;
           onProgress(done, inputRows.length);
@@ -464,7 +471,8 @@ export default function BulkAddVehicles() {
     // rows carry error:null and are never swept. Up to 2 extra passes with
     // lower concurrency + longer delay so the gov server has room to recover.
     for (let sweep = 0; sweep < 2; sweep++) {
-      const failed = results.filter(r => r.error);
+      // Not the ministry-outage rows: that isn't transient (see lookupOne).
+      const failed = results.filter(r => r.error && r.errorCode !== 'gov_registry_down');
       if (failed.length === 0) break;
       await sleep(800);
       const retried = await lookupAll(
@@ -1056,6 +1064,10 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
   const duplicate   = rows.filter(r => r.status === 'duplicate');
   const notFound    = rows.filter(r => r.status === 'not_found');
   const errored     = rows.filter(r => r.status === 'error');
+  // The ministry's registry was down for these: a different message and a
+  // different remedy (its fault, retry later) from an ordinary error.
+  const registryDown = errored.filter(r => r.errorCode === 'gov_registry_down');
+  const otherErrored = errored.filter(r => r.errorCode !== 'gov_registry_down');
 
   // Which needs_choice row is currently open in the multi-match dialog.
   const [choosingPlate, setChoosingPlate] = useState(null);
@@ -1153,15 +1165,44 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
         </Group>
       )}
 
-      {!isLookingUp && errored.length > 0 && (
+      {!isLookingUp && registryDown.length > 0 && (
+        <Group
+          tone="yellow"
+          icon={<AlertTriangle className="h-4 w-4 text-yellow-700" />}
+          title={`משרד התחבורה לא זמין כרגע (${registryDown.length})`}
+          subtitle="יש תקלה במאגר הרכבים של משרד התחבורה, ולכן לא הצלחנו לשלוף את פרטי הרכבים האלה. התקלה אצלם ולא אצלנו. נסה שוב מאוחר יותר, או הוסף ידנית."
+        >
+          <ul className="space-y-1.5">
+            {registryDown.map(r => (
+              <SimpleRow
+                key={r.plate}
+                plate={r.plate}
+                note="המאגר לא זמין"
+                action={
+                  <Link
+                    to={createPageUrl('AddVehicle') + `?plate=${r.plate}`}
+                    className="text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5 shrink-0"
+                  >
+                    הוסף ידנית
+                    <ArrowLeft className="h-3 w-3" />
+                  </Link>
+                }
+              />
+            ))}
+          </ul>
+          <CopyPlatesButton plates={registryDown.map(r => r.plate)} />
+        </Group>
+      )}
+
+      {!isLookingUp && otherErrored.length > 0 && (
         <Group
           tone="red"
           icon={<X className="h-4 w-4 text-red-700" />}
-          title={`שגיאת חיפוש (${errored.length})`}
+          title={`שגיאת חיפוש (${otherErrored.length})`}
           subtitle="חיפוש המידע נכשל. אפשר לנסות שוב או להוסיף ידנית."
         >
           <ul className="space-y-1.5">
-            {errored.map(r => (
+            {otherErrored.map(r => (
               <SimpleRow key={r.plate} plate={r.plate} note={r.error} />
             ))}
           </ul>

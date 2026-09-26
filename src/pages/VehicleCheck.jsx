@@ -36,6 +36,7 @@ import {
   saveQuickCheckVehicle,
   validateQuickCheckPlate,
 } from '@/services/vehicleQuickCheck';
+import { isGovRegistryDownError } from '@/services/vehicleLookup';
 import { C } from '@/lib/designTokens';
 import { maybeRequestStoreReview } from '@/lib/storeReview';
 import { trackVehicleCheckSubmit } from '@/lib/vehicleCheckAnalytics';
@@ -260,6 +261,17 @@ export default function VehicleCheck({ marketingPlate }) {
         resultStatus: 'found',
       });
     } catch (err) {
+      // The ministry's registry is down (empty or reloading): say so, instead
+      // of "not found, check the number". See isMainRegistryDown.
+      if (isGovRegistryDownError(err)) {
+        setResult(null);
+        setStatus('registry_down');
+        trackVehicleCheckSubmit({
+          formLocation: websiteCheckFormLocation,
+          resultStatus: 'error',
+        });
+        return;
+      }
       setStatus('error');
       setError(err?.code === 'invalid_plate'
         ? err.message
@@ -482,6 +494,14 @@ export default function VehicleCheck({ marketingPlate }) {
             details="לתשומת לבך: אם הרכב לא עבר טסט מעל שנתיים, משרד התחבורה לא מציג את הנתונים שלו, ולכן ככל הנראה לא נמצא. אם אתה בטוח שהמספר תקין ולא זה המצב, השאר לנו פנייה ונבדוק."
             ctaLabel="השאר פנייה ואנחנו נבדוק"
             ctaHref={createPageUrl('Contact')}
+          />
+        )}
+        {status === 'registry_down' && !isBusy && (
+          <StateCard
+            tone="warning"
+            title="משרד התחבורה לא זמין כרגע"
+            text="יש תקלה במאגר הרכבים של משרד התחבורה, ולכן אי אפשר לבדוק את הרכב כרגע."
+            details="התקלה אצל משרד התחבורה ולא אצלנו. הבדיקה תחזור לעבוד ברגע שהמשרד יתקן אותה, נסה שוב מאוחר יותר."
           />
         )}
         {status === 'error' && !isBusy && <StateCard tone="danger" title="הבדיקה נכשלה" text="לא נציג שגיאות טכניות. נסה שוב בעוד רגע או בדוק את החיבור לאינטרנט." />}
