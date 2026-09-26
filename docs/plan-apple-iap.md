@@ -158,7 +158,7 @@ Playbook: ux (deferred inline, not a banner), designer (`C.infoDark`, inline lin
 
 ### Known issues before App Review, none blocking a merge
 
-1. 🔴 **`TermsOfService` has no subscription terms at all.** Apple requires the Terms link in the purchase flow and in the listing, and the page it points to must cover auto-renewal, price, cancellation. Legal text is Ofek's to approve.
+1. ✅ **Subscription terms: section 7 of `TermsOfService`**, on `feat/terms-subscriptions`, wording approved by Ofek 2026-09-26. Names no store or platform (2.3.10). Must be merged before submission: the listing links to that page and Apple reads it.
 2. Device-only: the StoreKit sheet, cancellation on a Hebrew device, Ask to Buy, `manageSubscriptions`, and that the plugin compiles and registers (Podfile, slice 2a).
 3. After switching plans in Apple's page, /Plans updates within the 60-second `useAccountPlan` staleTime, not instantly.
 
