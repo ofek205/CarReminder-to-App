@@ -5,12 +5,17 @@
  * user?" checks. Implements the gating rule the team agreed on:
  *
  *   • admins ALWAYS see the feature (so QA can test before rollout)
- *   • regular users see it only when the flag in public.app_config
+ *   • users listed for that flag in public.feature_flag_allowlist see
+ *     it too: a test account, or Apple's reviewer, neither of whom may
+ *     be an admin (supabase-feature-flag-allowlist-2026-09-27.sql)
+ *   • everyone else sees it only when the flag in public.app_config
  *     is set to true
  *
- * Backed by two reads, both cached:
- *   1. supabase.rpc('is_admin')           → cached for 60 s in this module
- *   2. supabase.from('app_config')...      → cached for 60 s per key
+ * Backed by three reads, all cached:
+ *   1. supabase.rpc('is_admin')             → cached for 60 s in this module
+ *   2. supabase.from('app_config')...        → cached for 60 s per key
+ *   3. supabase.rpc('my_allowlisted_flags') → cached for 60 s per user,
+ *      one call for every flag
  *
  * Cache policy:
  *   • The React hook (useFeatureFlag below) uses the same module
@@ -57,10 +62,13 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { withTimeout } from './supabaseQuery';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import { useAuth } from '@/components/shared/GuestContext';
 
-const FLAG_CACHE_TTL_MS  = 60 * 1000;
-const ADMIN_CACHE_TTL_MS = 60 * 1000;
+const FLAG_CACHE_TTL_MS      = 60 * 1000;
+const ADMIN_CACHE_TTL_MS     = 60 * 1000;
+const ALLOWLIST_CACHE_TTL_MS = 60 * 1000;
 
 // key → { value: boolean, cachedAt: number }
 const flagCache  = new Map();
@@ -109,6 +117,64 @@ async function probeIsAdmin() {
   })();
 
   return adminInFlight;
+}
+
+// ⚠️ KEYED BY USER, BECAUSE THE ANSWER IS PER USER. The admin cache above
+// is one value for the tab, which is tolerable for a 60 s probe. A list
+// cached the same way would hand the previous account's flags to whoever
+// signs in next on the same phone. So the cache remembers whose list it
+// holds, and a different uid always asks again.
+const NO_FLAGS = new Set();
+let allowlistCache    = null;  // { uid, keys: Set<string>, cachedAt }
+let allowlistInFlight = null;  // { uid, promise }
+
+async function probeAllowlist(uid) {
+  if (!uid) return NO_FLAGS;
+  const now = Date.now();
+  if (allowlistCache?.uid === uid && now - allowlistCache.cachedAt < ALLOWLIST_CACHE_TTL_MS) {
+    return allowlistCache.keys;
+  }
+  if (allowlistInFlight?.uid === uid) return allowlistInFlight.promise;
+
+  const promise = (async () => {
+    // Fails closed: an error, a timeout, or the RPC not existing yet (the
+    // client can ship before the SQL is applied) all mean "nothing listed".
+    let keys = NO_FLAGS;
+    try {
+      const { data, error } = await withTimeout(
+        supabase.rpc('my_allowlisted_flags'),
+        'my_allowlisted_flags',
+      );
+      if (error) throw error;
+      if (Array.isArray(data)) keys = new Set(data);
+    } catch (err) {
+      if (import.meta.env?.DEV) console.warn('[featureFlags] my_allowlisted_flags failed:', err?.message);
+    }
+    allowlistCache = { uid, keys, cachedAt: Date.now() };
+    return keys;
+  })();
+
+  allowlistInFlight = { uid, promise };
+  promise.finally(() => {
+    if (allowlistInFlight?.promise === promise) allowlistInFlight = null;
+  });
+  return promise;
+}
+
+// isFeatureEnabled runs outside React, so it cannot use useAuth. Same
+// source as aiConsentGate: the local session, no network round trip.
+async function currentUid() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function isAllowlisted(key) {
+  const keys = await probeAllowlist(await currentUid());
+  return keys.has(key);
 }
 
 async function readFlag(key, { defaultOnError = false } = {}) {
@@ -179,14 +245,23 @@ export async function isFeatureEnabled(key, opts = {}) {
   // applies": admins get enrolled in the rule before anyone has decided
   // to turn it on, and a rule that fails closed then breaks them alone.
   // See lib/aiConsentGate.js for the case that found this.
+  //
+  // The allowlist still applies there, and that is the point of it: a row
+  // is someone deliberately enrolling one account in the rule first, which
+  // is exactly what the admin bypass could not do safely.
   if (opts.ignoreAdmin === true) {
-    return (await readFlag(key, opts)) === true;
+    const [flag, listed] = await Promise.all([
+      readFlag(key, opts),
+      isAllowlisted(key),
+    ]);
+    return flag === true || listed;
   }
-  const [admin, flag] = await Promise.all([
+  const [admin, flag, listed] = await Promise.all([
     probeIsAdmin(),
     readFlag(key, opts),
+    isAllowlisted(key),
   ]);
-  return admin === true || flag === true;
+  return admin === true || flag === true || listed;
 }
 
 /**
@@ -208,19 +283,28 @@ export async function isFeatureEnabled(key, opts = {}) {
 export function useFeatureFlag(key, opts = {}) {
   const { defaultOnError = false } = opts;
   const isAdmin = useIsAdmin();
-  const [flagValue, setFlagValue] = useState(null);
-  const [loadingFlag, setLoadingFlag] = useState(true);
+  // The signed-in user, so the list is re-read when the account changes.
+  // A guest has no list.
+  const { user, isGuest } = useAuth();
+  const uid = isGuest ? null : (user?.id ?? null);
+  // What was read, and for which key and user. An answer read for another
+  // user counts as still loading: after a sign-in, the first render would
+  // otherwise show the previous (signed-out) answer, false, and a listed
+  // user would see the feature hidden and then appear.
+  const [resolved, setResolved] = useState(null);  // { key, uid, flag, listed }
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingFlag(true);
 
+    // Waits for the list as well as the flag, for the same reason. Both
+    // reads fail closed and neither rejects, and the list is one call
+    // shared by every flag.
     const refresh = () => {
-      readFlag(key, { defaultOnError }).then((v) => {
-        if (!cancelled) {
-          setFlagValue(v);
-          setLoadingFlag(false);
-        }
+      Promise.all([
+        readFlag(key, { defaultOnError }),
+        probeAllowlist(uid),
+      ]).then(([flag, keys]) => {
+        if (!cancelled) setResolved({ key, uid, flag, listed: keys.has(key) });
       });
     };
 
@@ -235,14 +319,15 @@ export function useFeatureFlag(key, opts = {}) {
       cancelled = true;
       flagListeners.delete(listener);
     };
-  }, [key, defaultOnError]);
+  }, [key, defaultOnError, uid]);
 
   const adminLoading = isAdmin === null;
-  if (adminLoading || loadingFlag) {
+  const flagLoading = resolved?.key !== key || resolved?.uid !== uid;
+  if (adminLoading || flagLoading) {
     return { enabled: null, isLoading: true };
   }
   return {
-    enabled: isAdmin === true || flagValue === true,
+    enabled: isAdmin === true || resolved.flag === true || resolved.listed === true,
     isLoading: false,
   };
 }
@@ -260,6 +345,9 @@ export function invalidateFeatureFlagCache(key) {
     notifyFlagListeners(key);
   } else {
     flagCache.clear();
+    // "Everything" includes whose flags are listed, so a force-refresh
+    // also picks up a row added in the SQL editor a moment ago.
+    allowlistCache = null;
     notifyFlagListeners(null);
   }
 }
