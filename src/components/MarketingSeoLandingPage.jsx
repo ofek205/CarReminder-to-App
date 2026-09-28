@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { marketingEvent } from '@/lib/marketingEvents';
@@ -45,31 +45,10 @@ function LandingCtas({ ctas, slug }) {
 }
 
 export default function MarketingSeoLandingPage({ product }) {
-  useEffect(() => {
-    if (!product.faq?.length) return undefined;
-    const schema = document.createElement('script');
-    schema.id = `cm-${product.slug}-schema`;
-    schema.type = 'application/ld+json';
-    schema.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'BreadcrumbList',
-          itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Car Reminder', item: '/website' },
-            { '@type': 'ListItem', position: 2, name: product.heading || product.title },
-          ],
-        },
-        {
-          '@type': 'FAQPage',
-          mainEntity: product.faq.map(([name, text]) => ({ '@type': 'Question', name, acceptedAnswer: { '@type': 'Answer', text } })),
-        },
-      ],
-    });
-    document.head.appendChild(schema);
-    return () => schema.remove();
-  }, [product.slug, product.faq, product.heading, product.title]);
-
+  // Structured data (BreadcrumbList + FAQPage from product.faq) is rendered by
+  // Marketing.jsx through <MarketingJsonLd>, not here. It used to be injected
+  // from a useEffect, which renderToString never runs, so it was missing from
+  // the prerendered HTML of both landing pages.
   return <article className="cm-landing">
     <section className="cm-section cm-landing-hero">
       <div className="cm-wrap cm-landing-hero-wrap">

@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { marketingEvent } from '@/lib/marketingEvents';
 import { appStoreUrl, googlePlayUrl } from '@/lib/storeLinks';
+import { faqJsonLd } from '@/lib/marketingSchema';
+import MarketingJsonLd from '@/components/MarketingJsonLd';
 
 const faqs = [
   ['האם זו מערכת למניעת שכחת ילדים ברכב?', 'Car Reminder היא אפליקציית תזכורת וכלי עזר נוסף. היא אינה חיישן ואינה יודעת אם יש ילד ברכב. בסיום הנסיעה היא מזכירה לכם לבדוק את המושב האחורי.'],
@@ -132,31 +134,12 @@ function AnimatedWalkthrough() {
 }
 
 export default function MarketingChildReminderPage() {
-  useEffect(() => {
-    const schema = document.createElement('script');
-    schema.id = 'cm-child-reminder-schema';
-    schema.type = 'application/ld+json';
-    schema.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'BreadcrumbList',
-          itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Car Reminder', item: '/website' },
-            { '@type': 'ListItem', position: 2, name: 'תזכורת ילד ברכב' },
-          ],
-        },
-        {
-          '@type': 'FAQPage',
-          mainEntity: faqs.map(([name, text]) => ({ '@type': 'Question', name, acceptedAnswer: { '@type': 'Answer', text } })),
-        },
-      ],
-    });
-    document.head.appendChild(schema);
-    return () => schema.remove();
-  }, []);
-
+  // The FAQPage below used to be injected from a useEffect together with a
+  // BreadcrumbList. renderToString does not run effects, so neither was in the
+  // prerendered HTML. The FAQ is now part of the tree; the breadcrumb comes
+  // from Marketing.jsx, which renders one for every product page.
   return <article className="cm-child-page">
+    <MarketingJsonLd data={faqJsonLd(faqs)} />
     <section className="cm-child-page-hero">
       <div className="cm-wrap cm-child-page-hero-grid">
         <div className="cm-child-page-copy">

@@ -4,7 +4,8 @@ import { ArrowLeft, BellRing, BriefcaseBusiness, Car, Database, FileText, Loader
 import { guides, productPages } from '@/lib/marketingContent';
 import { businessFeatures, specialtyPages } from '@/lib/marketingSpecialties';
 import MarketingSectionBody from '@/components/MarketingSectionBody';
-import { guideJsonLd, mobileAppJsonLd } from '@/lib/marketingSchema';
+import { faqJsonLd, guideJsonLd, mobileAppJsonLd, organizationJsonLd, pageJsonLd } from '@/lib/marketingSchema';
+import MarketingJsonLd from '@/components/MarketingJsonLd';
 import MarketingProductPage from '@/components/MarketingProductPage';
 import MarketingSeoLandingPage from '@/components/MarketingSeoLandingPage';
 import MarketingHeroBackground from '@/components/MarketingHeroBackground';
@@ -75,9 +76,6 @@ function CategoryImage({ src }) {
   </picture>;
 }
 
-function MarketingJsonLd({ data }) {
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replaceAll('<', '\\u003c') }} />;
-}
 const featuredGuideSlugs = ['test-reminder', 'plate-check', 'engine-hours'];
 const faqs = [
   ['אפשר לבדוק רכב בלי להירשם?', 'כן. אפשר לבצע בדיקה ראשונה ללא חשבון ולהוריד את המסמך. כדי לבדוק רכב נוסף או לשמור את הרכב בחשבון יש להתחבר.'],
@@ -241,28 +239,6 @@ export default function Marketing() {
     };
   }, [pathname, article, product, checkPage, businessPage, location.hash]);
 
-  // FAQPage schema for /website/business only, matches the pattern in
-  // MarketingSeoLandingPage.jsx / MarketingChildReminderPage.jsx.
-  useEffect(() => {
-    if (!businessPage) return undefined;
-    const schema = document.createElement('script');
-    schema.id = 'cm-business-schema';
-    schema.type = 'application/ld+json';
-    schema.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@graph': [
-        { '@type': 'BreadcrumbList', itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Car Reminder', item: '/website' },
-          { '@type': 'ListItem', position: 2, name: 'ניהול צי רכב לעסקים' },
-        ] },
-        { '@type': 'FAQPage', mainEntity: businessFaqs.map(([name, text]) =>
-          ({ '@type': 'Question', name, acceptedAnswer: { '@type': 'Answer', text } })) },
-      ],
-    });
-    document.head.appendChild(schema);
-    return () => schema.remove();
-  }, [businessPage]);
-
 
   const BusinessHeading = businessPage ? 'h1' : 'h2';
   const business = <section id="business" className="cm-business"><div className="cm-wrap cm-business-grid"><div className="cm-business-copy"><span className="cm-kicker">Car Reminder לעסקים</span><BusinessHeading>מערכת לניהול<br />{' '}<em>צי רכב לעסקים.</em></BusinessHeading><p>לכל נהג אפליקציה משלו, ולמנהלים תמונת מצב ברורה של הצי במחשב, באייפון ובאנדרואיד.</p><ul className="cm-business-proofs"><li><Database size={18} /> מייבאים גם צי גדול מאקסל</li><li><Wallet size={18} /> סורקים קבלות ומרכזים הוצאות</li><li><LockKeyhole size={18} /> הרשאות לפי תפקיד והפרדה בין עבודה לפרטי</li></ul>{businessPage ? <div className="cm-actions"><Link className="cm-button cm-gold" to="/Contact?topic=business">לפנייה בנושא חשבון עסקי <ArrowLeft size={18} /></Link><a className="cm-button" href="#download">הורדת האפליקציה <ArrowLeft size={18} /></a></div> : <Link className="cm-button cm-gold" to="/website/business">למערכת העסקית <ArrowLeft size={18} /></Link>}<small>פתיחת חשבון עסקי כפופה להגשת בקשה ואישור.</small></div><div className="cm-business-showcase"><MarketingBusinessPreview /></div></div></section>;
@@ -271,6 +247,15 @@ export default function Marketing() {
     <a className="cm-skip" href="#cm-main">דילוג לתוכן</a>
     <header className="cm-header"><div className="cm-wrap cm-nav"><Link to="/website" className="cm-brand"><img src={logo} width="44" height="44" alt="" /><span>Car Reminder<small>כל מה שחשוב לכלי התחבורה שלך</small></span></Link><button className="cm-menu-toggle" aria-label={menu ? 'סגירת תפריט' : 'פתיחת תפריט'} aria-expanded={menu} aria-controls="cm-navigation" onClick={() => setMenu(!menu)}>{menu ? <X /> : <Menu />}</button><nav id="cm-navigation" className={menu ? 'cm-menu is-open' : 'cm-menu'} aria-label="ניווט ראשי"><a href="/website#how" onClick={() => setMenu(false)}>איך זה עובד</a><a href="/website#check" onClick={() => setMenu(false)}>בדיקת רכב</a><a href="/website#trust" onClick={() => setMenu(false)}>אמינות ופרטיות</a><Link to="/website/business">לעסקים</Link><a href="/website#guides">מדריכים</a><Link to="/Auth">כניסה לחשבון</Link></nav><a className="cm-button cm-header-cta" href="/website#download">להורדת האפליקציה <ArrowLeft size={16} /></a></div></header>
     <main id="cm-main" tabIndex={-1}>
+      {/* Structured data, rendered into the tree so it lands in the
+          prerendered HTML. `faqs` and `businessFaqs` are the SAME arrays that
+          render the visible <details> lists below, so the markup cannot drift
+          from what the page shows. product.faq covers the two landing pages;
+          the child-reminder page keeps its own FAQ list and renders it. */}
+      {home && <MarketingJsonLd data={organizationJsonLd()} />}
+      {home && <MarketingJsonLd data={faqJsonLd(faqs)} />}
+      {businessPage && <MarketingJsonLd data={pageJsonLd('ניהול צי רכב לעסקים', businessFaqs)} />}
+      {product && <MarketingJsonLd data={pageJsonLd(product.heading || product.title, product.faq)} />}
       {home && <><MarketingJsonLd data={mobileAppJsonLd()} />
         <section className="cm-hero"><MarketingHeroBackground /><div className="cm-wrap cm-hero-grid"><div className="cm-hero-copy"><span className="cm-kicker">הרכב, האופנוע וכלי השיט שלכם</span><h1>הטסט, הביטוח והטיפול הבא.{' '}<br /><em>הכול במקום אחד.</em></h1><p className="cm-hero-lead">Car Reminder מרכזת מועדים, מסמכים והוצאות ומזכירה לכם לפני שמגיע הזמן.</p><div className="cm-actions"><a href="#download" className="cm-button cm-gold">מורידים את Car Reminder <ArrowLeft size={19} /></a></div></div><div className="cm-hero-visual"><div className="cm-orbit" /><MarketingPhone src="/marketing/dashboard.webp" alt="לוח הבקרה באפליקציה עם נתוני הדגמה" priority /><span className="cm-photo-note">מסך מהאפליקציה במסגרת להמחשה</span></div></div></section>
         <div className="cm-audiences cm-wrap"><a href="#features"><Car /> לרכב שלי <ArrowLeft size={16} /></a><a href="#vessels"><Ship /> לכלי השיט שלי <ArrowLeft size={16} /></a><Link to="/website/business"><BriefcaseBusiness /> לעסק שלי <ArrowLeft size={16} /></Link></div>
