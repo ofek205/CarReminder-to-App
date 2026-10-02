@@ -180,7 +180,17 @@ jobs:
         # the upstream binary xcframework drops public-extension symbols, so
         # CocoaPods is the only working integration on this stack.
         working-directory: ios/App
-        run: pod install --repo-update
+        run: |
+          set -euo pipefail
+          pod install --repo-update
+          # The Podfile's post_install strips -D STOREKIT_26_5 from the
+          # purchases pod (see the comment there). If it ever stops applying,
+          # say so here in one line, instead of three minutes later as a
+          # CompileSwift failure buried in 3,000 lines of Archive output.
+          if grep -rl --include='*.xcconfig' STOREKIT_26_5 "Pods/Target Support Files"; then
+            echo "::error::-D STOREKIT_26_5 is still set after pod install (files above). The Podfile post_install did not apply, and the purchases pod cannot compile against the pinned 26.4 SDK."
+            exit 1
+          fi
 
       - name: Verify build state (safe diagnostics, no secrets)
         # Prints node/npm/Xcode/SDK versions, branch/commit, package version,
@@ -286,6 +296,8 @@ jobs:
           echo "  DEVELOPER_DIR=${DEVELOPER_DIR:-<unset>}"
           echo "  xcodebuild   =$(xcrun -f xcodebuild)"
           echo "  iphoneos SDK =$(xcrun --sdk iphoneos --show-sdk-version)"
+          # tee keeps the full output in the step log and a copy on disk for
+          # the step below; pipefail keeps xcodebuild's own exit status.
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
@@ -293,7 +305,31 @@ jobs:
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            archive
+            archive 2>&1 | tee "$RUNNER_TEMP/archive.log"
+
+      - name: Show the compile errors (only if Archive failed)
+        # A failed archive ends with "(3 failures)" and exit 65 after
+        # thousands of lines, and the actual "error:" lines sit somewhere in
+        # the middle. Twice now the cause had to be guessed from a truncated
+        # paste. This lifts them out: the first ones become annotations on
+        # the run's Summary page, and all of them are listed in this step.
+        if: failure()
+        working-directory: ios/App
+        run: |
+          LOG="$RUNNER_TEMP/archive.log"
+          if [ ! -f "$LOG" ]; then
+            echo "Archive did not run, so there is nothing to show. The failure is in an earlier step."
+            exit 0
+          fi
+          if ! grep -qE '(fatal )?error:' "$LOG"; then
+            echo "No 'error:' lines in the Archive output. Read the end of the Archive step."
+            exit 0
+          fi
+          grep -E '(fatal )?error:' "$LOG" | awk '!seen[$0]++' | head -10 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          echo "=== every error line, with its line number in the Archive output ==="
+          grep -nE '(fatal )?error:' "$LOG" | head -100
 
       - name: Export IPA
         working-directory: ios/App

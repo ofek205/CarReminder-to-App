@@ -55,4 +55,32 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+
+  # CapgoNativePurchases compiles its StoreKit billing-plan code (monthly
+  # commitment plans, commitmentInfo) only under -D STOREKIT_26_5, and its
+  # podspec turns that flag on if ANY of two SDKs has those APIs: the one in
+  # DEVELOPER_DIR, and /Applications/Xcode.app, whatever that happens to be.
+  # On the macos-26 runner the second one is a newer Xcode than the 26.4 the
+  # release workflow pins, so the flag came on and the pod was then compiled
+  # against the 26.4 SDK, which does not have those types (the Archive log
+  # shows "-D STOREKIT_26_5" on this pod beside "iPhoneOS26.4.sdk"). The
+  # first iOS build with this pod failed at Archive, exit 65.
+  #
+  # We sell none of those plan types, and every guarded block has a plain
+  # fallback (the plugin's own message: "billingPlanType requires building
+  # with Xcode 26.5 SDK or later"), so the flag is removed always rather than
+  # re-detected. That keeps the build independent of which Xcode the runner
+  # image links as the default. The podspec writes it into the generated
+  # xcconfig, which a target-level build setting cannot take back ($(inherited)
+  # would carry it through), so the xcconfig itself is rewritten.
+  installer.pods_project.targets.each do |target|
+    next unless target.name == 'CapgoNativePurchases'
+    target.build_configurations.each do |config|
+      path = config.base_configuration_reference.real_path
+      xcconfig = File.read(path)
+      next unless xcconfig.include?('STOREKIT_26_5')
+      File.write(path, xcconfig.gsub(/\s*-D\s*STOREKIT_26_5/, ''))
+      puts "CapgoNativePurchases (#{config.name}): removed -D STOREKIT_26_5"
+    end
+  end
 end
