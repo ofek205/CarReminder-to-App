@@ -12,9 +12,24 @@
 
 const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
 const DATA_GOV_SEARCH = 'https://data.gov.il/api/3/action/datastore_search';
+// Same local proxy as vehicleLookup.js. Production and previews call data.gov.il
+// directly; only a local dev host uses the Vite proxy, which avoids CORS.
+const DEV_PROXY_SEARCH = '/gov-api/api/3/action/datastore_search';
 const FIELDS = ['tokef_dt', 'mivchan_acharon_dt', 'tozeret_nm', 'kinuy_mishari', 'shnat_yitzur'];
 const REQUEST_MS = 8000;
-const RESULT_STATUSES = new Set(['invalid', 'found', 'not_found', 'network', 'error']);
+const EXPIRING_SOON_DAYS = 30;
+const RESULT_STATUSES = new Set(['invalid', 'found', 'not_found', 'offline', 'network', 'error']);
+
+function searchEndpoint() {
+  if (typeof window === 'undefined') return DATA_GOV_SEARCH;
+  const host = window.location?.hostname || '';
+  const local = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+  return local ? DEV_PROXY_SEARCH : DATA_GOV_SEARCH;
+}
+
+function browserIsOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
 
 export function normalizePlateDigits(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
@@ -86,6 +101,7 @@ export function presentTestValidity(record, today = new Date()) {
     dueLabel: testDueDate ? formatHebrewDate(testDueDate) : '',
     duePhrase: days === null ? '' : validityPhrase(days),
     expired: typeof days === 'number' && days < 0,
+    expiringSoon: typeof days === 'number' && days >= 0 && days <= EXPIRING_SOON_DAYS,
     lastTestLabel: lastTestDate ? formatHebrewDate(lastTestDate) : '',
     missingDue: !testDueDate,
   };
@@ -101,12 +117,16 @@ function sanitizeRecord(record, today) {
   };
 }
 
-export async function lookupTestValidity(plateDigits, { fetchImpl = fetch, today = new Date() } = {}) {
+export async function lookupTestValidity(plateDigits, { fetchImpl = fetch, today = new Date(), signal } = {}) {
+  if (signal?.aborted) return { status: 'aborted' };
+  if (browserIsOffline()) return { status: 'offline' };
   const filters = encodeURIComponent(JSON.stringify({ mispar_rechev: Number(plateDigits) }));
   const fields = encodeURIComponent(FIELDS.join(','));
-  const url = `${DATA_GOV_SEARCH}?resource_id=${encodeURIComponent(RESOURCE_ID)}&filters=${filters}&fields=${fields}&limit=1`;
+  const url = `${searchEndpoint()}?resource_id=${encodeURIComponent(RESOURCE_ID)}&filters=${filters}&fields=${fields}&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_MS);
+  const onCallerAbort = () => controller.abort();
+  if (signal) signal.addEventListener('abort', onCallerAbort, { once: true });
   try {
     const res = await fetchImpl(url, { signal: controller.signal });
     if (!res.ok) return { status: 'error' };
@@ -116,9 +136,12 @@ export async function lookupTestValidity(plateDigits, { fetchImpl = fetch, today
     if (!record) return { status: 'not_found' };
     return { status: 'found', record: sanitizeRecord(record, today) };
   } catch {
+    if (signal?.aborted) return { status: 'aborted' };
+    if (browserIsOffline()) return { status: 'offline' };
     return { status: 'network' };
   } finally {
     clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener('abort', onCallerAbort);
   }
 }
 

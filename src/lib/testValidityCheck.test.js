@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { guides, testReminderFaq } from './marketingContent';
-import { faqPageJsonLd, guideJsonLd } from './marketingSchema';
+import { faqJsonLd, guideJsonLd } from './marketingSchema';
 import {
   daysUntil,
   formatHebrewDate,
@@ -65,7 +65,23 @@ describe('validity dates', () => {
     expect(view.dueLabel).toBe('02.11.2027');
     expect(view.lastTestLabel).toBe('29.09.2026');
     expect(view.expired).toBe(false);
+    expect(view.expiringSoon).toBe(false);
     expect(view.duePhrase).toContain('נותרו');
+  });
+
+  it('marks a test that expires within 30 days, including today', () => {
+    const soon = presentTestValidity({ testDueDate: '2026-11-01' }, TODAY);
+    const edge = presentTestValidity({ testDueDate: '2026-10-02' }, TODAY);
+    const later = presentTestValidity({ testDueDate: '2026-11-02' }, TODAY);
+    const expired = presentTestValidity({ testDueDate: '2026-10-01' }, TODAY);
+    expect(soon.expiringSoon).toBe(true);
+    expect(soon.expired).toBe(false);
+    expect(soon.duePhrase).toBe('נותרו 30 ימים');
+    expect(edge.expiringSoon).toBe(true);
+    expect(edge.duePhrase).toBe('התוקף עד היום');
+    expect(later.expiringSoon).toBe(false);
+    expect(expired.expiringSoon).toBe(false);
+    expect(expired.expired).toBe(true);
   });
 });
 
@@ -122,6 +138,65 @@ describe('lookupTestValidity', () => {
     });
     expect(down).toEqual({ status: 'network' });
   });
+
+  it('stops when the caller aborts, and reports offline separately', async () => {
+    const already = new AbortController();
+    already.abort();
+    let called = false;
+    const skipped = await lookupTestValidity(PLATE, {
+      fetchImpl: async () => { called = true; return jsonResponse({}); },
+      signal: already.signal,
+    });
+    expect(skipped).toEqual({ status: 'aborted' });
+    expect(called).toBe(false);
+
+    const pending = new AbortController();
+    const cancelled = lookupTestValidity(PLATE, {
+      fetchImpl: (_url, init) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      }),
+      signal: pending.signal,
+    });
+    pending.abort();
+    expect(await cancelled).toEqual({ status: 'aborted' });
+
+    const previousNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+    try {
+      let fetched = false;
+      const offline = await lookupTestValidity(PLATE, {
+        fetchImpl: async () => { fetched = true; throw new Error('failed'); },
+      });
+      expect(offline).toEqual({ status: 'offline' });
+      expect(fetched).toBe(false);
+    } finally {
+      if (previousNav) Object.defineProperty(globalThis, 'navigator', previousNav);
+      else delete globalThis.navigator;
+    }
+  });
+
+  it('uses the dev proxy only on a local host', async () => {
+    const previous = globalThis.window;
+    globalThis.window = { location: { hostname: 'localhost', pathname: '/website/guides/test-reminder' } };
+    try {
+      let requested = '';
+      await lookupTestValidity(PLATE, {
+        fetchImpl: async (url) => {
+          requested = url;
+          return jsonResponse({ success: true, result: { records: [] } });
+        },
+      });
+      expect(requested.startsWith('/gov-api/api/3/action/datastore_search')).toBe(true);
+      expect(requested).toContain('resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3');
+    } finally {
+      if (previous === undefined) delete globalThis.window;
+      else globalThis.window = previous;
+    }
+  });
 });
 
 describe('trackTestCheckSubmit', () => {
@@ -160,7 +235,7 @@ describe('test reminder FAQ', () => {
     expect(words.length).toBeGreaterThan(280);
     expect(words.length).toBeLessThan(380);
     expect(text).not.toMatch(/[\u2013\u2014]/);
-    const schema = faqPageJsonLd(testReminderFaq);
+    const schema = faqJsonLd(testReminderFaq);
     expect(schema['@type']).toBe('FAQPage');
     expect(schema.mainEntity.map(item => item.name)).toEqual(testReminderFaq.map(([name]) => name));
     expect(guideJsonLd(article)['@graph'].map(node => node['@type'])).toEqual(['BreadcrumbList', 'Article']);

@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
-import { faqPageJsonLd } from '@/lib/marketingSchema';
+import React, { useEffect, useRef, useState } from 'react';
+import MarketingJsonLd from '@/components/MarketingJsonLd';
+import { faqJsonLd } from '@/lib/marketingSchema';
 import { appStoreUrl, googlePlayUrl } from '@/lib/storeLinks';
 import {
   lookupTestValidity,
@@ -10,9 +11,13 @@ import {
 
 const ERRORS = {
   not_found: 'לא מצאנו את המספר במאגר הרכב הפרטי. בדקו את הספרות ונסו שוב.',
-  network: 'לא הצלחנו להגיע למאגר. בדקו את החיבור ונסו שוב.',
+  offline: 'אין חיבור לאינטרנט. בדקו את החיבור ונסו שוב.',
+  network: 'לא הצלחנו להגיע למאגר. נסו שוב בעוד רגע.',
   error: 'המאגר לא החזיר תשובה תקינה. נסו שוב בעוד רגע.',
 };
+
+const SOON_CTA = 'הטסט פג בקרוב. מגדירים תזכורת באפליקציה, ונזכיר לכם לפני המועד.';
+const DEFAULT_CTA = 'קבלו תזכורת לפני שהטסט פג';
 
 function StoreButtons() {
   return <div className="cm-stores" data-link-location="test_check">
@@ -27,25 +32,30 @@ function StoreButtons() {
   </div>;
 }
 
-function ResultCard({ record }) {
-  const view = presentTestValidity(record);
-  return <div className={`cm-test-check-card${view.expired ? ' is-expired' : ''}`}>
+function ResultCard({ view }) {
+  const tone = view.expired ? ' is-expired' : view.expiringSoon ? ' is-soon' : '';
+  const statusClass = view.expired
+    ? 'cm-test-check-expired'
+    : view.expiringSoon
+      ? 'cm-test-check-soon'
+      : 'cm-test-check-ok';
+  return <div className={`cm-test-check-card${tone}`}>
     {view.identityLine && <p className="cm-test-check-vehicle">{view.identityLine}</p>}
     {view.dueLabel ? <dl>
       <div>
         <dt>תוקף הטסט עד</dt>
-        <dd>{view.dueLabel}</dd>
+        <dd dir="ltr">{view.dueLabel}</dd>
       </div>
       <div>
         <dt>מצב התוקף</dt>
-        <dd className={view.expired ? 'cm-test-check-expired' : 'cm-test-check-ok'}>{view.duePhrase}</dd>
+        <dd className={statusClass}>{view.duePhrase}</dd>
       </div>
       {view.lastTestLabel && <div>
         <dt>טסט אחרון</dt>
-        <dd>{view.lastTestLabel}</dd>
+        <dd dir="ltr">{view.lastTestLabel}</dd>
       </div>}
     </dl> : <p>במאגר אין תאריך תוקף לרכב הזה.</p>}
-    {view.missingDue && view.lastTestLabel && <p>טסט אחרון: {view.lastTestLabel}</p>}
+    {view.missingDue && view.lastTestLabel && <p>טסט אחרון: <span dir="ltr">{view.lastTestLabel}</span></p>}
   </div>;
 }
 
@@ -53,13 +63,25 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
   const inputRef = useRef(null);
   const requestRef = useRef(0);
   const pendingRef = useRef(false);
+  const abortRef = useRef(null);
   const [plate, setPlate] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('idle');
   const [record, setRecord] = useState(null);
   const loading = status === 'loading';
+  const view = status === 'found' && record ? presentTestValidity(record) : null;
+
+  function stopRequest() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+  }, []);
 
   function resetForEdit(next) {
+    stopRequest();
     requestRef.current += 1;
     pendingRef.current = false;
     setPlate(next);
@@ -73,6 +95,7 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
     if (pendingRef.current) return;
     const validation = normalizePlateDigits(plate);
     if (!validation.ok) {
+      stopRequest();
       requestRef.current += 1;
       setRecord(null);
       setStatus('idle');
@@ -81,6 +104,9 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
       trackTestCheckSubmit('invalid');
       return;
     }
+    stopRequest();
+    const controller = new AbortController();
+    abortRef.current = controller;
     pendingRef.current = true;
     const ticket = requestRef.current + 1;
     requestRef.current = ticket;
@@ -88,8 +114,8 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
     setRecord(null);
     setStatus('loading');
     try {
-      const outcome = await lookupTestValidity(validation.plate);
-      if (ticket !== requestRef.current) return;
+      const outcome = await lookupTestValidity(validation.plate, { signal: controller.signal });
+      if (outcome.status === 'aborted' || ticket !== requestRef.current) return;
       if (outcome.status === 'found') {
         setRecord(outcome.record);
         setStatus('found');
@@ -100,7 +126,7 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
       }
       trackTestCheckSubmit(outcome.status);
     } catch {
-      if (ticket !== requestRef.current) return;
+      if (controller.signal.aborted || ticket !== requestRef.current) return;
       setRecord(null);
       setStatus('network');
       setError(ERRORS.network);
@@ -111,7 +137,7 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
   }
 
   return <>
-    {faq.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageJsonLd(faq)).replaceAll('<', '\\u003c') }} />}
+    {faq.length > 0 && <MarketingJsonLd data={faqJsonLd(faq)} />}
     <section className="cm-test-check" aria-labelledby="cm-test-check-heading">
       <h2 id="cm-test-check-heading">בדיקת תוקף טסט לפי מספר רכב</h2>
       <p>הקלידו מספר רישוי של 7 או 8 ספרות, ונבדוק את תאריך התוקף במאגר הציבורי.</p>
@@ -136,15 +162,15 @@ export default function MarketingTestValidityCheck({ faq = [] }) {
           </div>
           <button className="cm-button cm-gold" type="submit" disabled={loading}>{loading ? 'בודקים' : 'בדיקה'}</button>
         </div>
-        <p id="cm-test-plate-hint" className="cm-test-check-hint">אפשר גם עם מקפים. המספר לא נשמר אצלנו.</p>
+        <p id="cm-test-plate-hint" className="cm-test-check-hint">אפשר גם עם מקפים. מספר הרישוי נשלח ל־data.gov.il, המאגר הממשלתי הציבורי, כדי לבדוק אותו, והוא לא נשמר אצלנו.</p>
         {error && <p id="cm-test-plate-error" role="alert" className="cm-error">{error}</p>}
       </form>
       <div className="cm-test-check-result" role="status" aria-live="polite" aria-atomic="true">
         {loading && <p>בודקים במאגר.</p>}
-        {status === 'found' && record && <ResultCard record={record} />}
+        {view && <ResultCard view={view} />}
       </div>
-      <div className="cm-test-check-cta">
-        <p>קבלו תזכורת לפני שהטסט פג</p>
+      <div className={`cm-test-check-cta${view?.expiringSoon ? ' is-soon' : ''}`}>
+        <p>{view?.expiringSoon ? SOON_CTA : DEFAULT_CTA}</p>
         <StoreButtons />
       </div>
       <p className="cm-test-check-note">הנתונים ממאגר הרכב הציבורי של משרד התחבורה באתר data.gov.il. ייתכן שהמידע אינו מעודכן. זה אינו אתר ממשלתי.</p>

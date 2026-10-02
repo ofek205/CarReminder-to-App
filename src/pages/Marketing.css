@@ -470,22 +470,25 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 .cm-test-check-row{display:grid;gap:12px}
 .cm-test-check .cm-plate{height:64px;border-radius:10px}
 .cm-test-check .cm-plate input{font-size:clamp(22px,6vw,30px);letter-spacing:2px;padding:0 8px}
-.cm-test-check .cm-plate.has-error{border-color:#a42520}
+.cm-test-check .cm-plate.has-error{border-color:var(--cr-status-danger-solid)}
 .cm-test-check .cm-button{width:100%;min-height:52px}
-.cm-test-check-hint,.cm-test-check-note{color:#53645a;font-size:13px!important;line-height:1.6;margin-top:10px!important}
+.cm-test-check-hint,.cm-test-check-note{color:var(--cm-muted);font-size:13px!important;line-height:1.6;margin-top:10px!important}
 .cm-test-check-result{margin-top:14px}
-.cm-test-check-card{background:#fff;border:1px solid #dce4d4;border-radius:16px;padding:16px 16px 6px}
-.cm-test-check-card.is-expired{border-color:#e4c2bf;background:#fff8f7}
+.cm-test-check-card{background:var(--cr-surface-card);border:1px solid var(--cr-green-200);border-radius:16px;padding:16px 16px 6px}
+.cm-test-check-card.is-expired{border-color:var(--cr-status-danger-border);background:var(--cr-status-danger-bg)}
+.cm-test-check-card.is-soon{border-color:var(--cr-status-warn-border);background:var(--cr-status-warn-bg)}
 .cm-test-check-vehicle{font-weight:600;margin-bottom:12px!important}
 .cm-test-check-card dl{display:grid;gap:10px;margin:0}
-.cm-test-check-card dt{color:#53645a;font-size:13px}
+.cm-test-check-card dt{color:var(--cm-muted);font-size:13px}
 .cm-test-check-card dd{margin:0;font-weight:600;font-size:18px}
-.cm-test-check-ok{color:#2d5233}
-.cm-test-check-expired{color:#8a2a22}
-.cm-test-check-cta{margin-top:18px;padding-top:14px;border-top:1px solid #dce4d4}
+.cm-test-check-ok{color:var(--cm-green)}
+.cm-test-check-soon{color:var(--cr-status-warn-fg)}
+.cm-test-check-expired{color:var(--cr-status-danger-fg)}
+.cm-test-check-cta{margin-top:18px;padding-top:14px;border-top:1px solid var(--cr-green-200)}
+.cm-test-check-cta.is-soon>p{color:var(--cr-status-warn-fg)}
 .cm-test-check-cta>p{font-weight:600}
 .cm-test-check-cta .cm-stores{justify-content:flex-start;margin:12px 0 0}
-.cm-test-faq details{border-bottom:1px solid #dce4d4;padding:14px 0}
+.cm-test-faq details{border-bottom:1px solid var(--cr-green-200);padding:14px 0}
 .cm-test-faq summary{cursor:pointer;font-weight:500;min-height:44px;display:flex;align-items:center}
 .cm-test-faq details p{margin-top:8px!important}
 @media(max-width:620px){
