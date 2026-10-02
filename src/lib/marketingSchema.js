@@ -21,6 +21,19 @@ export function mobileAppJsonLd() {
   };
 }
 
+export function faqPageJsonLd(faq) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    inLanguage: 'he',
+    mainEntity: faq.map(([name, text]) => ({
+      '@type': 'Question',
+      name,
+      acceptedAnswer: { '@type': 'Answer', text },
+    })),
+  };
+}
+
 export function guideJsonLd(article) {
   const name = article.heading || article.title;
   return {

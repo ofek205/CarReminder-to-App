@@ -190,6 +190,14 @@ describe('commit gate matcher', () => {
 // another's token. Everything below exists to keep that from coming back.
 
 describe('session id resolution', () => {
+  it('accepts a hook payload session id only when the environment has none', () => {
+    expect(resolveSessionId({}, 'cursor-conversation-5059')).toBe('cursor-conversation-5059');
+    expect(resolveSessionId(
+      { CLAUDE_CODE_SESSION_ID: '4d1595ef-8305-4860-ae1d-f98c2c67828c' },
+      'cursor-conversation-5059'
+    )).toBe('4d1595ef-8305-4860-ae1d-f98c2c67828c');
+  });
+
   it('accepts the id Claude Code actually exports', () => {
     // Measured from a real PreToolUse invocation, not invented.
     expect(resolveSessionId({ CLAUDE_CODE_SESSION_ID: '4d1595ef-8305-4860-ae1d-f98c2c67828c' })).toBe(
@@ -315,11 +323,23 @@ describe('the gate as a spawned process', () => {
   /** `sessionId: null` means the variable is absent, not empty. */
   const run = (command, sessionId, input) => {
     const env = { ...process.env };
+    // This VM exports CURSOR_CONVERSATION_ID. Strip it so a test that
+    // passes an explicit session, or none, is not identified by the VM.
+    delete env.CURSOR_CONVERSATION_ID;
     if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
     else env.CLAUDE_CODE_SESSION_ID = sessionId;
 
+    let body = input;
+    if (body === undefined) {
+      const data = payload(command);
+      // The default fixture carries a session_id. An "unknown session"
+      // case has to drop it too, or the payload fallback would identify it.
+      if (sessionId === null) delete data.session_id;
+      body = JSON.stringify(data);
+    }
+
     return spawnSync(process.execPath, [GATE], {
-      input: input === undefined ? JSON.stringify(payload(command)) : input,
+      input: body,
       env,
       encoding: 'utf8',
     });
@@ -386,9 +406,27 @@ describe('the gate as a spawned process', () => {
     expect(run('git status --short', nextId('ungated')).status).toBe(0);
   });
 
+  it('uses the payload session id when the hook environment has none', () => {
+    const id = nextId('payload');
+    put(id, Date.now());
+    const data = payload('git commit -m x');
+    data.session_id = id;
+    const env = { ...process.env };
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CURSOR_CONVERSATION_ID;
+    const r = spawnSync(process.execPath, [GATE], {
+      input: JSON.stringify(data),
+      env,
+      encoding: 'utf8',
+    });
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(tokenPath(id))).toBe(false);
+  });
+
   it('blocks a gated command when the session cannot be identified', () => {
-    // The fail-closed half of the undocumented-env-var risk. If Claude Code
-    // stops exporting CLAUDE_CODE_SESSION_ID, gated commands stop, loudly.
+    // The fail-closed half of the undocumented-env-var risk. If neither
+    // the environment nor the hook payload carries a session id, gated
+    // commands stop.
     const r = run('git commit -m x', null);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('could not identify this Claude session');
@@ -455,6 +493,7 @@ describe('the gate as a spawned process', () => {
 
   const approve = (sessionId) => {
     const env = { ...process.env };
+    delete env.CURSOR_CONVERSATION_ID;
     if (sessionId === null) delete env.CLAUDE_CODE_SESSION_ID;
     else env.CLAUDE_CODE_SESSION_ID = sessionId;
     return spawnSync(process.execPath, [APPROVE], { env, encoding: 'utf8' });

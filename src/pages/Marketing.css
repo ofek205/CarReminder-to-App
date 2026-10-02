@@ -461,6 +461,41 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 .cm-a11y-list li{margin-bottom:10px;line-height:1.8}
 .cm-a11y-contact{display:flex;align-items:center;gap:8px;margin-top:12px}
 
+/* Test-validity tool on /website/guides/test-reminder.
+   Sits in the article column, so it stacks on a phone and only lines the
+   plate and the button up once there is room. */
+.cm-test-check h2,.cm-test-faq h2{margin-bottom:10px}
+.cm-test-check-form{margin-top:16px}
+.cm-test-check-form label{display:block;font-weight:500;margin-bottom:8px}
+.cm-test-check-row{display:grid;gap:12px}
+.cm-test-check .cm-plate{height:64px;border-radius:10px}
+.cm-test-check .cm-plate input{font-size:clamp(22px,6vw,30px);letter-spacing:2px;padding:0 8px}
+.cm-test-check .cm-plate.has-error{border-color:#a42520}
+.cm-test-check .cm-button{width:100%;min-height:52px}
+.cm-test-check-hint,.cm-test-check-note{color:#53645a;font-size:13px!important;line-height:1.6;margin-top:10px!important}
+.cm-test-check-result{margin-top:14px}
+.cm-test-check-card{background:#fff;border:1px solid #dce4d4;border-radius:16px;padding:16px 16px 6px}
+.cm-test-check-card.is-expired{border-color:#e4c2bf;background:#fff8f7}
+.cm-test-check-vehicle{font-weight:600;margin-bottom:12px!important}
+.cm-test-check-card dl{display:grid;gap:10px;margin:0}
+.cm-test-check-card dt{color:#53645a;font-size:13px}
+.cm-test-check-card dd{margin:0;font-weight:600;font-size:18px}
+.cm-test-check-ok{color:#2d5233}
+.cm-test-check-expired{color:#8a2a22}
+.cm-test-check-cta{margin-top:18px;padding-top:14px;border-top:1px solid #dce4d4}
+.cm-test-check-cta>p{font-weight:600}
+.cm-test-check-cta .cm-stores{justify-content:flex-start;margin:12px 0 0}
+.cm-test-faq details{border-bottom:1px solid #dce4d4;padding:14px 0}
+.cm-test-faq summary{cursor:pointer;font-weight:500;min-height:44px;display:flex;align-items:center}
+.cm-test-faq details p{margin-top:8px!important}
+@media(max-width:620px){
+  .cm-test-check-cta .cm-stores,.cm-test-check-cta .cm-stores a{width:100%}
+}
+@media(min-width:720px){
+  .cm-test-check-row{grid-template-columns:1fr auto;align-items:center}
+  .cm-test-check .cm-button{width:auto;min-width:132px}
+}
+
 .cm-site .cm-context-follow{margin-top:14px}
 .cm-site .cm-context-link{text-decoration:underline;text-underline-offset:3px}
 .cm-category-art picture{display:block;width:100%;height:100%}
