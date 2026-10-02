@@ -125,36 +125,12 @@ const SESSION_ID_RE = /^[A-Za-z0-9._-]{8,200}$/;
  * `env` is injectable so the tests can exercise the missing and malformed
  * cases without mutating the real process environment.
  */
-function readSessionId(value) {
-  if (typeof value !== 'string') return null;
-  const id = value.trim();
+function resolveSessionId(env) {
+  const raw = (env || process.env).CLAUDE_CODE_SESSION_ID;
+  if (typeof raw !== 'string') return null;
+  const id = raw.trim();
   if (!SESSION_ID_RE.test(id)) return null;
   return id;
-}
-
-function resolveSessionId(env, payloadSessionId) {
-  const source = env || process.env;
-  // Claude Code puts the id in the environment, and that wins: approve.cjs
-  // and the hook both see it, and a payload naming some other session must
-  // not redirect the token (see the test that pins this).
-  //
-  // Cursor cloud agents do not export CLAUDE_CODE_SESSION_ID. The shell
-  // that runs approve.cjs does export CURSOR_CONVERSATION_ID. The hook
-  // process does not, but its payload session_id is that same conversation
-  // id. Using the payload only when the environment has no id keeps the
-  // two halves on one session here, and still fails closed when neither
-  // side has an identifier. It is not a shared token: the id is still
-  // per conversation, and an invalid one is treated as no id at all.
-  // A present but unusable id is "no session", not a cue to try the next
-  // source. Otherwise a path-shaped CLAUDE_CODE_SESSION_ID would fall
-  // through to the payload and the bad value would stop being a block.
-  if (Object.prototype.hasOwnProperty.call(source, 'CLAUDE_CODE_SESSION_ID')) {
-    return readSessionId(source.CLAUDE_CODE_SESSION_ID);
-  }
-  if (Object.prototype.hasOwnProperty.call(source, 'CURSOR_CONVERSATION_ID')) {
-    return readSessionId(source.CURSOR_CONVERSATION_ID);
-  }
-  return readSessionId(payloadSessionId);
 }
 
 /**
@@ -303,7 +279,7 @@ function main() {
   // any earlier would mean a missing env var blocked every Bash call in the
   // session instead of only the gated ones — fail-closed is the contract for
   // the commands this gate guards, not a licence to break the whole tool.
-  const sessionId = resolveSessionId(undefined, payload?.session_id);
+  const sessionId = resolveSessionId();
   if (sessionId === null) {
     block(
       'The gate could not identify this Claude session.\n\n' +
