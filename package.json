@@ -24,7 +24,7 @@
     "postinstall": "node scripts/postinstall.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postbuild": "node ./scripts/build-precache-manifest.cjs",
+    "postbuild": "node ./scripts/check-smart-app-banner.mjs && node ./scripts/build-precache-manifest.cjs",
     "test:marketing": "node scripts/test-marketing.mjs"
   },
   "dependencies": {
