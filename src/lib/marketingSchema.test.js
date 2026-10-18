@@ -92,6 +92,7 @@ describe('marketing JSON-LD', () => {
       const published = guidePublishedDates[g.slug];
       const mapped = contentLastModified[`/website/guides/${g.slug}`];
       const modified = guideJsonLd(g)['@graph'][1].dateModified;
+      if (published && mapped) expect(mapped >= published, `${g.slug} lastmod is before datePublished`).toBe(true);
       if (published && mapped && mapped >= published) expect(modified).toBe(mapped);
       else expect(modified).toBeUndefined();
       if (modified) expect(modified >= published).toBe(true);

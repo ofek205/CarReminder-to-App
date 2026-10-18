@@ -23,14 +23,16 @@ export const contentLastModified = {
   '/website/vessels': '2026-09-10',
   '/website/vehicle-lookup': '2026-09-25',
   '/website/test-insurance-reminders': '2026-09-25',
-  '/website/guides/engine-hours': '2026-09-10',
-  '/website/guides/equipment-documents': '2026-09-10',
-  '/website/guides/collector-status': '2026-09-10',
+  // These five were committed on 2026-09-10, before the guides were public.
+  // GUIDE_PUBLISHED is 2026-09-12. lastmod and dateModified must not be earlier.
+  '/website/guides/engine-hours': '2026-09-12',
+  '/website/guides/equipment-documents': '2026-09-12',
+  '/website/guides/collector-status': '2026-09-12',
   '/website/guides/test-reminder': '2026-10-18',
-  '/website/guides/vehicle-documents': '2026-09-10',
+  '/website/guides/vehicle-documents': '2026-09-12',
   '/website/guides/maintenance-log': '2026-09-25',
   '/website/guides/plate-check': '2026-09-25',
-  '/website/guides/vessel-records': '2026-09-10',
+  '/website/guides/vessel-records': '2026-09-12',
 };
 
 // Same URL set and the same vehicle-check exclusion as the prerender.
