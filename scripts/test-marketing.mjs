@@ -181,3 +181,25 @@ assert.ok(!homeHtml.includes('/marketing/hero-harley.webp'), 'later hero slides 
 for (const match of homeHtml.matchAll(/srcset="(\/marketing\/cards\/[^"]+\.avif)"/g)) {
   await fs.access(path.join('dist', match[1]));
 }
+
+const v6514Lines = [
+  'מציאת מוסכים וחנויות חלקים בקרבתך',
+  'עדכון אוטומטי של פרטי הרכב ממשרד התחבורה',
+  'קישורי הזמנה והעברת רכב',
+  'תמיכה מלאה במשאיות ובצמ״ה, כולל תזכורות לתוקף הרישוי',
+];
+for (const line of v6514Lines) {
+  assert.ok(homeHtml.includes(line), `/website: features area includes ${line}`);
+}
+const autoUpdate = 'אחרי ששומרים את הרכב באפליקציה, פרטיו מתעדכנים אוטומטית ממאגרי משרד התחבורה.';
+for (const route of ['/website/guides/plate-check', '/website/vehicle-lookup']) {
+  assert.ok(pages.get(route).includes(autoUpdate), `${route}: says saved vehicle details update from the Ministry of Transport`);
+}
+const faqQuestion = 'האם פרטי הרכב מתעדכנים לבד?';
+const faqAnswer = 'כן. אחרי ששומרים רכב לפי מספר רישוי, Car Reminder מעדכנת את פרטיו אוטומטית ממאגרי משרד התחבורה. כדאי לבדוק מדי פעם שהתאריכים תואמים לרישיון שביד, כי המאגר הציבורי מתעדכן לפעמים באיחור.';
+const remindersHtml = pages.get('/website/test-insurance-reminders');
+assert.ok(remindersHtml.includes(`<summary>${faqQuestion}</summary>`), 'reminders FAQ question is visible');
+assert.ok(remindersHtml.includes(faqAnswer), 'reminders FAQ answer is visible');
+const remindersFaq = jsonLd(remindersHtml).flatMap(block => block['@graph'] || []).find(node => node['@type'] === 'FAQPage');
+const remindersQuestion = remindersFaq?.mainEntity?.find(item => item.name === faqQuestion);
+assert.equal(remindersQuestion?.acceptedAnswer?.text, faqAnswer, 'reminders FAQ JSON-LD matches the visible answer');
