@@ -6,6 +6,7 @@ import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server.js';
 import { marketingRoutes, marketingMetadata } from '../src/lib/marketingContent.js';
+import { sitemapUrlSet } from '../src/lib/marketingDates.js';
 import { SITE_GTAG_SNIPPET } from '../src/lib/siteGtagSnippet.js';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -129,8 +130,7 @@ export function marketingPrerender() {
           await fs.writeFile(destination, html);
         }
         if (origin) {
-          const urls = marketingRoutes.filter(route => route !== '/website/vehicle-check').map(route => `<url><loc>${escape(origin + route)}</loc></url>`).join('');
-          await fs.writeFile(path.join(output, 'website/sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+          await fs.writeFile(path.join(output, 'website/sitemap.xml'), sitemapUrlSet(origin, marketingRoutes, escape));
         }
         // robots.txt is emitted here, not shipped from public/, so that the
         // SAME switch that decides index-vs-noindex decides this too. A
