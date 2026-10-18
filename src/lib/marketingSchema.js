@@ -1,3 +1,5 @@
+import { contentLastModified } from './marketingDates.js';
+
 // Structured data for the marketing site. Only fields that can be checked
 // in this repo are included.
 //
@@ -39,9 +41,11 @@ const ARTICLE_IMAGE = `${SITE_ORIGIN}/marketing/og-main.jpg`;
  * default and it is deliberate: a missing date costs a recommended field, a
  * wrong one misstates when the page existed.
  *
- * dateModified is omitted for the same reason. Nothing in this repo records
- * when a guide's text last changed in a way the build can read, and a
- * dateModified that is never updated is a false freshness signal.
+ * dateModified comes from contentLastModified in marketingDates.js, and only
+ * when that date is present and not earlier than datePublished. A guide with
+ * no map entry, or a content date from before it was public, emits no
+ * dateModified. Whoever changes a guide updates the map. A date that is never
+ * updated is a false freshness signal.
  */
 const GUIDE_PUBLISHED = {
   'engine-hours': '2026-09-12',
@@ -131,6 +135,8 @@ export function mobileAppJsonLd() {
 export function guideJsonLd(article) {
   const name = article.heading || article.title;
   const published = GUIDE_PUBLISHED[article.slug];
+  const mapped = contentLastModified[`/website/guides/${article.slug}`];
+  const modified = published && mapped && mapped >= published ? mapped : undefined;
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -148,6 +154,7 @@ export function guideJsonLd(article) {
         author: organization(),
         publisher: organization(),
         ...(published ? { datePublished: published } : {}),
+        ...(modified ? { dateModified: modified } : {}),
       },
     ],
   };

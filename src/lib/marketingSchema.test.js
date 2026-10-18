@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
-import { guides, productPages } from './marketingContent';
+import { guides, marketingRoutes, productPages } from './marketingContent';
+import { contentLastModified, sitemapUrlSet } from './marketingDates';
 import {
   APPLE_STORE_URL, GOOGLE_PLAY_URL, faqJsonLd, guideJsonLd, guidePublishedDates,
   mobileAppJsonLd, organizationJsonLd, pageJsonLd,
@@ -86,8 +87,35 @@ describe('marketing JSON-LD', () => {
     }
     // A guide with no entry must emit no datePublished rather than a guess.
     expect(guideJsonLd({ slug: 'not-yet-dated', title: 't', text: 'x' })['@graph'][1].datePublished).toBeUndefined();
-    // And no dateModified anywhere: nothing here can keep it true.
-    for (const g of guides) expect(guideJsonLd(g)['@graph'][1].dateModified).toBeUndefined();
+    expect(guideJsonLd({ slug: 'not-yet-dated', title: 't', text: 'x' })['@graph'][1].dateModified).toBeUndefined();
+    for (const g of guides) {
+      const published = guidePublishedDates[g.slug];
+      const mapped = contentLastModified[`/website/guides/${g.slug}`];
+      const modified = guideJsonLd(g)['@graph'][1].dateModified;
+      if (published && mapped && mapped >= published) expect(modified).toBe(mapped);
+      else expect(modified).toBeUndefined();
+      if (modified) expect(modified >= published).toBe(true);
+    }
+  });
+
+  it('writes sitemap lastmod from the content map, and the dates are not all the same', () => {
+    const xml = sitemapUrlSet('https://car-reminder.app', marketingRoutes);
+    expect(xml).not.toContain('/website/vehicle-check');
+    const indexed = marketingRoutes.filter(route => route !== '/website/vehicle-check');
+    const pairs = [...xml.matchAll(/<url><loc>https:\/\/car-reminder\.app([^<]+)<\/loc>(?:<lastmod>([^<]+)<\/lastmod>)?<\/url>/g)];
+    expect(pairs.map(match => match[1])).toEqual(indexed);
+    const lastmods = [];
+    for (const [, route, date] of pairs) {
+      const mapped = contentLastModified[route];
+      if (mapped) {
+        expect(date).toBe(mapped);
+        lastmods.push(date);
+      } else {
+        expect(date).toBeUndefined();
+      }
+    }
+    expect(new Set(lastmods).size).toBeGreaterThan(1);
+    expect(lastmods).toContain(contentLastModified['/website/guides/test-reminder']);
   });
 
   it('adds a FAQPage only when the page has questions', () => {
